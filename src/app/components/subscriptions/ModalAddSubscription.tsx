@@ -5,6 +5,16 @@ import { useApi } from "../../../hooks/useSupabase";
 import { Child } from "../../types";
 import { ModalType } from "../../types";
 
+interface Exercise {
+  id: string;
+  name: string;
+  day: string;
+  start_time: string;
+  end_time: string;
+  type: string;
+  trainers?: { name: string };
+}
+
 interface Props {
   onClose: () => void;
   onCreated?: () => void;
@@ -29,6 +39,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const api = useApi();
   const [loading, setLoading] = useState(false);
   const [children, setChildren] = useState<Child[]>([]);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
   const [childSearch, setChildSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedChild, setSelectedChild] = useState<{ id: string; name: string } | null>(null);
@@ -38,13 +49,20 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [insurance, setInsurance] = useState(300);
   const [entryFee, setEntryFee] = useState(700);
   const [subType, setSubType] = useState("");
+  const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
+  const [exSearch, setExSearch] = useState("");
 
   useEffect(() => {
     api.children.getAll().then(setChildren).catch(console.error);
+    api.exercises.getAll().then(setExercises).catch(console.error);
   }, []);
 
   const filteredChildren = children.filter(c =>
     c.name.toLowerCase().includes(childSearch.toLowerCase())
+  );
+
+  const filteredExercises = exercises.filter(ex =>
+    ex.name.toLowerCase().includes(exSearch.toLowerCase())
   );
 
   const baseAmount = PRICE_TABLE[activities]?.[subscriptionType] || 0;
@@ -54,6 +72,12 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
     setSelectedChild({ id: child.id, name: child.name });
     setChildSearch(child.name);
     setShowSuggestions(false);
+  }
+
+  function toggleExercise(exId: string) {
+    setSelectedExercises(prev =>
+      prev.includes(exId) ? prev.filter(id => id !== exId) : [...prev, exId]
+    );
   }
 
   async function handleSubmit() {
@@ -78,6 +102,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         discount: discount,
         insurance: insurance,
         entry_fee: entryFee,
+        exercises: selectedExercises,
         status: "actif",
         start_date: startDate.toISOString().split("T")[0],
         end_date: endDate.toISOString().split("T")[0],
@@ -211,9 +236,57 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
           </div>
         </div>
 
-        {/* ── Section 3 : Financial details ── */}
+        {/* ── Section 3 : Exercices ── */}
         <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Détails financiers</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Exercices inclus</p>
+          <div className="border border-slate-200 p-4">
+            <div className="relative mb-3">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                className={`${inputCls} pl-8`}
+                placeholder="Rechercher un exercice..."
+                value={exSearch}
+                onChange={e => setExSearch(e.target.value)}
+              />
+            </div>
+            <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200">
+              {filteredExercises.length === 0 ? (
+                <div className="px-3 py-3 text-xs text-slate-400 text-center">Aucun exercice trouvé</div>
+              ) : (
+                filteredExercises.map(ex => {
+                  const isSelected = selectedExercises.includes(ex.id);
+                  return (
+                    <button
+                      key={ex.id}
+                      onClick={() => toggleExercise(ex.id)}
+                      className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-colors ${
+                        isSelected ? "bg-emerald-50 text-emerald-800" : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div>
+                        <span className="font-medium">{ex.name}</span>
+                        <span className="text-xs text-slate-400 ml-2">{ex.day} · {ex.start_time}–{ex.end_time}</span>
+                        <span className="text-xs text-slate-400 ml-1">({ex.trainers?.name || "—"})</span>
+                      </div>
+                      <div className={`w-4 h-4 border flex items-center justify-center ${
+                        isSelected ? "bg-emerald-500 border-emerald-500" : "border-slate-300"
+                      }`}>
+                        {isSelected && <Check size={10} className="text-white" />}
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            {selectedExercises.length > 0 && (
+              <p className="text-xs text-emerald-600 mt-2">{selectedExercises.length} exercice(s) sélectionné(s)</p>
+            )}
+          </div>
+        </div>
+
+        {/* ── Section 4 : Financial details ── */}
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">4. Détails financiers</p>
           <div className="border border-slate-200 p-4">
             <div className="grid grid-cols-2 gap-4">
               <Field label="Montant de base (Dhs)">

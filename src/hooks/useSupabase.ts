@@ -100,6 +100,9 @@ export function useApi() {
       createLog: (data: any) => request('/attendance/logs', { method: 'POST', body: JSON.stringify(data) }),
       getSchedules: (childId: string) => request(`/attendance/schedules/${childId}`),
       createSchedule: (data: any) => request('/attendance/schedules', { method: 'POST', body: JSON.stringify(data) }),
+      getExerciseChildren: (exerciseId: string) => request(`/attendance/exercises/${exerciseId}/children`),
+      markAttendance: (data: { exercise_id: string; date: string; absences: { child_id: string; type: string }[] }) =>
+        request('/attendance/mark', { method: 'POST', body: JSON.stringify(data) }),
     },
 
     // ─── Payments ────────────────────────────────

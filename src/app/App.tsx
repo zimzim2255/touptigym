@@ -4,6 +4,7 @@ import { ModalAddParent, ModalParentDetail, PageParents } from "./components/par
 import { ModalAddSubscription, ModalSubscriptionDetail, PageAbonnements } from "./components/subscriptions";
 import { ModalAddExercice, ModalExerciceDetail, PageExercices } from "./components/exercises";
 import { ModalAddTrainer, ModalTrainerDetail, PageEntraineurs } from "./components/trainers";
+import { PageAbsences, PageTrainerToday, ModalMarkAttendance } from "./components/attendance";
 import { Tag, Btn, Field, inputCls, selectCls, Modal, PageWrap } from "./components/shared";
 import {
   Baby, CreditCard, Dumbbell, Shield, AlertCircle, CalendarCheck,
@@ -56,7 +57,7 @@ const SUBSCRIPTIONS = [
 ];
 
 const EXERCICES = [
-  { id: "1", nom: "Football U8", jour: "Lundi", type: "Football", heure: "14:00–16:00", coach: "M. Idrissi", enfants: 12, prix: 150 },
+  { id: "1", nom: "Football U8", jour: "Mercredi", type: "Football", heure: "14:00–18:00", coach: "M. Idrissi", enfants: 12, prix: 150 },
   { id: "2", nom: "Gym Artistique", jour: "Mercredi", type: "Gymnastics", heure: "10:00–12:00", coach: "Mme. Bensaid", enfants: 8, prix: 180 },
   { id: "3", nom: "Basketball U10", jour: "Vendredi", type: "Basketball", heure: "15:00–17:00", coach: "M. Ouali", enfants: 10, prix: 160 },
   { id: "4", nom: "Natation Débutant", jour: "Samedi", type: "Swimming", heure: "09:00–10:30", coach: "Mme. Kharroubi", enfants: 6, prix: 200 },
@@ -257,50 +258,6 @@ function ModalAddRequest({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ─── Mark Attendance Modal ────────────────────────────────────────────────────
-function ModalMarkAttendance({ exercice, onClose }: { exercice: typeof EXERCICES[0]; onClose: () => void }) {
-  const [status, setStatus] = useState<Record<string, "present" | "absent">>({ "1": "present" });
-  return (
-    <Modal title={`Présence — ${exercice.nom} (${exercice.jour} ${exercice.heure})`} onClose={onClose} wide>
-      <div className="space-y-3">
-        <p className="text-sm text-slate-600">Enfants inscrits à cette séance :</p>
-        <div className="border border-slate-200 divide-y divide-slate-100">
-          {CHILDREN.slice(0, 4).map(child => {
-            const s = status[child.id];
-            return (
-              <div key={child.id} className="flex items-center justify-between px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500">
-                    {child.nom[0]}
-                  </div>
-                  <span className="text-sm text-slate-800">{child.nom}</span>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setStatus(p => ({ ...p, [child.id]: "present" }))}
-                    className={`px-3 py-1.5 text-xs font-medium border transition-colors ${s === "present" ? "bg-emerald-500 text-white border-emerald-500" : "border-slate-300 text-slate-600 hover:border-emerald-400"}`}
-                  >
-                    <Check size={11} className="inline mr-1" />Présent
-                  </button>
-                  <button
-                    onClick={() => setStatus(p => ({ ...p, [child.id]: "absent" }))}
-                    className={`px-3 py-1.5 text-xs font-medium border transition-colors ${s === "absent" ? "bg-red-500 text-white border-red-500" : "border-slate-300 text-slate-600 hover:border-red-400"}`}
-                  >
-                    <X size={11} className="inline mr-1" />Absent
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="flex gap-3 pt-2 border-t border-slate-100">
-          <Btn className="w-full justify-center"><Check size={13} /> Enregistrer</Btn>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
 // ─── Add Exercice Modal is imported from ./components/exercises ───────────────
 
 // ─── PageWrap is imported from ./components/shared ────────────────────────────
@@ -404,56 +361,6 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
 // ─── Page: Exercices is imported from ./components/exercises ──────────────────
 
 // ─── Page: Entraîneurs is imported from ./components/trainers ─────────────────
-
-// ─── Page: Absences ───────────────────────────────────────────────────────────
-function PageAbsences({ openModal, setSelectedAbsence }: {
-  openModal: (m: ModalType) => void;
-  setSelectedAbsence: (a: typeof ABSENCES[0]) => void;
-}) {
-  return (
-    <PageWrap title="Présences & Absences" sub="Historique des présences">
-      <div className="flex gap-2 flex-wrap">
-        {["Date", "Exercice", "Enfant"].map(f => (
-          <button key={f} className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 bg-white text-xs text-slate-600 hover:border-slate-400 transition-colors">
-            <Filter size={11} /> {f}
-          </button>
-        ))}
-      </div>
-      <div className="bg-white border border-slate-200">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              {["Enfant", "Date", "Exercice", "Type", "Justifié", ""].map(h => (
-                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {ABSENCES.map(a => (
-              <tr key={a.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-slate-900">{a.enfant}</td>
-                <td className="px-4 py-3 text-slate-500">{a.date}</td>
-                <td className="px-4 py-3 text-slate-500">{a.exercice}</td>
-                <td className="px-4 py-3"><Tag color={a.type === "absence" ? "red" : a.type === "retard" ? "amber" : "blue"}>{a.type.replace("_", " ")}</Tag></td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-1">
-                    {a.justifie ? <Check size={13} className="text-emerald-500" /> : <X size={13} className="text-red-400" />}
-                    {a.justifie && <span className="text-xs text-slate-400 truncate max-w-24">{a.justificatif}</span>}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  {!a.justifie && (
-                    <button onClick={() => { setSelectedAbsence(a); openModal("justify-absence"); }} className="text-xs text-orange-600 hover:underline">Justifier</button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </PageWrap>
-  );
-}
 
 // ─── Page: Chèques ────────────────────────────────────────────────────────────
 function PageChecks({ openModal, setSelectedCheck }: {
@@ -710,48 +617,6 @@ function PageTarifs() {
   );
 }
 
-// ─── Page: Trainer — Today's exercises ───────────────────────────────────────
-function PageTrainerExercices({ openModal, setSelectedEx }: {
-  openModal: (m: ModalType) => void;
-  setSelectedEx: (e: typeof EXERCICES[0]) => void;
-}) {
-  const today = EXERCICES.filter(e => e.jour === "Lundi");
-  const upcoming = EXERCICES.filter(e => e.jour !== "Lundi");
-  return (
-    <PageWrap title="Exercices du Jour" sub="Lundi 22 Juillet 2026">
-      {today.length > 0 && (
-        <div className="divide-y divide-slate-200 border border-slate-200 bg-white">
-          {today.map(ex => (
-            <div key={ex.id} className="px-5 py-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="font-semibold text-slate-900">{ex.nom}</p>
-                <p className="text-sm text-slate-500 mt-0.5">Coach : {ex.coach} · {ex.heure} · {ex.enfants} enfants</p>
-              </div>
-              <Btn size="sm" onClick={() => { setSelectedEx(ex); openModal("mark-attendance"); }}>
-                <CalendarCheck size={13} /> Marquer la présence
-              </Btn>
-            </div>
-          ))}
-        </div>
-      )}
-      <div>
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Exercices à venir</p>
-        <div className="divide-y divide-slate-200 border border-slate-200 bg-white">
-          {upcoming.map(ex => (
-            <div key={ex.id} className="px-5 py-3 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-700">{ex.nom}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{ex.jour} · {ex.heure}</p>
-              </div>
-              <Tag>{ex.type}</Tag>
-            </div>
-          ))}
-        </div>
-      </div>
-    </PageWrap>
-  );
-}
-
 // ─── Nav configs ──────────────────────────────────────────────────────────────
 type NavItem = { id: string; label: string; icon: React.ElementType };
 
@@ -838,11 +703,17 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
   const [selectedChild, setSelectedChild] = useState<{ id: string; name: string } | null>(null);
   const [selectedParent, setSelectedParent] = useState<{ id: string; name: string; editMode?: boolean } | null>(null);
   const [selectedSubscription, setSelectedSubscription] = useState<{ id: string; name: string } | null>(null);
-  const [selectedAbsence, setSelectedAbsence] = useState<typeof ABSENCES[0] | null>(null);
+  const [selectedAbsence, setSelectedAbsence] = useState<any>(null);
   const [selectedCheck, setSelectedCheck] = useState<typeof CHECKS[0] | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<{ id: string; name: string } | null>(null);
   const [selectedTrainer, setSelectedTrainer] = useState<{ id: string; name: string } | null>(null);
-  const [selectedEx, setSelectedEx] = useState<typeof EXERCICES[0]>(EXERCICES[0]);
+  const [selectedEx, setSelectedEx] = useState<{ id: string; name: string; day: string; start_time: string; end_time: string }>({
+    id: EXERCICES[0].id,
+    name: EXERCICES[0].nom,
+    day: EXERCICES[0].jour,
+    start_time: EXERCICES[0].heure.split("–")[0] || "",
+    end_time: EXERCICES[0].heure.split("–")[1] || "",
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -859,7 +730,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       case "acces": return <PageAcces />;
       case "demandes": return <PageDemandes canValidate={role === "admin"} openModal={setModal} />;
       case "tarifs": return <PageTarifs />;
-      case "today": return <PageTrainerExercices openModal={setModal} setSelectedEx={setSelectedEx} />;
+      case "today": return <PageTrainerToday openModal={setModal} setSelectedEx={setSelectedEx} />;
       default: return null;
     }
   }
