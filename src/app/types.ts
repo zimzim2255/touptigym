@@ -55,6 +55,21 @@ export interface Exercise {
   created_at: string;
 }
 
+export interface Check {
+  id: string;
+  number: string;
+  amount: number;
+  bank: string | null;
+  account_holder: string | null;
+  date_emission: string | null;
+  date_execution: string | null;
+  used: boolean;
+  montant_used: number;
+  payment_id: string | null;
+  file: string | null;
+  created_at: string;
+}
+
 export interface UrgentRequest {
   id: string;
   child_id: string;

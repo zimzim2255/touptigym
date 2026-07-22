@@ -4,10 +4,11 @@ import { ModalAddParent, ModalParentDetail, PageParents } from "./components/par
 import { ModalAddSubscription, ModalSubscriptionDetail, PageAbonnements } from "./components/subscriptions";
 import { ModalAddExercice, ModalExerciceDetail, PageExercices } from "./components/exercises";
 import { ModalAddTrainer, ModalTrainerDetail, PageEntraineurs } from "./components/trainers";
+import { ModalAddCheck, ModalCheckDetail, PageChecks } from "./components/checks";
 import { PageAbsences, PageTrainerToday, ModalMarkAttendance } from "./components/attendance";
 import { Tag, Btn, Field, inputCls, selectCls, Modal, PageWrap } from "./components/shared";
 import { useApi } from "../hooks/useSupabase";
-import type { UrgentRequest, Child as ChildType, Exercise as ExerciseType } from "./types";
+import type { UrgentRequest, Child as ChildType, Exercise as ExerciseType, Check as CheckType } from "./types";
 import {
   Baby, CreditCard, Dumbbell, Shield, AlertCircle, CalendarCheck,
   Banknote, Settings, LayoutDashboard, LogOut, Search, Plus, Check,
@@ -33,64 +34,9 @@ type ModalType =
   | "mark-attendance"
   | "add-exercice" | "exercice-detail";
 
-// ─── Inline mock check type (no global mock data) ────────────────────────────
-type CheckItem = { id: string; numero: string; montant: number; banque: string; titulaire: string; statut: string; date: string };
 type AbsenceItem = { id: string; enfant: string; exercice: string; date: string; type: string; justifie: boolean; justificatif: string };
 
 // ─── Add Subscription Modal is imported from ./components/subscriptions ───────
-
-// ─── Add Check Modal ──────────────────────────────────────────────────────────
-function ModalAddCheck({ onClose }: { onClose: () => void }) {
-  return (
-    <Modal title="Ajouter un Chèque" onClose={onClose}>
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Numéro de chèque" required><input className={inputCls} placeholder="XXXX" /></Field>
-          <Field label="Montant (Dhs)" required><input type="number" className={inputCls} defaultValue="0.00" /></Field>
-          <Field label="Banque" required><input className={inputCls} placeholder="Nom de la banque" /></Field>
-          <Field label="Titulaire" required>
-            <input className={inputCls} placeholder="Nom du titulaire" />
-          </Field>
-        </div>
-        <Field label="Image / Fichier du chèque (optionnel)">
-          <input type="file" className={inputCls} accept="image/*,.pdf" />
-        </Field>
-        <div className="flex gap-3 pt-2 border-t border-slate-100">
-          <Btn><Check size={13} /> Créer</Btn>
-          <Btn variant="outline" onClick={onClose}>Annuler</Btn>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-// ─── Check Detail Modal ───────────────────────────────────────────────────────
-function ModalCheckDetail({ check, onClose }: { check: CheckItem; onClose: () => void }) {
-  return (
-    <Modal title="Détails du Chèque" onClose={onClose}>
-      <div className="space-y-4">
-        <div>
-          <p className="text-xs text-slate-500 uppercase font-semibold">Numéro</p>
-          <p className="text-2xl font-bold text-slate-900 mt-0.5" style={{ fontFamily: "'DM Mono', monospace" }}>#{check.numero}</p>
-        </div>
-        <div className="border border-slate-200 p-4 space-y-2 text-sm">
-          <div className="flex justify-between"><span className="text-slate-500">Montant</span><span className="font-semibold text-slate-900">{check.montant.toLocaleString()},00 Dhs</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Banque</span><span>{check.banque}</span></div>
-          <div className="flex justify-between"><span className="text-slate-500">Titulaire</span><span>{check.titulaire}</span></div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">Statut</span>
-            <Tag color={check.statut === "disponible" ? "green" : "red"}>{check.statut}</Tag>
-          </div>
-          <div className="flex justify-between"><span className="text-slate-500">Créé le</span><span>{check.date}</span></div>
-        </div>
-        <div className="flex gap-3">
-          <Btn variant="outline" onClick={onClose}>Fermer</Btn>
-          <Btn variant="danger"><Trash2 size={13} /> Supprimer</Btn>
-        </div>
-      </div>
-    </Modal>
-  );
-}
 
 // ─── Add Trainer Modal is imported from ./components/trainers ─────────────────
 
@@ -481,60 +427,6 @@ function PageDemandes({ canValidate, openModal, onRefresh }: {
   );
 }
 
-// ─── Page: Chèques ────────────────────────────────────────────────────────────
-const CHECKS_MOCK: CheckItem[] = [
-  { id: "1", numero: "1023", montant: 5000, banque: "Banque Populaire", titulaire: "Fatima Benali", statut: "disponible", date: "15/07/2026" },
-  { id: "2", numero: "2056", montant: 3000, banque: "Attijariwafa Bank", titulaire: "Ali Alaoui", statut: "utilisé", date: "10/07/2026" },
-  { id: "3", numero: "3412", montant: 8000, banque: "CIH Bank", titulaire: "Karim Tahiri", statut: "disponible", date: "05/07/2026" },
-];
-
-function PageChecks({ openModal, setSelectedCheck }: {
-  openModal: (m: ModalType) => void;
-  setSelectedCheck: (c: CheckItem) => void;
-}) {
-  const [q, setQ] = useState("");
-  const list = useMemo(() => CHECKS_MOCK.filter(c => c.numero.includes(q) || c.banque.toLowerCase().includes(q.toLowerCase()) || c.titulaire.toLowerCase().includes(q.toLowerCase())), [q]);
-  return (
-    <PageWrap title="Gestion des Chèques" sub={`${CHECKS_MOCK.length} chèques enregistrés`} action={<Btn onClick={() => openModal("add-check")}><Plus size={13} /> Ajouter</Btn>}>
-      <div className="bg-white border border-slate-200">
-        <div className="px-4 py-3 border-b border-slate-200">
-          <div className="relative max-w-xs">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher par numéro, banque..." className={`${inputCls} pl-8`} />
-          </div>
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              {["N°", "Montant", "Banque", "Titulaire", "Statut", "Date", ""].map(h => (
-                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {list.map(c => (
-              <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3 font-mono font-semibold text-slate-900">#{c.numero}</td>
-                <td className="px-4 py-3 font-semibold text-slate-900">{c.montant.toLocaleString()} Dhs</td>
-                <td className="px-4 py-3 text-slate-500">{c.banque}</td>
-                <td className="px-4 py-3 text-slate-500">{c.titulaire}</td>
-                <td className="px-4 py-3"><Tag color={c.statut === "disponible" ? "green" : "red"}>{c.statut}</Tag></td>
-                <td className="px-4 py-3 text-slate-400 text-xs">{c.date}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <button onClick={() => { setSelectedCheck(c); openModal("check-detail"); }} className="p-1 text-slate-400 hover:text-orange-500 transition-colors"><Eye size={13} /></button>
-                    <button className="p-1 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </PageWrap>
-  );
-}
-
 // ─── Page: Accès ZKTeco ───────────────────────────────────────────────────────
 function PageAcces() {
   const logs = [
@@ -796,7 +688,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
   const [selectedParent, setSelectedParent] = useState<{ id: string; name: string; editMode?: boolean } | null>(null);
   const [selectedSubscription, setSelectedSubscription] = useState<{ id: string; name: string } | null>(null);
   const [selectedAbsence, setSelectedAbsence] = useState<any>(null);
-  const [selectedCheck, setSelectedCheck] = useState<CheckItem | null>(null);
+  const [selectedCheck, setSelectedCheck] = useState<CheckType | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<{ id: string; name: string } | null>(null);
   const [selectedTrainer, setSelectedTrainer] = useState<{ id: string; name: string } | null>(null);
   const [selectedEx, setSelectedEx] = useState<{ id: string; name: string; day: string; start_time: string; end_time: string }>({
@@ -818,7 +710,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       case "exercices": return <PageExercices canCreate={role !== "worker"} openModal={setModal} setSelectedExercise={setSelectedExercise} onRefresh={refreshKey} />;
       case "entraineurs": return <PageEntraineurs canEdit={role !== "trainer"} openModal={setModal} setSelectedTrainer={setSelectedTrainer} onRefresh={refreshKey} />;
       case "absences": return <PageAbsences openModal={setModal} setSelectedAbsence={setSelectedAbsence} />;
-      case "checks": return <PageChecks openModal={setModal} setSelectedCheck={setSelectedCheck} />;
+      case "checks": return <PageChecks canEdit={role !== "trainer"} openModal={setModal} setSelectedCheck={setSelectedCheck} onRefresh={refreshKey} />;
       case "acces": return <PageAcces />;
       case "demandes": return <PageDemandes canValidate={role === "admin"} openModal={setModal} onRefresh={refreshKey} />;
       case "tarifs": return <PageTarifs />;
@@ -856,8 +748,8 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "parent-detail" && selectedParent && <ModalParentDetail parentId={selectedParent.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} startEditing={selectedParent.editMode} />}
       {modal === "add-subscription" && <ModalAddSubscription onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} openModal={setModal} />}
       {modal === "subscription-detail" && selectedSubscription && <ModalSubscriptionDetail subscriptionId={selectedSubscription.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
-      {modal === "add-check" && <ModalAddCheck onClose={() => setModal(null)} />}
-      {modal === "check-detail" && selectedCheck && <ModalCheckDetail check={selectedCheck} onClose={() => setModal(null)} />}
+      {modal === "add-check" && <ModalAddCheck onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
+      {modal === "check-detail" && selectedCheck && <ModalCheckDetail check={selectedCheck} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} canEdit={role !== "trainer"} />}
       {modal === "add-trainer" && <ModalAddTrainer onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
       {modal === "trainer-detail" && selectedTrainer && <ModalTrainerDetail trainerId={selectedTrainer.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
       {modal === "justify-absence" && selectedAbsence && <ModalJustifyAbsence absence={selectedAbsence} onClose={() => setModal(null)} />}

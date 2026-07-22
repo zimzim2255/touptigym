@@ -136,7 +136,10 @@ CREATE TABLE checks (
   amount DECIMAL(10,2) NOT NULL,
   bank VARCHAR(255),
   account_holder VARCHAR(255),
+  date_emission DATE,
+  date_execution DATE,
   used BOOLEAN DEFAULT false,
+  montant_used DECIMAL(10,2) DEFAULT 0,
   payment_id UUID REFERENCES payments(id) ON DELETE SET NULL,
   file TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()

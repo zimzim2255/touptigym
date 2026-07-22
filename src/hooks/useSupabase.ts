@@ -106,6 +106,17 @@ export function useApi() {
         request('/attendance/mark', { method: 'POST', body: JSON.stringify(data) }),
     },
 
+    // ─── Checks ──────────────────────────────────
+    checks: {
+      getAll: () => request('/checks'),
+      getById: (id: string) => request(`/checks/${id}`),
+      create: (data: any) => request('/checks', { method: 'POST', body: JSON.stringify(data) }),
+      update: (id: string, data: any) => request(`/checks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      remove: (id: string) => request(`/checks/${id}`, { method: 'DELETE' }),
+      useCheck: (id: string, amountUsed: number, paymentId?: string) =>
+        request(`/checks/${id}/use`, { method: 'PUT', body: JSON.stringify({ amount_used: amountUsed, payment_id: paymentId }) }),
+    },
+
     // ─── Payments ────────────────────────────────
     payments: {
       getAll: () => request('/payments'),
