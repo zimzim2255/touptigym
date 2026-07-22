@@ -7,7 +7,7 @@ import { ModalType, Parent, Child } from "../../types";
 interface Props {
   canEdit?: boolean;
   openModal: (m: ModalType) => void;
-  setSelectedParent: (p: { id: string; name: string }) => void;
+  setSelectedParent: (p: { id: string; name: string; editMode?: boolean }) => void;
   onRefresh?: number;
 }
 
@@ -109,7 +109,7 @@ export function PageParents({ canEdit, openModal, setSelectedParent, onRefresh }
                         <button onClick={() => { setSelectedParent({ id: p.id, name: p.name }); openModal("parent-detail"); }}
                           className="p-1 text-slate-400 hover:text-orange-500 transition-colors"><Eye size={13} /></button>
                         {canEdit && <>
-                          <button onClick={() => { setSelectedParent({ id: p.id, name: p.name }); openModal("parent-detail"); }}
+                          <button onClick={() => { setSelectedParent({ id: p.id, name: p.name, editMode: true }); openModal("parent-detail"); }}
                             className="p-1 text-slate-400 hover:text-slate-700 transition-colors"><Edit2 size={13} /></button>
                           <button onClick={async () => {
                             if (confirm("Supprimer ce parent ?")) {

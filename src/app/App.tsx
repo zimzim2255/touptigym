@@ -1222,7 +1222,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
   const [active, setActive] = useState(nav[0].id);
   const [modal, setModal] = useState<ModalType>(null);
   const [selectedChild, setSelectedChild] = useState<{ id: string; name: string } | null>(null);
-  const [selectedParent, setSelectedParent] = useState<{ id: string; name: string } | null>(null);
+  const [selectedParent, setSelectedParent] = useState<{ id: string; name: string; editMode?: boolean } | null>(null);
   const [selectedAbsence, setSelectedAbsence] = useState<typeof ABSENCES[0] | null>(null);
   const [selectedCheck, setSelectedCheck] = useState<typeof CHECKS[0] | null>(null);
   const [selectedEx, setSelectedEx] = useState<typeof EXERCICES[0]>(EXERCICES[0]);
@@ -1273,7 +1273,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "add-child" && <ModalAddChild onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
       {modal === "child-detail" && selectedChild && <ModalChildDetail childId={selectedChild.id} onClose={() => setModal(null)} />}
       {modal === "add-parent" && <ModalAddParent onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
-      {modal === "parent-detail" && selectedParent && <ModalParentDetail parentId={selectedParent.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
+      {modal === "parent-detail" && selectedParent && <ModalParentDetail parentId={selectedParent.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} startEditing={selectedParent.editMode} />}
       {modal === "add-subscription" && <ModalAddSubscription onClose={() => setModal(null)} openModal={setModal} />}
       {modal === "add-check" && <ModalAddCheck onClose={() => setModal(null)} />}
       {modal === "check-detail" && selectedCheck && <ModalCheckDetail check={selectedCheck} onClose={() => setModal(null)} />}

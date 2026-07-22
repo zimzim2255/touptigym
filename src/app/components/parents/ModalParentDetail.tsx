@@ -4,7 +4,7 @@ import { Modal, Tag, Btn, Field, inputCls } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ParentDetail, Child } from "../../types";
 
-export function ModalParentDetail({ parentId, onClose, onUpdated }: { parentId: string; onClose: () => void; onUpdated?: () => void }) {
+export function ModalParentDetail({ parentId, onClose, onUpdated, startEditing = false }: { parentId: string; onClose: () => void; onUpdated?: () => void; startEditing?: boolean }) {
   const api = useApi();
   const [parent, setParent] = useState<ParentDetail | null>(null);
   const [children, setChildren] = useState<Child[]>([]);
@@ -34,6 +34,7 @@ export function ModalParentDetail({ parentId, onClose, onUpdated }: { parentId: 
       });
       const linkedIds = (parentData.parent_children || []).map((pc: any) => pc.child_id);
       setSelectedChildren(linkedIds);
+      if (startEditing) setEditing(true);
     } catch (err: any) {
       console.error("Failed to load parent:", err);
     } finally {
