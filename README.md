@@ -1,11 +1,25 @@
+# TouptiGym v2
 
-  # Fix dialog motion and design
+  Fitness application built with React, Vite, and Tailwind CSS.
 
-  This is a code bundle for Fix dialog motion and design. The original project is available at https://www.figma.com/design/tElsLFZmjzPc9yQlKuEAVe/Fix-dialog-motion-and-design.
+  ## Ownership & Responsibility
+
+  This repository is provided as-is. Once access has been granted and the code has been handed over, the original author bears **no responsibility** for:
+  - Any modifications made by third parties
+  - The deployment, hosting, or maintenance of this application
+  - Any issues, bugs, or damages arising from the use or misuse of this code
+  - Any compliance or legal requirements related to the operation of this application
+
+  The recipient assumes full ownership and responsibility for the code upon receipt.
 
   ## Running the code
 
-  Run `npm i` to install the dependencies.
+  ```bash
+  pnpm install
+  pnpm run dev
+  ```
 
-  Run `npm run dev` to start the development server.
-  
+  ## Build
+
+  ```bash
+  pnpm run build
