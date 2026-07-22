@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Search, Plus, Filter, Eye, Edit2, Trash2, Check, X } from "lucide-react";
+import { Search, Plus, Filter, Eye, Edit2, Trash2, Check, X, CreditCard } from "lucide-react";
 import { PageWrap, Btn, Tag, inputCls } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ModalType } from "../../types";
@@ -13,6 +13,7 @@ interface Subscription {
   discount: number;
   insurance: number;
   entry_fee: number;
+  paid_amount: number;
   status: string;
   exercises: string[];
   start_date: string;
@@ -28,17 +29,21 @@ interface Props {
   onRefresh?: number;
 }
 
+type PaymentFilter = "all" | "paid" | "partial" | "unpaid";
+
 export function PageAbonnements({ canConfirm, openModal, setSelectedSubscription, onRefresh }: Props) {
   const api = useApi();
   const [q, setQ] = useState("");
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [count, setCount] = useState(0);
+  const [payFilter, setPayFilter] = useState<PaymentFilter>("all");
 
   const active = subscriptions.filter(s => s.status === "actif").length;
   const expired = subscriptions.filter(s => s.status === "expiré" || s.status === "résilié").length;
   const pending = subscriptions.filter(s => s.status === "en_attente").length;
   const totalRevenue = subscriptions.reduce((sum, s) => sum + (s.amount - s.discount + s.insurance + s.entry_fee), 0);
+  const totalCollected = subscriptions.reduce((sum, s) => sum + (s.paid_amount || 0), 0);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -56,13 +61,34 @@ export function PageAbonnements({ canConfirm, openModal, setSelectedSubscription
   useEffect(() => { refresh(); }, [refresh, onRefresh]);
 
   const list = useMemo(() => {
-    if (!q) return subscriptions;
+    let filtered = subscriptions;
     const lq = q.toLowerCase();
-    return subscriptions.filter(s =>
-      (s.children?.name || "").toLowerCase().includes(lq) ||
-      s.type.toLowerCase().includes(lq)
-    );
-  }, [subscriptions, q]);
+    if (q) {
+      filtered = filtered.filter(s =>
+        (s.children?.name || "").toLowerCase().includes(lq) ||
+        s.type.toLowerCase().includes(lq)
+      );
+    }
+    if (payFilter !== "all") {
+      filtered = filtered.filter(s => {
+        const total = s.amount - s.discount + s.insurance + s.entry_fee;
+        const paid = s.paid_amount || 0;
+        const rest = total - paid;
+        if (payFilter === "paid") return rest <= 0;
+        if (payFilter === "partial") return paid > 0 && rest > 0;
+        if (payFilter === "unpaid") return paid <= 0;
+        return true;
+      });
+    }
+    return filtered;
+  }, [subscriptions, q, payFilter]);
+
+  function getPayStatus(total: number, paid: number): { label: string; color: string } {
+    const rest = total - paid;
+    if (paid <= 0) return { label: "Non payé", color: "red" };
+    if (rest <= 0) return { label: "Payé", color: "green" };
+    return { label: "Partiel", color: "amber" };
+  }
 
   async function handleConfirm(id: string) {
     try {
@@ -92,7 +118,6 @@ export function PageAbonnements({ canConfirm, openModal, setSelectedSubscription
     }
   }
 
-  // Compute dynamic status based on dates
   function computeStatus(s: Subscription): string {
     if (s.status === "résilié") return "résilié";
     if (s.status === "en_attente") return "en_attente";
@@ -102,18 +127,27 @@ export function PageAbonnements({ canConfirm, openModal, setSelectedSubscription
     return "actif";
   }
 
+  const filterBtns: { key: PaymentFilter; label: string }[] = [
+    { key: "all", label: "Tous" },
+    { key: "paid", label: "Payé" },
+    { key: "partial", label: "Partiel" },
+    { key: "unpaid", label: "Non payé" },
+  ];
+
   return (
     <PageWrap
       title="Abonnements"
-      sub={`${count} abonnements enregistrés`}
+      sub={`${count} abonnements — ${totalCollected.toLocaleString()} Dhs encaissés`}
       action={canConfirm && <Btn onClick={() => openModal("add-subscription")}><Plus size={13} /> Nouvel abonnement</Btn>}
     >
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-slate-200">
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-px bg-slate-200">
         {[
           { label: "Actifs", value: active.toString(), icon: Check },
           { label: "En attente", value: pending.toString(), icon: X },
-          { label: "Expirés/Résiliés", value: expired.toString(), icon: X },
-          { label: "Total encaissé", value: `${totalRevenue.toLocaleString()} Dhs`, icon: Plus },
+          { label: "Expirés", value: expired.toString(), icon: X },
+          { label: "Total dû", value: `${totalRevenue.toLocaleString()} Dhs`, icon: CreditCard },
+          { label: "Encaissé", value: `${totalCollected.toLocaleString()} Dhs`, icon: CreditCard },
         ].map((s, i) => (
           <div key={i} className="bg-white p-4 flex items-center gap-3">
             <s.icon size={16} className="text-orange-500 shrink-0" />
@@ -124,14 +158,31 @@ export function PageAbonnements({ canConfirm, openModal, setSelectedSubscription
           </div>
         ))}
       </div>
+
       <div className="bg-white border border-slate-200">
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200">
+        {/* Search + Filter */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 flex-wrap">
           <div className="relative flex-1 max-w-xs">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher par enfant..." className={`${inputCls} pl-8`} />
           </div>
-          <Btn size="sm" variant="ghost"><Filter size={12} /> Filtrer</Btn>
+          <div className="flex gap-1">
+            {filterBtns.map(btn => (
+              <button
+                key={btn.key}
+                onClick={() => setPayFilter(btn.key)}
+                className={`px-3 py-1.5 text-xs font-medium border transition-colors ${
+                  payFilter === btn.key
+                    ? "border-orange-500 bg-orange-50 text-orange-700"
+                    : "border-slate-200 text-slate-500 hover:border-slate-400"
+                }`}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
         </div>
+
         {loading ? (
           <div className="p-6 text-sm text-slate-500 text-center">Chargement...</div>
         ) : list.length === 0 ? (
@@ -140,7 +191,7 @@ export function PageAbonnements({ canConfirm, openModal, setSelectedSubscription
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                {["Enfant", "Type", "Montant", "Remise", "Total", "Validité", "Statut", "Actions"].map(h => (
+                {["Enfant", "Type", "Total", "Payé", "Reste", "Validité", "Statut", "Paiement", "Actions"].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -149,16 +200,27 @@ export function PageAbonnements({ canConfirm, openModal, setSelectedSubscription
               {list.map(s => {
                 const status = computeStatus(s);
                 const total = s.amount - s.discount + s.insurance + s.entry_fee;
+                const paid = s.paid_amount || 0;
+                const rest = total - paid;
+                const payStatus = getPayStatus(total, paid);
+
                 return (
                   <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-slate-900">{s.children?.name || "—"}</td>
-                    <td className="px-4 py-3 text-slate-500">{s.type}{s.sub_type ? ` — ${s.sub_type}` : ""}</td>
-                    <td className="px-4 py-3 text-slate-500">{s.amount.toLocaleString()} Dhs</td>
-                    <td className="px-4 py-3 text-orange-600 text-xs">{s.discount > 0 ? `−${s.discount.toLocaleString()} Dhs` : "—"}</td>
+                    <td className="px-4 py-3 text-slate-500 text-xs">{s.type}{s.sub_type ? ` — ${s.sub_type}` : ""}</td>
                     <td className="px-4 py-3 font-semibold text-slate-900">{total.toLocaleString()} Dhs</td>
+                    <td className="px-4 py-3 text-emerald-600">{paid.toLocaleString()} Dhs</td>
+                    <td className="px-4 py-3">
+                      <span className={rest <= 0 ? "text-emerald-600" : "text-orange-600 font-semibold"}>
+                        {rest <= 0 ? "—" : `${rest.toLocaleString()} Dhs`}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-xs text-slate-400">{s.start_date} → {s.end_date}</td>
                     <td className="px-4 py-3">
                       <Tag color={status === "actif" ? "green" : status === "expiré" || status === "résilié" ? "red" : "amber"}>{status}</Tag>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Tag color={payStatus.color}>{payStatus.label}</Tag>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">

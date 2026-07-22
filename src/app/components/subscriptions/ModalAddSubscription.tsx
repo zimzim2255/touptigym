@@ -231,22 +231,25 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         entry_fee: entryFee,
         exercises: selectedExercises,
         status: "actif",
+        paid_amount: totalPaid > 0 ? totalPaid : 0,
         start_date: startDate.toISOString().split("T")[0],
         end_date: endDate.toISOString().split("T")[0],
       });
 
-      // 2. Create payment
-      const checkIds = selectedChecks.map(s => s.check.id);
-      const payment = await api.payments.create({
-        subscription_id: sub.id,
-        amount: totalPaid,
-        method: paymentMethods,
-        check_ids: checkIds,
-      });
+      // 2. Create payment (only if there's a payment)
+      if (totalPaid > 0) {
+        const checkIds = selectedChecks.map(s => s.check.id);
+        const payment = await api.payments.create({
+          subscription_id: sub.id,
+          amount: totalPaid,
+          method: paymentMethods,
+          check_ids: checkIds,
+        });
 
-      // 3. Update checks montant_used
-      for (const sc of selectedChecks) {
-        await api.checks.useCheck(sc.check.id, sc.amount, payment.id);
+        // 3. Update checks montant_used
+        for (const sc of selectedChecks) {
+          await api.checks.useCheck(sc.check.id, sc.amount, payment.id);
+        }
       }
 
       onCreated?.();
