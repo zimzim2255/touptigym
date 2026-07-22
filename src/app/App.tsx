@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { ModalAddChild, ModalChildDetail, PageEnfants } from "./components/children";
 import { ModalAddParent, ModalParentDetail, PageParents } from "./components/parents";
 import { ModalAddSubscription, ModalSubscriptionDetail, PageAbonnements } from "./components/subscriptions";
@@ -133,10 +133,22 @@ function ModalAddRequest({ onClose, onCreated }: { onClose: () => void; onCreate
   const [childrenList, setChildrenList] = useState<ChildType[]>([]);
   const [exercisesList, setExercisesList] = useState<ExerciseType[]>([]);
   const [searchEx, setSearchEx] = useState("");
+  const [showResults, setShowResults] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.children.getAll().then(setChildrenList).catch(() => {});
     api.exercises.getAll().then(setExercisesList).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowResults(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const filteredExercises = useMemo(() => {
@@ -172,23 +184,40 @@ function ModalAddRequest({ onClose, onCreated }: { onClose: () => void; onCreate
         <Field label="Date">
           <input type="date" className={inputCls} value={date} onChange={e => setDate(e.target.value)} />
         </Field>
-        <div className="border border-slate-200 p-3">
+        <div className="border border-slate-200 p-3" ref={searchRef}>
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-slate-500 uppercase">Exercice</p>
           </div>
-          <div className="relative mb-2">
+          <div className="relative">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input className={`${inputCls} pl-8`} placeholder="Rechercher des exercices..." value={searchEx} onChange={e => setSearchEx(e.target.value)} />
+            <input
+              className={`${inputCls} pl-8`}
+              placeholder="Rechercher des exercices..."
+              value={searchEx}
+              onChange={e => { setSearchEx(e.target.value); setShowResults(true); }}
+              onFocus={() => setShowResults(true)}
+            />
           </div>
-          <select className={`${selectCls} w-full`} value={exerciseId} onChange={e => setExerciseId(e.target.value)} size={3}>
-            <option value="">-- Choisir --</option>
-            {filteredExercises.map(e => (
-              <option key={e.id} value={e.id}>
-                {e.name} — {e.day} {e.start_time}–{e.end_time}
-              </option>
-            ))}
-          </select>
-          {selectedExercise && (
+          {showResults && searchEx && (
+            <div className="mt-1 border border-slate-200 divide-y divide-slate-100 max-h-40 overflow-y-auto">
+              {filteredExercises.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-slate-400">Aucun exercice trouvé</div>
+              ) : (
+                filteredExercises.map(e => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => { setExerciseId(e.id); setSearchEx(e.name); setShowResults(false); }}
+                    className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition-colors ${exerciseId === e.id ? "bg-emerald-50 text-emerald-700" : "text-slate-600"}`}
+                  >
+                    <span className="font-medium">{e.name}</span>
+                    <span className="text-slate-400 ml-2">{e.day} {e.start_time}–{e.end_time}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+          {selectedExercise && !showResults && (
             <div className="mt-2 p-2 bg-emerald-50 text-xs text-emerald-700 flex items-center gap-1.5">
               <Check size={11} /> {selectedExercise.name} — {selectedExercise.day} {selectedExercise.start_time}–{selectedExercise.end_time}
             </div>
