@@ -178,7 +178,7 @@ function Modal({ title, onClose, children, wide = false }: {
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)" }}>
-      <div className={`bg-white w-full flex flex-col max-h-[90vh] ${wide ? "max-w-2xl" : "max-w-lg"}`}>
+      <div className={`bg-white w-full flex flex-col max-h-[90vh] ${wide ? "max-w-6xl" : "max-w-lg"}`}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
           <h2 className="font-semibold text-slate-900 text-sm">{title}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors"><X size={16} /></button>
@@ -358,9 +358,8 @@ function ModalAddParent({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ─── Add Subscription Modal (3 steps) ────────────────────────────────────────
-function ModalAddSubscription({ onClose }: { onClose: () => void }) {
-  const [step, setStep] = useState(1);
+// ─── Add Subscription Modal (single page) ────────────────────────────────────
+function ModalAddSubscription({ onClose, openModal }: { onClose: () => void; openModal: (m: ModalType) => void }) {
   const [selectedChild, setSelectedChild] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState("Annuel");
   const [selectedExercices, setSelectedExercices] = useState<string[]>([]);
@@ -374,20 +373,16 @@ function ModalAddSubscription({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal title={`Créer un Abonnement — Étape ${step}/3`} onClose={onClose} wide>
-      {/* Step indicator */}
-      <div className="flex gap-0 mb-6">
-        {[1, 2, 3].map(n => (
-          <div key={n} className={`flex-1 h-1 ${n <= step ? "bg-orange-500" : "bg-slate-200"} ${n < 3 ? "mr-1" : ""}`} />
-        ))}
-      </div>
+    <Modal title="Créer un Abonnement" onClose={onClose} wide>
+      <div className="space-y-5">
 
-      {step === 1 && (
-        <div className="space-y-4">
+        {/* ── Section 1 : Enfant ── */}
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">1. Enfant</p>
           <div className="border border-slate-200 p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-slate-500 uppercase">Sélectionner un enfant</p>
-              <Btn size="sm" variant="ghost"><Plus size={12} /> Créer</Btn>
+              <Btn size="sm" variant="ghost" onClick={() => openModal("add-child")}><Plus size={12} /> Créer</Btn>
             </div>
             <div className="relative mb-3">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -409,9 +404,12 @@ function ModalAddSubscription({ onClose }: { onClose: () => void }) {
               <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1"><Check size={11} /> Sélectionné : {selectedChild}</p>
             )}
           </div>
+        </div>
 
+        {/* ── Section 2 : Type & Tarifs ── */}
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">2. Type d'abonnement & Tarifs</p>
           <div className="border border-slate-200 p-4 space-y-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase">Type d'abonnement</p>
             <div className="flex gap-2">
               {["Session", "Annuel"].map(t => (
                 <button
@@ -433,16 +431,11 @@ function ModalAddSubscription({ onClose }: { onClose: () => void }) {
               </div>
             </div>
           </div>
-
-          <div className="flex justify-end">
-            <Btn onClick={() => setStep(2)}>Suivant : exercices <ChevronRight size={13} /></Btn>
-          </div>
         </div>
-      )}
 
-      {step === 2 && (
-        <div className="space-y-4">
-          <p className="text-sm text-slate-600">Sélectionner les exercices inclus dans l'abonnement :</p>
+        {/* ── Section 3 : Exercices ── */}
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Exercices inclus</p>
           <div className="divide-y divide-slate-100 border border-slate-200">
             {EXERCICES.map(ex => (
               <label key={ex.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 text-sm">
@@ -457,24 +450,19 @@ function ModalAddSubscription({ onClose }: { onClose: () => void }) {
               </label>
             ))}
           </div>
-          <div className="flex gap-3">
-            <Btn variant="outline" onClick={() => setStep(1)}><ChevronLeft size={13} /> Retour</Btn>
-            <Btn onClick={() => setStep(3)}>Suivant : paiement <ChevronRight size={13} /></Btn>
-          </div>
         </div>
-      )}
 
-      {step === 3 && (
-        <div className="space-y-4">
+        {/* ── Section 4 : Résumé & Paiement ── */}
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">4. Résumé & Paiement</p>
           <div className="border border-slate-200 p-4 bg-slate-50 space-y-1 text-sm">
-            <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Résumé</p>
             <div className="flex justify-between"><span className="text-slate-600">Enfant</span><span className="text-slate-900">{selectedChild ?? "—"}</span></div>
             <div className="flex justify-between"><span className="text-slate-600">Type</span><span className="text-slate-900">{selectedType} — 2 Act/sem</span></div>
             <div className="flex justify-between"><span className="text-slate-600">Montant</span><span className="text-slate-900">10 200 Dhs</span></div>
             <div className="flex justify-between text-orange-600"><span>Remise (−10%)</span><span>−1 020 Dhs</span></div>
             <div className="flex justify-between border-t border-slate-300 pt-1 font-semibold"><span>Total</span><span>9 180 Dhs</span></div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 mt-3">
             <Field label="Assurance (Dhs)"><input className={inputCls} defaultValue="300" /></Field>
             <Field label="Droit d'entrée (Dhs)"><input className={inputCls} defaultValue="700" /></Field>
           </div>
@@ -505,12 +493,14 @@ function ModalAddSubscription({ onClose }: { onClose: () => void }) {
               </div>
             </div>
           )}
-          <div className="flex gap-3">
-            <Btn variant="outline" onClick={() => setStep(2)}><ChevronLeft size={13} /> Retour</Btn>
-            <Btn><Check size={13} /> Créer l'abonnement</Btn>
-          </div>
         </div>
-      )}
+
+        {/* ── Submit ── */}
+        <div className="flex gap-3 pt-2 border-t border-slate-100">
+          <Btn><Check size={13} /> Créer l'abonnement</Btn>
+          <Btn variant="outline" onClick={onClose}>Annuler</Btn>
+        </div>
+      </div>
     </Modal>
   );
 }
@@ -1539,7 +1529,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "add-child" && <ModalAddChild onClose={() => setModal(null)} />}
       {modal === "child-detail" && selectedChild && <ModalChildDetail child={selectedChild} onClose={() => setModal(null)} />}
       {modal === "add-parent" && <ModalAddParent onClose={() => setModal(null)} />}
-      {modal === "add-subscription" && <ModalAddSubscription onClose={() => setModal(null)} />}
+      {modal === "add-subscription" && <ModalAddSubscription onClose={() => setModal(null)} openModal={setModal} />}
       {modal === "add-check" && <ModalAddCheck onClose={() => setModal(null)} />}
       {modal === "check-detail" && selectedCheck && <ModalCheckDetail check={selectedCheck} onClose={() => setModal(null)} />}
       {modal === "add-trainer" && <ModalAddTrainer onClose={() => setModal(null)} />}
