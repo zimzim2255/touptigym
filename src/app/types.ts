@@ -10,7 +10,7 @@ export type ModalType =
   | "justify-absence"
   | "add-request"
   | "mark-attendance"
-  | "add-exercice";
+  | "add-exercice" | "exercice-detail";
 
 export interface Child {
   id: string;

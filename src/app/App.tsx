@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { ModalAddChild, ModalChildDetail, PageEnfants } from "./components/children";
 import { ModalAddParent, ModalParentDetail, PageParents } from "./components/parents";
 import { ModalAddSubscription, ModalSubscriptionDetail, PageAbonnements } from "./components/subscriptions";
+import { ModalAddExercice, ModalExerciceDetail, PageExercices } from "./components/exercises";
 import { Tag, Btn, Field, inputCls, selectCls, Modal, PageWrap } from "./components/shared";
 import {
   Baby, CreditCard, Dumbbell, Shield, AlertCircle, CalendarCheck,
@@ -26,7 +27,7 @@ type ModalType =
   | "justify-absence"
   | "add-request"
   | "mark-attendance"
-  | "add-exercice";
+  | "add-exercice" | "exercice-detail";
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 const CHILDREN = [
@@ -323,97 +324,7 @@ function ModalMarkAttendance({ exercice, onClose }: { exercice: typeof EXERCICES
   );
 }
 
-// ─── Add Exercice Modal ──────────────────────────────────────────────────────
-function ModalAddExercice({ onClose }: { onClose: () => void }) {
-  const [slots, setSlots] = useState([{ day: "Lundi", start: "09:00", end: "10:00" }]);
-
-  function addSlot() {
-    setSlots([...slots, { day: "Lundi", start: "09:00", end: "10:00" }]);
-  }
-
-  function updateSlot(i: number, field: "day" | "start" | "end", value: string) {
-    const next = slots.map((s, idx) => (idx === i ? { ...s, [field]: value } : s));
-    setSlots(next);
-  }
-
-  function removeSlot(i: number) {
-    if (slots.length > 1) setSlots(slots.filter((_, idx) => idx !== i));
-  }
-
-  const days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
-
-  return (
-    <Modal title="Créer une Séance" onClose={onClose} wide>
-      <div className="space-y-4">
-        {/* Basic info */}
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Nom de la séance" required><input className={inputCls} placeholder="Ex: Football U8" /></Field>
-          <Field label="Type de sport" required>
-            <select className={selectCls}>
-              {["Football", "Gymnastics", "Basketball", "Swimming", "Other"].map(t => (
-                <option key={t}>{t}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Coach / Entraîneur" required>
-            <select className={selectCls}>
-              {COACHES.map(c => (
-                <option key={c.id}>{c.nom}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Date de début"><input type="date" className={inputCls} /></Field>
-          <Field label="Date de fin"><input type="date" className={inputCls} /></Field>
-          <Field label="Prix de la séance (Dhs)"><input type="number" className={inputCls} defaultValue="0" /></Field>
-        </div>
-
-        {/* Multiple day/time slots */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Jours & Horaires</p>
-            <Btn size="sm" variant="ghost" onClick={addSlot}><Plus size={12} /> Ajouter un créneau</Btn>
-          </div>
-          <div className="border border-slate-200 divide-y divide-slate-100">
-            {slots.map((slot, i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-3">
-                <select
-                  className={selectCls}
-                  value={slot.day}
-                  onChange={e => updateSlot(i, "day", e.target.value)}
-                >
-                  {days.map(d => <option key={d}>{d}</option>)}
-                </select>
-                <input
-                  type="time"
-                  className={inputCls}
-                  value={slot.start}
-                  onChange={e => updateSlot(i, "start", e.target.value)}
-                />
-                <span className="text-slate-400 text-sm">→</span>
-                <input
-                  type="time"
-                  className={inputCls}
-                  value={slot.end}
-                  onChange={e => updateSlot(i, "end", e.target.value)}
-                />
-                {slots.length > 1 && (
-                  <button onClick={() => removeSlot(i)} className="p-1 text-slate-400 hover:text-red-500 transition-colors shrink-0">
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex gap-3 pt-2 border-t border-slate-100">
-          <Btn><Check size={13} /> Créer la séance</Btn>
-          <Btn variant="outline" onClick={onClose}>Annuler</Btn>
-        </div>
-      </div>
-    </Modal>
-  );
-}
+// ─── Add Exercice Modal is imported from ./components/exercises ───────────────
 
 // ─── PageWrap is imported from ./components/shared ────────────────────────────
 
@@ -513,46 +424,7 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
 
 // ─── Page: Abonnements is imported from ./components/subscriptions ────────────
 
-// ─── Page: Exercices ──────────────────────────────────────────────────────────
-function PageExercices({ canCreate, openModal }: { canCreate?: boolean; openModal: (m: ModalType) => void }) {
-  return (
-    <PageWrap title="Exercices & Séances" sub={`${EXERCICES.length} séances programmées`} action={canCreate && <Btn onClick={() => openModal("add-exercice")}><Plus size={13} /> Créer une séance</Btn>}>
-      <div className="bg-white border border-slate-200">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              {["Nom", "Jour", "Horaire", "Type", "Coach", "Enfants", "Prix", ""].map(h => (
-                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {EXERCICES.map(ex => (
-              <tr key={ex.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-slate-900">{ex.nom}</td>
-                <td className="px-4 py-3 text-slate-500">{ex.jour}</td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-600">{ex.heure}</td>
-                <td className="px-4 py-3">
-                  <Tag color={ex.type === "Football" ? "green" : ex.type === "Basketball" ? "default" : ex.type === "Swimming" ? "blue" : "gray"}>{ex.type}</Tag>
-                </td>
-                <td className="px-4 py-3 text-slate-500">{ex.coach}</td>
-                <td className="px-4 py-3 text-slate-500">{ex.enfants}</td>
-                <td className="px-4 py-3 text-slate-500">{ex.prix} Dhs</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <button onClick={() => openModal("mark-attendance")} className="p-1 text-slate-400 hover:text-orange-500 transition-colors"><CalendarCheck size={13} /></button>
-                    <button className="p-1 text-slate-400 hover:text-slate-700 transition-colors"><Edit2 size={13} /></button>
-                    <button className="p-1 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </PageWrap>
-  );
-}
+// ─── Page: Exercices is imported from ./components/exercises ──────────────────
 
 // ─── Page: Entraîneurs ────────────────────────────────────────────────────────
 function PageEntraineurs({ openModal }: { openModal: (m: ModalType) => void }) {
@@ -1026,6 +898,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
   const [selectedSubscription, setSelectedSubscription] = useState<{ id: string; name: string } | null>(null);
   const [selectedAbsence, setSelectedAbsence] = useState<typeof ABSENCES[0] | null>(null);
   const [selectedCheck, setSelectedCheck] = useState<typeof CHECKS[0] | null>(null);
+  const [selectedExercise, setSelectedExercise] = useState<{ id: string; name: string } | null>(null);
   const [selectedEx, setSelectedEx] = useState<typeof EXERCICES[0]>(EXERCICES[0]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -1036,7 +909,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       case "enfants": return <PageEnfants canEdit={role !== "trainer"} openModal={setModal} setSelectedChild={setSelectedChild} onRefresh={refreshKey} />;
       case "parents": return <PageParents canEdit={role !== "trainer"} openModal={setModal} setSelectedParent={setSelectedParent} onRefresh={refreshKey} />;
       case "abonnements": return <PageAbonnements canConfirm={role === "admin"} openModal={setModal} setSelectedSubscription={setSelectedSubscription} onRefresh={refreshKey} />;
-      case "exercices": return <PageExercices canCreate={role !== "worker"} openModal={setModal} />;
+      case "exercices": return <PageExercices canCreate={role !== "worker"} openModal={setModal} setSelectedExercise={setSelectedExercise} onRefresh={refreshKey} />;
       case "entraineurs": return <PageEntraineurs openModal={setModal} />;
       case "absences": return <PageAbsences openModal={setModal} setSelectedAbsence={setSelectedAbsence} />;
       case "checks": return <PageChecks openModal={setModal} setSelectedCheck={setSelectedCheck} />;
@@ -1083,7 +956,8 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "justify-absence" && selectedAbsence && <ModalJustifyAbsence absence={selectedAbsence} onClose={() => setModal(null)} />}
       {modal === "add-request" && <ModalAddRequest onClose={() => setModal(null)} />}
       {modal === "mark-attendance" && <ModalMarkAttendance exercice={selectedEx} onClose={() => setModal(null)} />}
-      {modal === "add-exercice" && <ModalAddExercice onClose={() => setModal(null)} />}
+      {modal === "add-exercice" && <ModalAddExercice onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
+      {modal === "exercice-detail" && selectedExercise && <ModalExerciceDetail exerciseId={selectedExercise.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
     </div>
   );
 }

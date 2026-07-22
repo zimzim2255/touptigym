@@ -8,8 +8,10 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url)
-    const path = url.pathname.replace('/functions/v1/exercises', '')
-    const segments = path.split('/').filter(Boolean)
+    // Find 'exercises' in path segments to handle any URL prefix
+    const allSegments = url.pathname.split('/').filter(Boolean)
+    const exercisesIdx = allSegments.lastIndexOf('exercises')
+    const segments = exercisesIdx >= 0 ? allSegments.slice(exercisesIdx + 1) : []
     const method = req.method
 
     // GET /exercises?day=Lundi or ?coach_id=xxx
