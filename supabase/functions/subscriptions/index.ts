@@ -13,7 +13,7 @@ serve(async (req) => {
     const method = req.method
 
     // GET /subscriptions?child_id=xxx or ?status=actif
-    if (method === 'GET' && segments.length === 0) {
+    if (method === 'GET' && (segments.length === 0 || (segments.length === 1 && url.searchParams.has('child_id')))) {
       const childId = url.searchParams.get('child_id')
       const status = url.searchParams.get('status')
 
@@ -23,13 +23,13 @@ serve(async (req) => {
 
       const { data, error } = await query
       if (error) return errorResponse(error.message, 500)
-      return jsonResponse(data)
+      return jsonResponse(data || [])
     }
 
     // GET /subscriptions/:id
-    if (method === 'GET' && segments.length === 1) {
-      const { data, error } = await supabase.from('subscriptions').select('*, children(name)').eq('id', segments[0]).single()
-      if (error) return errorResponse('Subscription not found', 404)
+    if (method === 'GET' && segments.length === 1 && !url.searchParams.has('child_id')) {
+      const { data, error } = await supabase.from('subscriptions').select('*, children(name)').eq('id', segments[0]).maybeSingle()
+      if (!data) return errorResponse('Subscription not found', 404)
       return jsonResponse(data)
     }
 
