@@ -39,13 +39,29 @@ serve(async (req) => {
     if (method === 'GET' && segments.length === 4 && segments[0] === 'exercises' && segments[2] === 'check') {
       const exerciseId = segments[1]
       const date = segments[3]
-      const { data, error } = await supabase
-        .from('absences')
-        .select('child_id, type')
+
+      // First check if there's an attendance_record (marks when trainer clicked "Enregistrer")
+      const { data: record } = await supabase
+        .from('attendance_records')
+        .select('id')
         .eq('exercise_id', exerciseId)
         .eq('date', date)
-      if (error) return errorResponse(error.message, 500)
-      return jsonResponse(data || [])
+        .maybeSingle()
+
+      if (record) {
+        // Attendance was marked - return absences if any
+        const { data: absences } = await supabase
+          .from('absences')
+          .select('child_id, type')
+          .eq('exercise_id', exerciseId)
+          .eq('date', date)
+
+        // Return the absences + a flag that attendance was done
+        return jsonResponse({ marked: true, absences: absences || [] })
+      }
+
+      // No attendance record found - not yet marked
+      return jsonResponse({ marked: false, absences: [] })
     }
 
     // ─── Get children enrolled in an exercise ─────
@@ -77,24 +93,35 @@ serve(async (req) => {
     // ─── Mark attendance (batch create absences) ──
     if (method === 'POST' && segments.length === 1 && segments[0] === 'mark') {
       const body = await req.json()
-      // body: { exercise_id, date, absences: [{ child_id, type }] }
       const { exercise_id, date, absences } = body
 
-      if (!exercise_id || !date || !absences?.length) {
-        return errorResponse('Missing required fields: exercise_id, date, absences', 400)
+      if (!exercise_id || !date) {
+        return errorResponse('Missing required fields: exercise_id, date', 400)
       }
 
-      const records = absences.map((a: { child_id: string; type: string }) => ({
-        child_id: a.child_id,
-        exercise_id,
-        date,
-        type: a.type || 'absence',
-        justified: false,
-      }))
+      // Delete any existing absences for this exercise+date first (to allow re-marking)
+      await supabase.from('absences').delete().eq('exercise_id', exercise_id).eq('date', date)
 
-      const { data, error } = await supabase.from('absences').insert(records).select()
-      if (error) return errorResponse(error.message)
-      return jsonResponse(data, 201)
+      if (absences && absences.length > 0) {
+        const records = absences.map((a: { child_id: string; type: string }) => ({
+          child_id: a.child_id,
+          exercise_id,
+          date,
+          type: a.type || 'absence',
+          justified: false,
+        }))
+
+        const { data, error } = await supabase.from('absences').insert(records).select()
+        if (error) return errorResponse(error.message)
+      }
+
+      // Always upsert into attendance_records to track that marking was done
+      await supabase.from('attendance_records').upsert(
+        { exercise_id, date },
+        { onConflict: 'exercise_id, date' }
+      )
+
+      return jsonResponse({ success: true }, 201)
     }
 
     // ─── Access Logs ──────────────────────────────

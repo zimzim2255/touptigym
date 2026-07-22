@@ -43,12 +43,15 @@ export function ModalMarkAttendance({ exercice, onClose, onSaved }: Props) {
       try {
         // Check if attendance already recorded for today
         const today = new Date().toISOString().split('T')[0];
-        const existing: { child_id: string; type: string }[] = await api.attendance.checkAttendance(exercice.id, today);
+        const result = await api.attendance.checkAttendance(exercice.id, today);
         const absMap: Record<string, string> = {};
-        if (existing && Array.isArray(existing) && existing.length > 0) {
-          existing.forEach(a => { absMap[a.child_id] = a.type; });
-          setExistingAbsences(absMap);
+        // result is { marked: boolean, absences: [{ child_id, type }] }
+        if (result?.marked === true) {
           setIsReadOnly(true);
+          if (result.absences && Array.isArray(result.absences)) {
+            result.absences.forEach((a: { child_id: string; type: string }) => { absMap[a.child_id] = a.type; });
+            setExistingAbsences(absMap);
+          }
         }
 
         // Load enrolled children
@@ -74,16 +77,12 @@ export function ModalMarkAttendance({ exercice, onClose, onSaved }: Props) {
     setSaving(true);
     setError("");
     try {
+      // Always save: record absences for absent children
       const absences = children
         .filter(c => status[c.id] === "absent")
         .map(c => ({ child_id: c.id, type: "absence" }));
 
-      if (absences.length === 0) {
-        onClose();
-        onSaved?.();
-        return;
-      }
-
+      // Always call the API to mark this exercise+date as recorded
       await api.attendance.markAttendance({
         exercise_id: exercice.id,
         date,

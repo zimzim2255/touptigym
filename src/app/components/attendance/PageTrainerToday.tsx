@@ -35,17 +35,14 @@ export function PageTrainerToday({ openModal, setSelectedEx }: Props) {
       const data: Exercise[] = await api.exercises.getAll();
       setExercises(data);
 
-      // Check attendance status for today's exercises
       const today = new Date().toISOString().split('T')[0];
       const statusMap: Record<string, boolean> = {};
       for (const ex of data) {
         try {
-          const absences = await api.attendance.checkAttendance(ex.id, today);
-          if (absences && Array.isArray(absences)) {
-            statusMap[ex.id] = absences.length > 0;
-          }
+          const result = await api.attendance.checkAttendance(ex.id, today);
+          // result is { marked: boolean, absences: [] }
+          statusMap[ex.id] = result?.marked === true;
         } catch {
-          // No attendance recorded yet
           statusMap[ex.id] = false;
         }
       }

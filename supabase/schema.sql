@@ -191,7 +191,16 @@ CREATE TABLE absences (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 16. Urgent Requests (depends on children, exercises, users)
+-- 16. Attendance Records (tracks when attendance was marked for an exercise+date)
+CREATE TABLE attendance_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (exercise_id, date)
+);
+
+-- 17. Urgent Requests (depends on children, exercises, users)
 CREATE TABLE urgent_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   child_id UUID REFERENCES children(id) ON DELETE CASCADE,
@@ -217,3 +226,4 @@ CREATE INDEX idx_absences_date ON absences(date);
 CREATE INDEX idx_urgent_requests_status ON urgent_requests(status);
 CREATE INDEX idx_exercises_coach ON exercises(coach_id);
 CREATE INDEX idx_exercises_day ON exercises(day);
+CREATE INDEX idx_attendance_records_exercise_date ON attendance_records(exercise_id, date);
