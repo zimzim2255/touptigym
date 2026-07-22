@@ -101,6 +101,7 @@ export function useApi() {
       getSchedules: (childId: string) => request(`/attendance/schedules/${childId}`),
       createSchedule: (data: any) => request('/attendance/schedules', { method: 'POST', body: JSON.stringify(data) }),
       getExerciseChildren: (exerciseId: string) => request(`/attendance/exercises/${exerciseId}/children`),
+      checkAttendance: (exerciseId: string, date: string) => request(`/attendance/exercises/${exerciseId}/check/${date}`),
       markAttendance: (data: { exercise_id: string; date: string; absences: { child_id: string; type: string }[] }) =>
         request('/attendance/mark', { method: 'POST', body: JSON.stringify(data) }),
     },

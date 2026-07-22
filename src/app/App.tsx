@@ -770,7 +770,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "trainer-detail" && selectedTrainer && <ModalTrainerDetail trainerId={selectedTrainer.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
       {modal === "justify-absence" && selectedAbsence && <ModalJustifyAbsence absence={selectedAbsence} onClose={() => setModal(null)} />}
       {modal === "add-request" && <ModalAddRequest onClose={() => setModal(null)} />}
-      {modal === "mark-attendance" && <ModalMarkAttendance exercice={selectedEx} onClose={() => setModal(null)} />}
+      {modal === "mark-attendance" && <ModalMarkAttendance exercice={selectedEx} onClose={() => setModal(null)} onSaved={() => setRefreshKey(k => k + 1)} />}
       {modal === "add-exercice" && <ModalAddExercice onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
       {modal === "exercice-detail" && selectedExercise && <ModalExerciceDetail exerciseId={selectedExercise.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
     </div>

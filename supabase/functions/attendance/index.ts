@@ -35,6 +35,19 @@ serve(async (req) => {
       return jsonResponse(data)
     }
 
+    // ─── Check if attendance already marked for exercise+date ──
+    if (method === 'GET' && segments.length === 4 && segments[0] === 'exercises' && segments[2] === 'check') {
+      const exerciseId = segments[1]
+      const date = segments[3]
+      const { data, error } = await supabase
+        .from('absences')
+        .select('child_id, type')
+        .eq('exercise_id', exerciseId)
+        .eq('date', date)
+      if (error) return errorResponse(error.message, 500)
+      return jsonResponse(data || [])
+    }
+
     // ─── Get children enrolled in an exercise ─────
     if (method === 'GET' && segments.length === 3 && segments[0] === 'exercises' && segments[2] === 'children') {
       const exerciseId = segments[1]
