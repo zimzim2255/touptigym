@@ -4,7 +4,7 @@ export type ModalType =
   | null
   | "add-child" | "child-detail"
   | "add-parent" | "parent-detail"
-  | "add-subscription"
+  | "add-subscription" | "subscription-detail"
   | "add-check" | "check-detail"
   | "add-trainer"
   | "justify-absence"

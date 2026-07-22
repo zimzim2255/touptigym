@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { ModalAddChild, ModalChildDetail, PageEnfants } from "./components/children";
 import { ModalAddParent, ModalParentDetail, PageParents } from "./components/parents";
+import { ModalSubscriptionDetail, PageAbonnements } from "./components/subscriptions";
 import { Tag, Btn, Field, inputCls, selectCls, Modal, PageWrap } from "./components/shared";
 import {
   Baby, CreditCard, Dumbbell, Shield, AlertCircle, CalendarCheck,
@@ -19,7 +20,7 @@ type ModalType =
   | null
   | "add-child" | "child-detail"
   | "add-parent" | "parent-detail"
-  | "add-subscription"
+  | "add-subscription" | "subscription-detail"
   | "add-check" | "check-detail"
   | "add-trainer"
   | "justify-absence"
@@ -655,63 +656,7 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
 
 // ─── Page: Parents is imported from ./components/parents ──────────────────────
 
-// ─── Page: Abonnements ────────────────────────────────────────────────────────
-function PageAbonnements({ canConfirm, openModal }: { canConfirm?: boolean; openModal: (m: ModalType) => void }) {
-  return (
-    <PageWrap title="Abonnements" sub="5 abonnements enregistrés" action={<Btn onClick={() => openModal("add-subscription")}><Plus size={13} /> Nouvel abonnement</Btn>}>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-slate-200">
-        {[
-          { label: "Actifs", value: "3", icon: CheckCircle },
-          { label: "En attente", value: "1", icon: Clock },
-          { label: "Expirés", value: "1", icon: XCircle },
-          { label: "Total encaissé", value: "50 700 Dhs", icon: Banknote },
-        ].map((s, i) => (
-          <div key={i} className="bg-white p-4 flex items-center gap-3">
-            <s.icon size={16} className="text-orange-500 shrink-0" />
-            <div>
-              <p className="text-xs text-slate-500 uppercase font-semibold tracking-wide">{s.label}</p>
-              <p className="text-xl font-bold text-slate-900" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{s.value}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="bg-white border border-slate-200">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              {["Enfant", "Type", "Forfait", "Montant", "Remise", "Validité", "Statut", canConfirm ? "Actions" : ""].filter(Boolean).map(h => (
-                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {SUBSCRIPTIONS.map(s => (
-              <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-slate-900">{s.enfant}</td>
-                <td className="px-4 py-3 text-slate-500">{s.type}</td>
-                <td className="px-4 py-3 text-slate-500">{s.forfait}</td>
-                <td className="px-4 py-3 font-semibold text-slate-900">{s.montant.toLocaleString()} Dhs</td>
-                <td className="px-4 py-3 text-orange-600 text-xs">{s.remise > 0 ? `−${s.remise.toLocaleString()} Dhs` : "—"}</td>
-                <td className="px-4 py-3 text-xs text-slate-400">{s.debut} → {s.fin}</td>
-                <td className="px-4 py-3"><Tag color={s.statut === "actif" ? "green" : s.statut === "en_attente" ? "amber" : "red"}>{s.statut}</Tag></td>
-                {canConfirm && (
-                  <td className="px-4 py-3">
-                    {!s.confirme && (
-                      <div className="flex gap-1">
-                        <button className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-medium hover:bg-emerald-100 border border-emerald-200 transition-colors"><Check size={10} /> Confirmer</button>
-                        <button className="flex items-center gap-1 px-2 py-1 bg-red-50 text-red-700 text-xs font-medium hover:bg-red-100 border border-red-200 transition-colors"><X size={10} /> Rejeter</button>
-                      </div>
-                    )}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </PageWrap>
-  );
-}
+// ─── Page: Abonnements is imported from ./components/subscriptions ────────────
 
 // ─── Page: Exercices ──────────────────────────────────────────────────────────
 function PageExercices({ canCreate, openModal }: { canCreate?: boolean; openModal: (m: ModalType) => void }) {
@@ -1223,6 +1168,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
   const [modal, setModal] = useState<ModalType>(null);
   const [selectedChild, setSelectedChild] = useState<{ id: string; name: string } | null>(null);
   const [selectedParent, setSelectedParent] = useState<{ id: string; name: string; editMode?: boolean } | null>(null);
+  const [selectedSubscription, setSelectedSubscription] = useState<{ id: string; name: string } | null>(null);
   const [selectedAbsence, setSelectedAbsence] = useState<typeof ABSENCES[0] | null>(null);
   const [selectedCheck, setSelectedCheck] = useState<typeof CHECKS[0] | null>(null);
   const [selectedEx, setSelectedEx] = useState<typeof EXERCICES[0]>(EXERCICES[0]);
@@ -1234,7 +1180,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       case "overview": return <PageOverview openModal={setModal} />;
       case "enfants": return <PageEnfants canEdit={role !== "trainer"} openModal={setModal} setSelectedChild={setSelectedChild} onRefresh={refreshKey} />;
       case "parents": return <PageParents canEdit={role !== "trainer"} openModal={setModal} setSelectedParent={setSelectedParent} onRefresh={refreshKey} />;
-      case "abonnements": return <PageAbonnements canConfirm={role === "admin"} openModal={setModal} />;
+      case "abonnements": return <PageAbonnements canConfirm={role === "admin"} openModal={setModal} setSelectedSubscription={setSelectedSubscription} onRefresh={refreshKey} />;
       case "exercices": return <PageExercices canCreate={role !== "worker"} openModal={setModal} />;
       case "entraineurs": return <PageEntraineurs openModal={setModal} />;
       case "absences": return <PageAbsences openModal={setModal} setSelectedAbsence={setSelectedAbsence} />;
@@ -1275,6 +1221,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "add-parent" && <ModalAddParent onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
       {modal === "parent-detail" && selectedParent && <ModalParentDetail parentId={selectedParent.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} startEditing={selectedParent.editMode} />}
       {modal === "add-subscription" && <ModalAddSubscription onClose={() => setModal(null)} openModal={setModal} />}
+      {modal === "subscription-detail" && selectedSubscription && <ModalSubscriptionDetail subscriptionId={selectedSubscription.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
       {modal === "add-check" && <ModalAddCheck onClose={() => setModal(null)} />}
       {modal === "check-detail" && selectedCheck && <ModalCheckDetail check={selectedCheck} onClose={() => setModal(null)} />}
       {modal === "add-trainer" && <ModalAddTrainer onClose={() => setModal(null)} />}
