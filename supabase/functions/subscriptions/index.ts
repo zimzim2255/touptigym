@@ -8,10 +8,8 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url)
-    // Find 'subscriptions' in path segments to handle any URL prefix
     const allSegments = url.pathname.split('/').filter(Boolean)
     const subscriptionsIdx = allSegments.lastIndexOf('subscriptions')
-    // Get segments after 'subscriptions' keyword
     const segments = subscriptionsIdx >= 0 ? allSegments.slice(subscriptionsIdx + 1) : []
     const method = req.method
 
@@ -72,6 +70,54 @@ serve(async (req) => {
       const { data, error } = await supabase.from('subscriptions').update({ status: 'résilié' }).eq('id', segments[0]).select().single()
       if (error) return errorResponse(error.message)
       return jsonResponse(data)
+    }
+
+    // POST /subscriptions/:id/pay (add partial payment)
+    if (method === 'POST' && segments.length === 2 && segments[1] === 'pay') {
+      const body = await req.json()
+      const payAmount = body.amount || 0
+
+      // Get current subscription
+      const { data: sub, error: getError } = await supabase.from('subscriptions').select('*').eq('id', segments[0]).single()
+      if (getError) return errorResponse('Subscription not found', 404)
+
+      const totalDue = Number(sub.amount) - Number(sub.discount) + Number(sub.insurance) + Number(sub.entry_fee)
+      const currentPaid = Number(sub.paid_amount) || 0
+      const newPaid = currentPaid + payAmount
+
+      if (newPaid > totalDue) {
+        return errorResponse('Payment exceeds total due amount', 400)
+      }
+
+      // Update subscription paid_amount
+      const { error: updateError } = await supabase.from('subscriptions').update({ paid_amount: newPaid }).eq('id', segments[0])
+      if (updateError) return errorResponse(updateError.message)
+
+      // Create payment record
+      const { error: payError } = await supabase.from('payments').insert([{
+        subscription_id: segments[0],
+        amount: payAmount,
+        method: body.method || ['espece'],
+        check_ids: body.check_ids || [],
+      }])
+      if (payError) return errorResponse(payError.message)
+
+      // Update checks if any
+      if (body.check_ids && body.check_ids.length > 0) {
+        for (const checkId of body.check_ids) {
+          const { data: check } = await supabase.from('checks').select('montant_used, amount').eq('id', checkId).single()
+          if (check) {
+            const newUsed = Number(check.montant_used) + (body.pay_amount_per_check?.[checkId] || payAmount)
+            await supabase.from('checks').update({
+              montant_used: newUsed,
+              used: newUsed >= Number(check.amount),
+              payment_id: body.payment_id || null,
+            }).eq('id', checkId)
+          }
+        }
+      }
+
+      return jsonResponse({ success: true, paid_amount: newPaid, rest: totalDue - newPaid })
     }
 
     return errorResponse('Method not allowed', 405)

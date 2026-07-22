@@ -5,6 +5,7 @@ import { ModalAddSubscription, ModalSubscriptionDetail, PageAbonnements } from "
 import { ModalAddExercice, ModalExerciceDetail, PageExercices } from "./components/exercises";
 import { ModalAddTrainer, ModalTrainerDetail, PageEntraineurs } from "./components/trainers";
 import { ModalAddCheck, ModalCheckDetail, PageChecks } from "./components/checks";
+import { PagePaiements, ModalPayRest } from "./components/payments";
 import { PageAbsences, PageTrainerToday, ModalMarkAttendance } from "./components/attendance";
 import { Tag, Btn, Field, inputCls, selectCls, Modal, PageWrap } from "./components/shared";
 import { useApi } from "../hooks/useSupabase";
@@ -612,6 +613,7 @@ const ADMIN_NAV: NavItem[] = [
   { id: "exercices", label: "Exercices", icon: Dumbbell },
   { id: "entraineurs", label: "Entraîneurs", icon: UserCheck },
   { id: "absences", label: "Présences", icon: CalendarCheck },
+  { id: "paiements", label: "Paiements", icon: TrendingUp },
   { id: "checks", label: "Chèques", icon: Banknote },
   { id: "acces", label: "Accès ZKTeco", icon: Fingerprint },
   { id: "demandes", label: "Demandes urgentes", icon: AlertCircle },
@@ -698,6 +700,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
     start_time: "",
     end_time: "",
   });
+  const [selectedPaySub, setSelectedPaySub] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -712,6 +715,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       case "absences": return <PageAbsences openModal={setModal} setSelectedAbsence={setSelectedAbsence} />;
       case "checks": return <PageChecks canEdit={role !== "trainer"} openModal={setModal} setSelectedCheck={setSelectedCheck} onRefresh={refreshKey} />;
       case "acces": return <PageAcces />;
+      case "paiements": return <PagePaiements openPayModal={setSelectedPaySub} onRefresh={refreshKey} />;
       case "demandes": return <PageDemandes canValidate={role === "admin"} openModal={setModal} onRefresh={refreshKey} />;
       case "tarifs": return <PageTarifs />;
       case "today": return <PageTrainerToday openModal={setModal} setSelectedEx={setSelectedEx} />;
@@ -757,6 +761,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "mark-attendance" && <ModalMarkAttendance exercice={selectedEx} onClose={() => setModal(null)} onSaved={() => setRefreshKey(k => k + 1)} />}
       {modal === "add-exercice" && <ModalAddExercice onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
       {modal === "exercice-detail" && selectedExercise && <ModalExerciceDetail exerciseId={selectedExercise.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
+      {selectedPaySub && <ModalPayRest subscription={selectedPaySub} onClose={() => setSelectedPaySub(null)} onPaid={() => setRefreshKey(k => k + 1)} />}
     </div>
   );
 }

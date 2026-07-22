@@ -209,8 +209,6 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   async function handleSubmit() {
     if (!selectedChild) return alert("Veuillez sélectionner un enfant");
     if (!baseAmount) return alert("Veuillez sélectionner un type d'abonnement");
-    if (paymentMethods.length === 0) return alert("Veuillez sélectionner au moins un moyen de paiement");
-    if (remaining > 0) return alert(`Il reste ${remaining} Dhs à payer. Veuillez ajuster les montants.`);
 
     setLoading(true);
     try {
@@ -662,7 +660,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
 
         {/* ── Submit ── */}
         <div className="flex gap-3 pt-2 border-t border-slate-100">
-          <Btn onClick={handleSubmit} disabled={loading || remaining > 0}>
+          <Btn onClick={handleSubmit} disabled={loading}>
             {loading ? "Création..." : <><Check size={13} /> Créer l'abonnement</>}
           </Btn>
           <Btn variant="outline" onClick={onClose}>Annuler</Btn>

@@ -112,6 +112,7 @@ CREATE TABLE subscriptions (
   entry_fee DECIMAL(10,2) DEFAULT 0,
   status VARCHAR(20) DEFAULT 'en_attente' CHECK (status IN ('actif', 'en_attente', 'expiré', 'résilié')),
   exercises UUID[] DEFAULT '{}',
+  paid_amount DECIMAL(10,2) DEFAULT 0,
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
   created_by UUID REFERENCES users(id),
