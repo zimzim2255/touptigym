@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { ModalAddChild, ModalChildDetail, PageEnfants } from "./components/children";
 import { ModalAddParent, ModalParentDetail, PageParents } from "./components/parents";
-import { ModalSubscriptionDetail, PageAbonnements } from "./components/subscriptions";
+import { ModalAddSubscription, ModalSubscriptionDetail, PageAbonnements } from "./components/subscriptions";
 import { Tag, Btn, Field, inputCls, selectCls, Modal, PageWrap } from "./components/shared";
 import {
   Baby, CreditCard, Dumbbell, Shield, AlertCircle, CalendarCheck,
@@ -126,152 +126,7 @@ const PIE_COLORS = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6"];
 // ─── Children components are imported from ./components/children ──────────────
 // ─── Parents components are imported from ./components/parents ────────────────
 
-// ─── Add Subscription Modal (single page) ────────────────────────────────────
-function ModalAddSubscription({ onClose, openModal }: { onClose: () => void; openModal: (m: ModalType) => void }) {
-  const [selectedChild, setSelectedChild] = useState<string | null>(null);
-  const [selectedType, setSelectedType] = useState("Annuel");
-  const [selectedExercices, setSelectedExercices] = useState<string[]>([]);
-  const [payMethods, setPayMethods] = useState<string[]>(["Cash"]);
-
-  const tarifs: Record<string, Record<string, number>> = {
-    "1 Act": { Session: 3900, Annuel: 6600 },
-    "2 Act": { Session: 6300, Annuel: 10200 },
-    "3 Act": { Session: 8100, Annuel: 13800 },
-    "4 Act": { Session: 9300, Annuel: 16200 },
-  };
-
-  return (
-    <Modal title="Créer un Abonnement" onClose={onClose} wide>
-      <div className="space-y-5">
-
-        {/* ── Section 1 : Enfant ── */}
-        <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">1. Enfant</p>
-          <div className="border border-slate-200 p-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-slate-500 uppercase">Sélectionner un enfant</p>
-              <Btn size="sm" variant="ghost" onClick={() => openModal("add-child")}><Plus size={12} /> Créer</Btn>
-            </div>
-            <div className="relative mb-3">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input className={`${inputCls} pl-8`} placeholder="Rechercher un enfant..." />
-            </div>
-            <div className="border border-slate-200 divide-y divide-slate-100">
-              {CHILDREN.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => setSelectedChild(c.nom)}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-orange-50 transition-colors flex items-center justify-between ${selectedChild === c.nom ? "bg-orange-50 text-orange-700" : "text-slate-700"}`}
-                >
-                  {c.nom} ({c.age} ans)
-                  {selectedChild === c.nom && <Check size={13} className="text-orange-500" />}
-                </button>
-              ))}
-            </div>
-            {selectedChild && (
-              <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1"><Check size={11} /> Sélectionné : {selectedChild}</p>
-            )}
-          </div>
-        </div>
-
-        {/* ── Section 2 : Type & Tarifs ── */}
-        <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">2. Type d'abonnement & Tarifs</p>
-          <div className="border border-slate-200 p-4 space-y-3">
-            <div className="flex gap-2">
-              {["Session", "Annuel"].map(t => (
-                <button
-                  key={t}
-                  onClick={() => setSelectedType(t)}
-                  className={`px-4 py-2 text-sm border font-medium transition-colors ${selectedType === t ? "border-orange-500 bg-orange-500 text-white" : "border-slate-300 text-slate-600 hover:border-slate-400"}`}
-                >{t}</button>
-              ))}
-            </div>
-            <div className="border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs font-semibold text-slate-500 mb-2">Tarifs {selectedType}</p>
-              <div className="grid grid-cols-2 gap-1 text-xs text-slate-700">
-                {Object.entries(tarifs).map(([act, prices]) => (
-                  <div key={act} className="flex justify-between">
-                    <span>{act}</span>
-                    <span className="font-semibold">{prices[selectedType]?.toLocaleString()} Dhs</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Section 3 : Exercices ── */}
-        <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Exercices inclus</p>
-          <div className="divide-y divide-slate-100 border border-slate-200">
-            {EXERCICES.map(ex => (
-              <label key={ex.id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 text-sm">
-                <input
-                  type="checkbox"
-                  checked={selectedExercices.includes(ex.id)}
-                  onChange={e => setSelectedExercices(e.target.checked ? [...selectedExercices, ex.id] : selectedExercices.filter(id => id !== ex.id))}
-                  className="accent-orange-500"
-                />
-                <span className="text-slate-800">{ex.nom}</span>
-                <span className="text-slate-400 text-xs">— {ex.jour} {ex.heure}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Section 4 : Résumé & Paiement ── */}
-        <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">4. Résumé & Paiement</p>
-          <div className="border border-slate-200 p-4 bg-slate-50 space-y-1 text-sm">
-            <div className="flex justify-between"><span className="text-slate-600">Enfant</span><span className="text-slate-900">{selectedChild ?? "—"}</span></div>
-            <div className="flex justify-between"><span className="text-slate-600">Type</span><span className="text-slate-900">{selectedType} — 2 Act/sem</span></div>
-            <div className="flex justify-between"><span className="text-slate-600">Montant</span><span className="text-slate-900">10 200 Dhs</span></div>
-            <div className="flex justify-between text-orange-600"><span>Remise (−10%)</span><span>−1 020 Dhs</span></div>
-            <div className="flex justify-between border-t border-slate-300 pt-1 font-semibold"><span>Total</span><span>9 180 Dhs</span></div>
-          </div>
-          <div className="grid grid-cols-2 gap-4 mt-3">
-            <Field label="Assurance (Dhs)"><input className={inputCls} defaultValue="300" /></Field>
-            <Field label="Droit d'entrée (Dhs)"><input className={inputCls} defaultValue="700" /></Field>
-          </div>
-          <Field label="Moyens de paiement (max 2)">
-            <div className="flex gap-4">
-              {["Cash", "Chèque", "Virement"].map(m => (
-                <label key={m} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={payMethods.includes(m)}
-                    onChange={e => setPayMethods(e.target.checked ? [...payMethods, m].slice(0, 2) : payMethods.filter(x => x !== m))}
-                    className="accent-orange-500"
-                  />
-                  {m}
-                </label>
-              ))}
-            </div>
-          </Field>
-          {payMethods.includes("Chèque") && (
-            <div className="border border-slate-200 p-3">
-              <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Ajouter un chèque</p>
-              <div className="relative">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input className={`${inputCls} pl-8`} placeholder="Rechercher des chèques..." />
-              </div>
-              <div className="mt-2 p-2 bg-emerald-50 text-xs text-emerald-700 flex items-center gap-1.5">
-                <Check size={11} /> Chèque #1023 — Banque Populaire — 5 000 Dhs
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Submit ── */}
-        <div className="flex gap-3 pt-2 border-t border-slate-100">
-          <Btn><Check size={13} /> Créer l'abonnement</Btn>
-          <Btn variant="outline" onClick={onClose}>Annuler</Btn>
-        </div>
-      </div>
-    </Modal>
-  );
-}
+// ─── Add Subscription Modal is imported from ./components/subscriptions ───────
 
 // ─── Add Check Modal ──────────────────────────────────────────────────────────
 function ModalAddCheck({ onClose }: { onClose: () => void }) {
@@ -1220,7 +1075,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "child-detail" && selectedChild && <ModalChildDetail childId={selectedChild.id} onClose={() => setModal(null)} />}
       {modal === "add-parent" && <ModalAddParent onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
       {modal === "parent-detail" && selectedParent && <ModalParentDetail parentId={selectedParent.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} startEditing={selectedParent.editMode} />}
-      {modal === "add-subscription" && <ModalAddSubscription onClose={() => setModal(null)} openModal={setModal} />}
+      {modal === "add-subscription" && <ModalAddSubscription onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} openModal={setModal} />}
       {modal === "subscription-detail" && selectedSubscription && <ModalSubscriptionDetail subscriptionId={selectedSubscription.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
       {modal === "add-check" && <ModalAddCheck onClose={() => setModal(null)} />}
       {modal === "check-detail" && selectedCheck && <ModalCheckDetail check={selectedCheck} onClose={() => setModal(null)} />}
