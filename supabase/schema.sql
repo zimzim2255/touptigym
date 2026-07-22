@@ -2,18 +2,7 @@
 -- TOUPTI GYM - Database Schema (Supabase/PostgreSQL)
 -- ============================================================
 
--- 1. Users
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email VARCHAR(255) UNIQUE NOT NULL,
-  name VARCHAR(255) NOT NULL,
-  role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'worker', 'trainer', 'parent')),
-  password_hash VARCHAR(255) NOT NULL,
-  trainer_id UUID REFERENCES trainers(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 2. Children
+-- 1. Children (no dependencies)
 CREATE TABLE children (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
@@ -30,7 +19,7 @@ CREATE TABLE children (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. Parents
+-- 2. Parents (no dependencies)
 CREATE TABLE parents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
@@ -40,39 +29,16 @@ CREATE TABLE parents (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. Parent-Child relationship
+-- 3. Parent-Child relationship
 CREATE TABLE parent_children (
   parent_id UUID REFERENCES parents(id) ON DELETE CASCADE,
   child_id UUID REFERENCES children(id) ON DELETE CASCADE,
   PRIMARY KEY (parent_id, child_id)
 );
 
--- 5. Prices
-CREATE TABLE prices (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  type VARCHAR(50) NOT NULL CHECK (type IN ('subscription', 'registration_fee', 'insurance')),
-  activities INT,
-  duration VARCHAR(20) CHECK (duration IN ('session', 'year')),
-  amount DECIMAL(10,2) NOT NULL,
-  editable BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 6. Discounts
-CREATE TABLE discounts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  type VARCHAR(20) NOT NULL CHECK (type IN ('percentage', 'fixed_amount')),
-  value DECIMAL(10,2) NOT NULL,
-  condition TEXT,
-  active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 7. Trainers
+-- 4. Trainers (no dependencies, created before users)
 CREATE TABLE trainers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   name VARCHAR(255) NOT NULL,
   birth_date DATE,
   id_card VARCHAR(50),
@@ -83,7 +49,43 @@ CREATE TABLE trainers (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 8. Exercises
+-- 5. Users (depends on trainers)
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'worker', 'trainer', 'parent')),
+  password_hash VARCHAR(255) NOT NULL,
+  trainer_id UUID REFERENCES trainers(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Add user_id to trainers after users table exists
+ALTER TABLE trainers ADD COLUMN user_id UUID REFERENCES users(id) ON DELETE SET NULL;
+
+-- 6. Prices
+CREATE TABLE prices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type VARCHAR(50) NOT NULL CHECK (type IN ('subscription', 'registration_fee', 'insurance')),
+  activities INT,
+  duration VARCHAR(20) CHECK (duration IN ('session', 'year')),
+  amount DECIMAL(10,2) NOT NULL,
+  editable BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. Discounts
+CREATE TABLE discounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  type VARCHAR(20) NOT NULL CHECK (type IN ('percentage', 'fixed_amount')),
+  value DECIMAL(10,2) NOT NULL,
+  condition TEXT,
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Exercises (depends on trainers)
 CREATE TABLE exercises (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
@@ -98,7 +100,7 @@ CREATE TABLE exercises (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. Subscriptions
+-- 9. Subscriptions (depends on children, users)
 CREATE TABLE subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   child_id UUID REFERENCES children(id) ON DELETE CASCADE,
@@ -117,7 +119,7 @@ CREATE TABLE subscriptions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 10. Payments
+-- 10. Payments (depends on subscriptions)
 CREATE TABLE payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   subscription_id UUID REFERENCES subscriptions(id) ON DELETE CASCADE,
@@ -127,7 +129,7 @@ CREATE TABLE payments (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 11. Checks
+-- 11. Checks (depends on payments)
 CREATE TABLE checks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   number VARCHAR(50) NOT NULL,
@@ -152,7 +154,7 @@ CREATE TABLE zkteco_devices (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 13. Access Schedules
+-- 13. Access Schedules (depends on children)
 CREATE TABLE access_schedules (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   child_id UUID REFERENCES children(id) ON DELETE CASCADE,
@@ -164,7 +166,7 @@ CREATE TABLE access_schedules (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 14. Access Logs
+-- 14. Access Logs (depends on children, zkteco_devices)
 CREATE TABLE access_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   child_id UUID REFERENCES children(id) ON DELETE CASCADE,
@@ -177,7 +179,7 @@ CREATE TABLE access_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 15. Absences
+-- 15. Absences (depends on children, exercises)
 CREATE TABLE absences (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   child_id UUID REFERENCES children(id) ON DELETE CASCADE,
@@ -189,7 +191,7 @@ CREATE TABLE absences (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 16. Urgent Requests
+-- 16. Urgent Requests (depends on children, exercises, users)
 CREATE TABLE urgent_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   child_id UUID REFERENCES children(id) ON DELETE CASCADE,
