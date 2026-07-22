@@ -8,12 +8,15 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url)
-    const path = url.pathname.replace('/functions/v1/subscriptions', '')
-    const segments = path.split('/').filter(Boolean)
+    // Find 'subscriptions' in path segments to handle any URL prefix
+    const allSegments = url.pathname.split('/').filter(Boolean)
+    const subscriptionsIdx = allSegments.lastIndexOf('subscriptions')
+    // Get segments after 'subscriptions' keyword
+    const segments = subscriptionsIdx >= 0 ? allSegments.slice(subscriptionsIdx + 1) : []
     const method = req.method
 
     // GET /subscriptions?child_id=xxx or ?status=actif
-    if (method === 'GET' && (segments.length === 0 || (segments.length === 1 && url.searchParams.has('child_id')))) {
+    if (method === 'GET' && segments.length === 0) {
       const childId = url.searchParams.get('child_id')
       const status = url.searchParams.get('status')
 
@@ -27,7 +30,7 @@ serve(async (req) => {
     }
 
     // GET /subscriptions/:id
-    if (method === 'GET' && segments.length === 1 && !url.searchParams.has('child_id')) {
+    if (method === 'GET' && segments.length === 1) {
       const { data, error } = await supabase.from('subscriptions').select('*, children(name)').eq('id', segments[0]).maybeSingle()
       if (!data) return errorResponse('Subscription not found', 404)
       return jsonResponse(data)
@@ -72,7 +75,7 @@ serve(async (req) => {
     }
 
     return errorResponse('Method not allowed', 405)
-  } catch (err) {
+  } catch (err: any) {
     return errorResponse(err.message, 500)
   }
 })

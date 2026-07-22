@@ -217,7 +217,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
           <div className="border border-slate-200 p-4">
             <div className="grid grid-cols-2 gap-4">
               <Field label="Montant de base (Dhs)">
-                <input className={inputCls} value={baseAmount.toLocaleString()} disabled />
+                <div className={`${inputCls} bg-slate-100 text-slate-600`}>{baseAmount.toLocaleString()} Dhs</div>
               </Field>
               <Field label="Remise (Dhs)">
                 <input type="number" className={inputCls} value={discount} onChange={e => setDiscount(Number(e.target.value))} placeholder="0" />
