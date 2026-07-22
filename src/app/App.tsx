@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { ModalAddChild, ModalChildDetail, PageEnfants } from "./components/children";
+import { ModalAddParent, ModalParentDetail, PageParents } from "./components/parents";
 import { Tag, Btn, Field, inputCls, selectCls, Modal, PageWrap } from "./components/shared";
 import {
   Baby, CreditCard, Dumbbell, Shield, AlertCircle, CalendarCheck,
@@ -17,7 +18,7 @@ type Role = "admin" | "worker" | "trainer";
 type ModalType =
   | null
   | "add-child" | "child-detail"
-  | "add-parent"
+  | "add-parent" | "parent-detail"
   | "add-subscription"
   | "add-check" | "check-detail"
   | "add-trainer"
@@ -122,36 +123,7 @@ const PIE_COLORS = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6"];
 
 // ─── Primitives are imported from ./components/shared ─────────────────────────
 // ─── Children components are imported from ./components/children ──────────────
-
-// ─── Add Parent Modal ─────────────────────────────────────────────────────────
-function ModalAddParent({ onClose }: { onClose: () => void }) {
-  return (
-    <Modal title="Ajouter un Parent" onClose={onClose} wide>
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Nom complet" required><input className={inputCls} placeholder="Prénom Nom" /></Field>
-          <Field label="Téléphone" required><input className={inputCls} placeholder="06 XX XX XX XX" /></Field>
-          <Field label="Email"><input type="email" className={inputCls} placeholder="email@exemple.com" /></Field>
-          <Field label="CIN"><input className={inputCls} placeholder="AB123456" /></Field>
-        </div>
-        <Field label="Enfants liés">
-          <div className="border border-slate-200 p-3 space-y-2">
-            {CHILDREN.map(c => (
-              <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" className="accent-orange-500" />
-                <span>{c.nom} ({c.age} ans)</span>
-              </label>
-            ))}
-          </div>
-        </Field>
-        <div className="flex gap-3 pt-2 border-t border-slate-100">
-          <Btn><Check size={13} /> Créer</Btn>
-          <Btn variant="outline" onClick={onClose}>Annuler</Btn>
-        </div>
-      </div>
-    </Modal>
-  );
-}
+// ─── Parents components are imported from ./components/parents ────────────────
 
 // ─── Add Subscription Modal (single page) ────────────────────────────────────
 function ModalAddSubscription({ onClose, openModal }: { onClose: () => void; openModal: (m: ModalType) => void }) {
@@ -681,50 +653,7 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
 
 // ─── Page: Enfants is imported from ./components/children ─────────────────────
 
-// ─── Page: Parents ────────────────────────────────────────────────────────────
-function PageParents({ openModal }: { openModal: (m: ModalType) => void }) {
-  const [q, setQ] = useState("");
-  const list = useMemo(() => PARENTS.filter(p => p.nom.toLowerCase().includes(q.toLowerCase()) || p.telephone.includes(q)), [q]);
-  return (
-    <PageWrap title="Gestion des Parents" sub={`${PARENTS.length} parents`} action={<Btn onClick={() => openModal("add-parent")}><Plus size={13} /> Ajouter</Btn>}>
-      <div className="bg-white border border-slate-200">
-        <div className="px-4 py-3 border-b border-slate-200">
-          <div className="relative max-w-xs">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher par nom, téléphone..." className={`${inputCls} pl-8`} />
-          </div>
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              {["Nom", "Téléphone", "Email", "CIN", "Enfants", ""].map(h => (
-                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {list.map(p => (
-              <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-slate-900">{p.nom}</td>
-                <td className="px-4 py-3 text-slate-500">{p.telephone}</td>
-                <td className="px-4 py-3 text-slate-500 text-xs">{p.email}</td>
-                <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.cin}</td>
-                <td className="px-4 py-3 text-slate-500 text-xs">{p.enfants.join(", ")}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <button className="p-1 text-slate-400 hover:text-orange-500 transition-colors"><Eye size={13} /></button>
-                    <button className="p-1 text-slate-400 hover:text-slate-700 transition-colors"><Edit2 size={13} /></button>
-                    <button className="p-1 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </PageWrap>
-  );
-}
+// ─── Page: Parents is imported from ./components/parents ──────────────────────
 
 // ─── Page: Abonnements ────────────────────────────────────────────────────────
 function PageAbonnements({ canConfirm, openModal }: { canConfirm?: boolean; openModal: (m: ModalType) => void }) {
@@ -1293,6 +1222,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
   const [active, setActive] = useState(nav[0].id);
   const [modal, setModal] = useState<ModalType>(null);
   const [selectedChild, setSelectedChild] = useState<{ id: string; name: string } | null>(null);
+  const [selectedParent, setSelectedParent] = useState<{ id: string; name: string } | null>(null);
   const [selectedAbsence, setSelectedAbsence] = useState<typeof ABSENCES[0] | null>(null);
   const [selectedCheck, setSelectedCheck] = useState<typeof CHECKS[0] | null>(null);
   const [selectedEx, setSelectedEx] = useState<typeof EXERCICES[0]>(EXERCICES[0]);
@@ -1303,7 +1233,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
     switch (active) {
       case "overview": return <PageOverview openModal={setModal} />;
       case "enfants": return <PageEnfants canEdit={role !== "trainer"} openModal={setModal} setSelectedChild={setSelectedChild} onRefresh={refreshKey} />;
-      case "parents": return <PageParents openModal={setModal} />;
+      case "parents": return <PageParents canEdit={role !== "trainer"} openModal={setModal} setSelectedParent={setSelectedParent} onRefresh={refreshKey} />;
       case "abonnements": return <PageAbonnements canConfirm={role === "admin"} openModal={setModal} />;
       case "exercices": return <PageExercices canCreate={role !== "worker"} openModal={setModal} />;
       case "entraineurs": return <PageEntraineurs openModal={setModal} />;
@@ -1342,7 +1272,8 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {/* Modals */}
       {modal === "add-child" && <ModalAddChild onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
       {modal === "child-detail" && selectedChild && <ModalChildDetail childId={selectedChild.id} onClose={() => setModal(null)} />}
-      {modal === "add-parent" && <ModalAddParent onClose={() => setModal(null)} />}
+      {modal === "add-parent" && <ModalAddParent onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
+      {modal === "parent-detail" && selectedParent && <ModalParentDetail parentId={selectedParent.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
       {modal === "add-subscription" && <ModalAddSubscription onClose={() => setModal(null)} openModal={setModal} />}
       {modal === "add-check" && <ModalAddCheck onClose={() => setModal(null)} />}
       {modal === "check-detail" && selectedCheck && <ModalCheckDetail check={selectedCheck} onClose={() => setModal(null)} />}

@@ -3,7 +3,7 @@ export type Role = "admin" | "worker" | "trainer";
 export type ModalType =
   | null
   | "add-child" | "child-detail"
-  | "add-parent"
+  | "add-parent" | "parent-detail"
   | "add-subscription"
   | "add-check" | "check-detail"
   | "add-trainer"
@@ -26,4 +26,17 @@ export interface Child {
   zkteco_id: string | null;
   photo: string | null;
   created_at: string;
+}
+
+export interface Parent {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  id_card: string | null;
+  created_at: string;
+}
+
+export interface ParentDetail extends Parent {
+  parent_children: { child_id: string }[];
 }
