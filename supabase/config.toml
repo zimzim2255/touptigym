@@ -1,0 +1,58 @@
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+
+[db.migrations]
+schema_path = "./schema.sql"
+
+[auth]
+enabled = true
+
+[edge_runtime]
+policy = "per_worker"
+inspector_port = 8083
+
+[functions]
+enabled = true
+verify_jwt = false
+
+[functions.children]
+enabled = true
+verify_jwt = false
+
+[functions.parents]
+enabled = true
+verify_jwt = false
+
+[functions.subscriptions]
+enabled = true
+verify_jwt = false
+
+[functions.exercises]
+enabled = true
+verify_jwt = false
+
+[functions.trainers]
+enabled = true
+verify_jwt = false
+
+[functions.attendance]
+enabled = true
+verify_jwt = false
+
+[functions.payments]
+enabled = true
+verify_jwt = false
+
+[functions.requests]
+enabled = true
+verify_jwt = false
+
+[functions.prices]
+enabled = true
+verify_jwt = false
+
+[functions.zkteco]
+enabled = true
+verify_jwt = false
