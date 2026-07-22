@@ -21,7 +21,8 @@ type ModalType =
   | "add-trainer"
   | "justify-absence"
   | "add-request"
-  | "mark-attendance";
+  | "mark-attendance"
+  | "add-exercice";
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 const CHILDREN = [
@@ -700,6 +701,98 @@ function ModalMarkAttendance({ exercice, onClose }: { exercice: typeof EXERCICES
   );
 }
 
+// ─── Add Exercice Modal ──────────────────────────────────────────────────────
+function ModalAddExercice({ onClose }: { onClose: () => void }) {
+  const [slots, setSlots] = useState([{ day: "Lundi", start: "09:00", end: "10:00" }]);
+
+  function addSlot() {
+    setSlots([...slots, { day: "Lundi", start: "09:00", end: "10:00" }]);
+  }
+
+  function updateSlot(i: number, field: "day" | "start" | "end", value: string) {
+    const next = slots.map((s, idx) => (idx === i ? { ...s, [field]: value } : s));
+    setSlots(next);
+  }
+
+  function removeSlot(i: number) {
+    if (slots.length > 1) setSlots(slots.filter((_, idx) => idx !== i));
+  }
+
+  const days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+
+  return (
+    <Modal title="Créer une Séance" onClose={onClose} wide>
+      <div className="space-y-4">
+        {/* Basic info */}
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Nom de la séance" required><input className={inputCls} placeholder="Ex: Football U8" /></Field>
+          <Field label="Type de sport" required>
+            <select className={selectCls}>
+              {["Football", "Gymnastics", "Basketball", "Swimming", "Other"].map(t => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Coach / Entraîneur" required>
+            <select className={selectCls}>
+              {COACHES.map(c => (
+                <option key={c.id}>{c.nom}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Date de début"><input type="date" className={inputCls} /></Field>
+          <Field label="Date de fin"><input type="date" className={inputCls} /></Field>
+          <Field label="Prix de la séance (Dhs)"><input type="number" className={inputCls} defaultValue="0" /></Field>
+        </div>
+
+        {/* Multiple day/time slots */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Jours & Horaires</p>
+            <Btn size="sm" variant="ghost" onClick={addSlot}><Plus size={12} /> Ajouter un créneau</Btn>
+          </div>
+          <div className="border border-slate-200 divide-y divide-slate-100">
+            {slots.map((slot, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3">
+                <select
+                  className={selectCls}
+                  value={slot.day}
+                  onChange={e => updateSlot(i, "day", e.target.value)}
+                >
+                  {days.map(d => <option key={d}>{d}</option>)}
+                </select>
+                <input
+                  type="time"
+                  className={inputCls}
+                  value={slot.start}
+                  onChange={e => updateSlot(i, "start", e.target.value)}
+                />
+                <span className="text-slate-400 text-sm">→</span>
+                <input
+                  type="time"
+                  className={inputCls}
+                  value={slot.end}
+                  onChange={e => updateSlot(i, "end", e.target.value)}
+                />
+                {slots.length > 1 && (
+                  <button onClick={() => removeSlot(i)} className="p-1 text-slate-400 hover:text-red-500 transition-colors shrink-0">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex gap-3 pt-2 border-t border-slate-100">
+          <Btn><Check size={13} /> Créer la séance</Btn>
+          <Btn variant="outline" onClick={onClose}>Annuler</Btn>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Page Wrapper (shared topbar + main area) ─────────────────────────────────
 function PageWrap({ title, sub, action, children }: {
   title: string; sub?: string;
@@ -974,7 +1067,7 @@ function PageAbonnements({ canConfirm, openModal }: { canConfirm?: boolean; open
 // ─── Page: Exercices ──────────────────────────────────────────────────────────
 function PageExercices({ canCreate, openModal }: { canCreate?: boolean; openModal: (m: ModalType) => void }) {
   return (
-    <PageWrap title="Exercices & Séances" sub={`${EXERCICES.length} séances programmées`} action={canCreate && <Btn><Plus size={13} /> Créer une séance</Btn>}>
+    <PageWrap title="Exercices & Séances" sub={`${EXERCICES.length} séances programmées`} action={canCreate && <Btn onClick={() => openModal("add-exercice")}><Plus size={13} /> Créer une séance</Btn>}>
       <div className="bg-white border border-slate-200">
         <table className="w-full text-sm">
           <thead>
@@ -1536,6 +1629,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "justify-absence" && selectedAbsence && <ModalJustifyAbsence absence={selectedAbsence} onClose={() => setModal(null)} />}
       {modal === "add-request" && <ModalAddRequest onClose={() => setModal(null)} />}
       {modal === "mark-attendance" && <ModalMarkAttendance exercice={selectedEx} onClose={() => setModal(null)} />}
+      {modal === "add-exercice" && <ModalAddExercice onClose={() => setModal(null)} />}
     </div>
   );
 }
