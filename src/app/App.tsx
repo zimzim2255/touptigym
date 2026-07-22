@@ -3,6 +3,7 @@ import { ModalAddChild, ModalChildDetail, PageEnfants } from "./components/child
 import { ModalAddParent, ModalParentDetail, PageParents } from "./components/parents";
 import { ModalAddSubscription, ModalSubscriptionDetail, PageAbonnements } from "./components/subscriptions";
 import { ModalAddExercice, ModalExerciceDetail, PageExercices } from "./components/exercises";
+import { ModalAddTrainer, ModalTrainerDetail, PageEntraineurs } from "./components/trainers";
 import { Tag, Btn, Field, inputCls, selectCls, Modal, PageWrap } from "./components/shared";
 import {
   Baby, CreditCard, Dumbbell, Shield, AlertCircle, CalendarCheck,
@@ -23,7 +24,7 @@ type ModalType =
   | "add-parent" | "parent-detail"
   | "add-subscription" | "subscription-detail"
   | "add-check" | "check-detail"
-  | "add-trainer"
+  | "add-trainer" | "trainer-detail"
   | "justify-absence"
   | "add-request"
   | "mark-attendance"
@@ -190,31 +191,7 @@ function ModalCheckDetail({ check, onClose }: { check: typeof CHECKS[0]; onClose
   );
 }
 
-// ─── Add Trainer Modal ────────────────────────────────────────────────────────
-function ModalAddTrainer({ onClose }: { onClose: () => void }) {
-  return (
-    <Modal title="Ajouter un Entraîneur" onClose={onClose} wide>
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Nom complet" required><input className={inputCls} /></Field>
-          <Field label="Date de naissance"><input type="date" className={inputCls} /></Field>
-          <Field label="CIN"><input className={inputCls} /></Field>
-          <Field label="Téléphone"><input className={inputCls} placeholder="06 XX XX XX XX" /></Field>
-          <Field label="Email" required><input type="email" className={inputCls} /></Field>
-          <Field label="Spécialité">
-            <select className={selectCls}><option>Football</option><option>Gymnastics</option><option>Basketball</option><option>Swimming</option></select>
-          </Field>
-          <Field label="Mot de passe" required><input type="password" className={inputCls} /></Field>
-          <Field label="Photo"><input type="file" className={inputCls} accept="image/*" /></Field>
-        </div>
-        <div className="flex gap-3 pt-2 border-t border-slate-100">
-          <Btn><Check size={13} /> Créer</Btn>
-          <Btn variant="outline" onClick={onClose}>Annuler</Btn>
-        </div>
-      </div>
-    </Modal>
-  );
-}
+// ─── Add Trainer Modal is imported from ./components/trainers ─────────────────
 
 // ─── Justify Absence Modal ────────────────────────────────────────────────────
 function ModalJustifyAbsence({ absence, onClose }: { absence: typeof ABSENCES[0]; onClose: () => void }) {
@@ -426,42 +403,7 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
 
 // ─── Page: Exercices is imported from ./components/exercises ──────────────────
 
-// ─── Page: Entraîneurs ────────────────────────────────────────────────────────
-function PageEntraineurs({ openModal }: { openModal: (m: ModalType) => void }) {
-  return (
-    <PageWrap title="Entraîneurs" sub={`${COACHES.length} entraîneurs`} action={<Btn onClick={() => openModal("add-trainer")}><Plus size={13} /> Ajouter</Btn>}>
-      <div className="bg-white border border-slate-200">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              {["Nom", "Spécialité", "Téléphone", "Email", "Séances/sem", "Statut", ""].map(h => (
-                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {COACHES.map(c => (
-              <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-slate-900">{c.nom}</td>
-                <td className="px-4 py-3 text-slate-500">{c.specialite}</td>
-                <td className="px-4 py-3 text-slate-500 text-xs">{c.telephone}</td>
-                <td className="px-4 py-3 text-xs text-slate-400">{c.email}</td>
-                <td className="px-4 py-3 text-slate-500">{c.seances}</td>
-                <td className="px-4 py-3"><Tag color={c.statut === "actif" ? "green" : "amber"}>{c.statut}</Tag></td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <button className="p-1 text-slate-400 hover:text-slate-700 transition-colors"><Edit2 size={13} /></button>
-                    <button className="p-1 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </PageWrap>
-  );
-}
+// ─── Page: Entraîneurs is imported from ./components/trainers ─────────────────
 
 // ─── Page: Absences ───────────────────────────────────────────────────────────
 function PageAbsences({ openModal, setSelectedAbsence }: {
@@ -899,6 +841,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
   const [selectedAbsence, setSelectedAbsence] = useState<typeof ABSENCES[0] | null>(null);
   const [selectedCheck, setSelectedCheck] = useState<typeof CHECKS[0] | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<{ id: string; name: string } | null>(null);
+  const [selectedTrainer, setSelectedTrainer] = useState<{ id: string; name: string } | null>(null);
   const [selectedEx, setSelectedEx] = useState<typeof EXERCICES[0]>(EXERCICES[0]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -910,7 +853,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       case "parents": return <PageParents canEdit={role !== "trainer"} openModal={setModal} setSelectedParent={setSelectedParent} onRefresh={refreshKey} />;
       case "abonnements": return <PageAbonnements canConfirm={role === "admin"} openModal={setModal} setSelectedSubscription={setSelectedSubscription} onRefresh={refreshKey} />;
       case "exercices": return <PageExercices canCreate={role !== "worker"} openModal={setModal} setSelectedExercise={setSelectedExercise} onRefresh={refreshKey} />;
-      case "entraineurs": return <PageEntraineurs openModal={setModal} />;
+      case "entraineurs": return <PageEntraineurs canEdit={role !== "trainer"} openModal={setModal} setSelectedTrainer={setSelectedTrainer} onRefresh={refreshKey} />;
       case "absences": return <PageAbsences openModal={setModal} setSelectedAbsence={setSelectedAbsence} />;
       case "checks": return <PageChecks openModal={setModal} setSelectedCheck={setSelectedCheck} />;
       case "acces": return <PageAcces />;
@@ -952,7 +895,8 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "subscription-detail" && selectedSubscription && <ModalSubscriptionDetail subscriptionId={selectedSubscription.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
       {modal === "add-check" && <ModalAddCheck onClose={() => setModal(null)} />}
       {modal === "check-detail" && selectedCheck && <ModalCheckDetail check={selectedCheck} onClose={() => setModal(null)} />}
-      {modal === "add-trainer" && <ModalAddTrainer onClose={() => setModal(null)} />}
+      {modal === "add-trainer" && <ModalAddTrainer onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
+      {modal === "trainer-detail" && selectedTrainer && <ModalTrainerDetail trainerId={selectedTrainer.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
       {modal === "justify-absence" && selectedAbsence && <ModalJustifyAbsence absence={selectedAbsence} onClose={() => setModal(null)} />}
       {modal === "add-request" && <ModalAddRequest onClose={() => setModal(null)} />}
       {modal === "mark-attendance" && <ModalMarkAttendance exercice={selectedEx} onClose={() => setModal(null)} />}

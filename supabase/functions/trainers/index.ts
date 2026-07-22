@@ -8,8 +8,9 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url)
-    const path = url.pathname.replace('/functions/v1/trainers', '')
-    const segments = path.split('/').filter(Boolean)
+    const allSegments = url.pathname.split('/').filter(Boolean)
+    const trainersIdx = allSegments.lastIndexOf('trainers')
+    const segments = trainersIdx >= 0 ? allSegments.slice(trainersIdx + 1) : []
     const method = req.method
 
     if (method === 'GET' && segments.length === 0) {

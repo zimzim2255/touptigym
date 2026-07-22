@@ -6,7 +6,7 @@ export type ModalType =
   | "add-parent" | "parent-detail"
   | "add-subscription" | "subscription-detail"
   | "add-check" | "check-detail"
-  | "add-trainer"
+  | "add-trainer" | "trainer-detail"
   | "justify-absence"
   | "add-request"
   | "mark-attendance"
