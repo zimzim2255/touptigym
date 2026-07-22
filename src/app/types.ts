@@ -1,0 +1,29 @@
+export type Role = "admin" | "worker" | "trainer";
+
+export type ModalType =
+  | null
+  | "add-child" | "child-detail"
+  | "add-parent"
+  | "add-subscription"
+  | "add-check" | "check-detail"
+  | "add-trainer"
+  | "justify-absence"
+  | "add-request"
+  | "mark-attendance"
+  | "add-exercice";
+
+export interface Child {
+  id: string;
+  name: string;
+  gender: string;
+  birth_date: string;
+  age: number;
+  school: string | null;
+  school_type: string | null;
+  address: string | null;
+  postal_code: string | null;
+  client_type: string;
+  zkteco_id: string | null;
+  photo: string | null;
+  created_at: string;
+}

@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { ModalAddChild, ModalChildDetail, PageEnfants } from "./components/children";
+import { Tag, Btn, Field, inputCls, selectCls, Modal, PageWrap } from "./components/shared";
 import {
   Baby, CreditCard, Dumbbell, Shield, AlertCircle, CalendarCheck,
   Banknote, Settings, LayoutDashboard, LogOut, Search, Plus, Check,
@@ -118,216 +120,8 @@ const SPORT_PIE = [
 ];
 const PIE_COLORS = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6"];
 
-// ─── Primitives ───────────────────────────────────────────────────────────────
-function Tag({ children, color = "default" }: { children: React.ReactNode; color?: string }) {
-  const map: Record<string, string> = {
-    default: "bg-orange-50 text-orange-700",
-    green: "bg-emerald-50 text-emerald-700",
-    blue: "bg-blue-50 text-blue-700",
-    red: "bg-red-50 text-red-700",
-    amber: "bg-amber-50 text-amber-700",
-    gray: "bg-slate-100 text-slate-600",
-  };
-  return (
-    <span className={`inline-block px-2 py-0.5 text-xs font-medium border border-current/15 ${map[color] ?? map.default}`}>
-      {children}
-    </span>
-  );
-}
-
-function Btn({
-  children, onClick, variant = "primary", size = "md", className = "",
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  variant?: "primary" | "ghost" | "danger" | "outline";
-  size?: "sm" | "md";
-  className?: string;
-}) {
-  const base = "inline-flex items-center gap-1.5 font-medium transition-colors cursor-pointer border";
-  const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2 text-sm" };
-  const variants = {
-    primary: "bg-orange-500 text-white border-orange-500 hover:bg-orange-600 hover:border-orange-600",
-    ghost: "bg-transparent text-slate-600 border-transparent hover:bg-slate-100 hover:text-slate-900",
-    danger: "bg-transparent text-red-600 border-red-200 hover:bg-red-50",
-    outline: "bg-white text-slate-700 border-slate-300 hover:bg-slate-50",
-  };
-  return (
-    <button onClick={onClick} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}>
-      {children}
-    </button>
-  );
-}
-
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
-        {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-const inputCls = "w-full px-3 py-2 text-sm border border-slate-300 bg-white focus:outline-none focus:border-orange-500 transition-colors";
-const selectCls = "w-full px-3 py-2 text-sm border border-slate-300 bg-white focus:outline-none focus:border-orange-500 appearance-none cursor-pointer";
-
-// ─── Modal Shell ──────────────────────────────────────────────────────────────
-function Modal({ title, onClose, children, wide = false }: {
-  title: string; onClose: () => void; children: React.ReactNode; wide?: boolean;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.45)" }}>
-      <div className={`bg-white w-full flex flex-col max-h-[90vh] ${wide ? "max-w-6xl" : "max-w-lg"}`}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
-          <h2 className="font-semibold text-slate-900 text-sm">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors"><X size={16} /></button>
-        </div>
-        <div className="overflow-y-auto flex-1 px-5 py-5">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Add Child Modal ──────────────────────────────────────────────────────────
-function ModalAddChild({ onClose }: { onClose: () => void }) {
-  return (
-    <Modal title="Ajouter un Enfant" onClose={onClose} wide>
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Nom complet" required><input className={inputCls} placeholder="Prénom Nom" /></Field>
-          <Field label="Sexe" required>
-            <select className={selectCls}><option>Garçon</option><option>Fille</option></select>
-          </Field>
-          <Field label="Date de naissance" required><input type="date" className={inputCls} /></Field>
-          <Field label="Photo"><input type="file" className={inputCls} accept="image/*" /></Field>
-          <Field label="Nom de l'école"><input className={inputCls} placeholder="École" /></Field>
-          <Field label="Type d'école">
-            <select className={selectCls}><option>Bilingue</option><option>Mission</option><option>Autre</option></select>
-          </Field>
-          <Field label="Type de client">
-            <select className={selectCls}><option>Normal</option><option>VIP</option></select>
-          </Field>
-          <Field label="ZKTeco ID"><input className={inputCls} placeholder="ZK-XXXX" /></Field>
-        </div>
-        <Field label="Adresse"><input className={inputCls} placeholder="Adresse complète" /></Field>
-        <Field label="Code postal"><input className={inputCls} placeholder="20000" /></Field>
-        <div className="flex gap-3 pt-2 border-t border-slate-100">
-          <Btn><Check size={13} /> Créer</Btn>
-          <Btn variant="outline" onClick={onClose}>Annuler</Btn>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-// ─── Child Detail Modal ───────────────────────────────────────────────────────
-function ModalChildDetail({ child, onClose }: { child: typeof CHILDREN[0]; onClose: () => void }) {
-  const [tab, setTab] = useState<"info" | "parents" | "acces">("info");
-  const tabs: { id: typeof tab; label: string }[] = [
-    { id: "info", label: "Infos Générales" },
-    { id: "parents", label: "Parents" },
-    { id: "acces", label: "Planning Accès" },
-  ];
-  return (
-    <Modal title={`Détails — ${child.nom}`} onClose={onClose} wide>
-      <div className="space-y-4">
-        {/* Identity block */}
-        <div className="border border-slate-200 p-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-slate-100 flex items-center justify-center text-slate-400 text-xl font-bold border border-slate-200">
-              {child.nom.split(" ").map(n => n[0]).slice(0, 2).join("")}
-            </div>
-            <div>
-              <p className="font-semibold text-slate-900">{child.nom}</p>
-              <p className="text-sm text-slate-500">{child.genre} · {child.age} ans</p>
-              <p className="text-xs font-mono text-slate-400 mt-0.5">ZKTeco ID: {child.zkteco}</p>
-            </div>
-            <div className="ml-auto">
-              <Tag color={child.statut === "actif" ? "green" : "red"}>{child.statut}</Tag>
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex border-b border-slate-200">
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === t.id ? "border-orange-500 text-orange-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {tab === "info" && (
-          <div className="space-y-2 text-sm">
-            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-              <div><span className="text-slate-500">École :</span> <span className="text-slate-900">{child.ecole}</span></div>
-              <div><span className="text-slate-500">Type école :</span> <span className="text-slate-900">{child.typeEcole}</span></div>
-              <div><span className="text-slate-500">Adresse :</span> <span className="text-slate-900">{child.adresse}</span></div>
-              <div><span className="text-slate-500">CP :</span> <span className="text-slate-900">{child.cp}</span></div>
-              <div><span className="text-slate-500">Type client :</span> <span className="text-slate-900">{child.type}</span></div>
-            </div>
-            <div className="mt-3 p-3 border border-slate-200 bg-slate-50">
-              <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Abonnement actif</p>
-              <p className="text-sm text-slate-900">Annuel — 2 Act/sem · 10 200 Dhs</p>
-              <p className="text-xs text-slate-500 mt-0.5">Valide jusqu'au 30/06/2026 · <span className="text-emerald-600">Actif</span></p>
-            </div>
-          </div>
-        )}
-
-        {tab === "parents" && (
-          <div className="space-y-2 text-sm">
-            {["Fatima Benali — 06 12 34 56 78", "Mohamed Benali — 06 98 76 54 32"].map((p, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 border border-slate-200">
-                <div className="w-7 h-7 bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500">{i === 0 ? "M" : "P"}</div>
-                <span className="text-slate-800">{p}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {tab === "acces" && (
-          <div className="text-sm">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-left">
-                  <th className="pb-2 text-xs font-semibold text-slate-500 uppercase">Jour</th>
-                  <th className="pb-2 text-xs font-semibold text-slate-500 uppercase">Début</th>
-                  <th className="pb-2 text-xs font-semibold text-slate-500 uppercase">Fin</th>
-                  <th className="pb-2 text-xs font-semibold text-slate-500 uppercase">Fenêtre</th>
-                  <th className="pb-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {[{ jour: "Lundi", debut: "14:00", fin: "16:00", fenetre: "13:45 → 16:30" }, { jour: "Mercredi", debut: "10:00", fin: "12:00", fenetre: "09:45 → 12:30" }].map((row, i) => (
-                  <tr key={i} className="border-b border-slate-100">
-                    <td className="py-2 text-slate-800">{row.jour}</td>
-                    <td className="py-2 font-mono text-slate-600">{row.debut}</td>
-                    <td className="py-2 font-mono text-slate-600">{row.fin}</td>
-                    <td className="py-2 text-slate-500 text-xs">{row.fenetre}</td>
-                    <td className="py-2"><button className="text-slate-400 hover:text-orange-500"><Edit2 size={12} /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <button className="mt-3 text-sm text-orange-600 hover:underline flex items-center gap-1"><Plus size={13} /> Ajouter un créneau</button>
-          </div>
-        )}
-
-        <div className="flex gap-3 pt-2 border-t border-slate-100">
-          <Btn size="sm"><Edit2 size={12} /> Modifier</Btn>
-          <Btn size="sm" variant="danger"><Trash2 size={12} /> Supprimer</Btn>
-          <Btn size="sm" variant="ghost" className="ml-auto" onClick={onClose}><ArrowLeft size={12} /> Retour</Btn>
-        </div>
-      </div>
-    </Modal>
-  );
-}
+// ─── Primitives are imported from ./components/shared ─────────────────────────
+// ─── Children components are imported from ./components/children ──────────────
 
 // ─── Add Parent Modal ─────────────────────────────────────────────────────────
 function ModalAddParent({ onClose }: { onClose: () => void }) {
@@ -793,25 +587,7 @@ function ModalAddExercice({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ─── Page Wrapper (shared topbar + main area) ─────────────────────────────────
-function PageWrap({ title, sub, action, children }: {
-  title: string; sub?: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900" style={{ fontFamily: "'Barlow Condensed', sans-serif", fontSize: "1.5rem", letterSpacing: "0.01em" }}>{title}</h1>
-          {sub && <p className="text-sm text-slate-500 mt-0.5">{sub}</p>}
-        </div>
-        {action}
-      </div>
-      {children}
-    </div>
-  );
-}
+// ─── PageWrap is imported from ./components/shared ────────────────────────────
 
 // ─── Page: Overview ───────────────────────────────────────────────────────────
 function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
@@ -903,63 +679,7 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
   );
 }
 
-// ─── Page: Enfants ────────────────────────────────────────────────────────────
-function PageEnfants({ canEdit, openModal, setSelectedChild }: {
-  canEdit?: boolean;
-  openModal: (m: ModalType) => void;
-  setSelectedChild: (c: typeof CHILDREN[0]) => void;
-}) {
-  const [q, setQ] = useState("");
-  const list = useMemo(() => CHILDREN.filter(c => c.nom.toLowerCase().includes(q.toLowerCase())), [q]);
-  return (
-    <PageWrap
-      title="Gestion des Enfants"
-      sub={`${CHILDREN.length} enfants inscrits`}
-      action={canEdit && <Btn onClick={() => openModal("add-child")}><Plus size={13} /> Ajouter</Btn>}
-    >
-      <div className="bg-white border border-slate-200">
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200">
-          <div className="relative flex-1 max-w-xs">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher par nom ou école..." className={`${inputCls} pl-8`} />
-          </div>
-          <Btn size="sm" variant="ghost"><Filter size={12} /> Filtrer</Btn>
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              {["Nom", "Âge", "Sexe", "École", "Type École", "Client", "Statut", ""].map(h => (
-                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {list.map(c => (
-              <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-slate-900">{c.nom}</td>
-                <td className="px-4 py-3 text-slate-500">{c.age} ans</td>
-                <td className="px-4 py-3 text-slate-500">{c.genre[0]}</td>
-                <td className="px-4 py-3 text-slate-500">{c.ecole}</td>
-                <td className="px-4 py-3 text-slate-500">{c.typeEcole}</td>
-                <td className="px-4 py-3"><Tag color={c.type === "VIP" ? "default" : "gray"}>{c.type}</Tag></td>
-                <td className="px-4 py-3"><Tag color={c.statut === "actif" ? "green" : "red"}>{c.statut}</Tag></td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <button onClick={() => { setSelectedChild(c); openModal("child-detail"); }} className="p-1 text-slate-400 hover:text-orange-500 transition-colors"><Eye size={13} /></button>
-                    {canEdit && <>
-                      <button className="p-1 text-slate-400 hover:text-slate-700 transition-colors"><Edit2 size={13} /></button>
-                      <button className="p-1 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
-                    </>}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </PageWrap>
-  );
-}
+// ─── Page: Enfants is imported from ./components/children ─────────────────────
 
 // ─── Page: Parents ────────────────────────────────────────────────────────────
 function PageParents({ openModal }: { openModal: (m: ModalType) => void }) {
@@ -1572,16 +1292,17 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
   const nav = navMap[role];
   const [active, setActive] = useState(nav[0].id);
   const [modal, setModal] = useState<ModalType>(null);
-  const [selectedChild, setSelectedChild] = useState<typeof CHILDREN[0] | null>(null);
+  const [selectedChild, setSelectedChild] = useState<{ id: string; name: string } | null>(null);
   const [selectedAbsence, setSelectedAbsence] = useState<typeof ABSENCES[0] | null>(null);
   const [selectedCheck, setSelectedCheck] = useState<typeof CHECKS[0] | null>(null);
   const [selectedEx, setSelectedEx] = useState<typeof EXERCICES[0]>(EXERCICES[0]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   function renderPage() {
     switch (active) {
       case "overview": return <PageOverview openModal={setModal} />;
-      case "enfants": return <PageEnfants canEdit={role !== "trainer"} openModal={setModal} setSelectedChild={setSelectedChild} />;
+      case "enfants": return <PageEnfants canEdit={role !== "trainer"} openModal={setModal} setSelectedChild={setSelectedChild} onRefresh={refreshKey} />;
       case "parents": return <PageParents openModal={setModal} />;
       case "abonnements": return <PageAbonnements canConfirm={role === "admin"} openModal={setModal} />;
       case "exercices": return <PageExercices canCreate={role !== "worker"} openModal={setModal} />;
@@ -1619,8 +1340,8 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       </div>
 
       {/* Modals */}
-      {modal === "add-child" && <ModalAddChild onClose={() => setModal(null)} />}
-      {modal === "child-detail" && selectedChild && <ModalChildDetail child={selectedChild} onClose={() => setModal(null)} />}
+      {modal === "add-child" && <ModalAddChild onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
+      {modal === "child-detail" && selectedChild && <ModalChildDetail childId={selectedChild.id} onClose={() => setModal(null)} />}
       {modal === "add-parent" && <ModalAddParent onClose={() => setModal(null)} />}
       {modal === "add-subscription" && <ModalAddSubscription onClose={() => setModal(null)} openModal={setModal} />}
       {modal === "add-check" && <ModalAddCheck onClose={() => setModal(null)} />}
