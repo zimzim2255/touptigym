@@ -8,7 +8,7 @@ CREATE TABLE children (
   name VARCHAR(255) NOT NULL,
   gender VARCHAR(10) NOT NULL CHECK (gender IN ('Garçon', 'Fille')),
   birth_date DATE NOT NULL,
-  age INT GENERATED ALWAYS AS (EXTRACT(YEAR FROM AGE(birth_date))) STORED,
+  age INT NOT NULL DEFAULT 0,
   school VARCHAR(255),
   school_type VARCHAR(50) CHECK (school_type IN ('Bilingue', 'Mission', 'Autre')),
   address TEXT,
