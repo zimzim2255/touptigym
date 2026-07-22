@@ -40,3 +40,31 @@ export interface Parent {
 export interface ParentDetail extends Parent {
   parent_children: { child_id: string }[];
 }
+
+export interface Exercise {
+  id: string;
+  name: string;
+  day: string;
+  type: string;
+  start_date: string | null;
+  end_date: string | null;
+  start_time: string;
+  end_time: string;
+  coach_id: string | null;
+  price: number;
+  created_at: string;
+}
+
+export interface UrgentRequest {
+  id: string;
+  child_id: string;
+  exercise_id: string;
+  date: string;
+  notes: string | null;
+  status: "en_attente" | "approuvée" | "rejetée";
+  created_by: string | null;
+  created_at: string;
+  children: { name: string } | null;
+  exercises: { name: string } | null;
+  users: { name: string } | null;
+}

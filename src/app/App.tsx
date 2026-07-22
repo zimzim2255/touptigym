@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { ModalAddChild, ModalChildDetail, PageEnfants } from "./components/children";
 import { ModalAddParent, ModalParentDetail, PageParents } from "./components/parents";
 import { ModalAddSubscription, ModalSubscriptionDetail, PageAbonnements } from "./components/subscriptions";
@@ -6,6 +6,8 @@ import { ModalAddExercice, ModalExerciceDetail, PageExercices } from "./componen
 import { ModalAddTrainer, ModalTrainerDetail, PageEntraineurs } from "./components/trainers";
 import { PageAbsences, PageTrainerToday, ModalMarkAttendance } from "./components/attendance";
 import { Tag, Btn, Field, inputCls, selectCls, Modal, PageWrap } from "./components/shared";
+import { useApi } from "../hooks/useSupabase";
+import type { UrgentRequest, Child as ChildType, Exercise as ExerciseType } from "./types";
 import {
   Baby, CreditCard, Dumbbell, Shield, AlertCircle, CalendarCheck,
   Banknote, Settings, LayoutDashboard, LogOut, Search, Plus, Check,
@@ -31,103 +33,9 @@ type ModalType =
   | "mark-attendance"
   | "add-exercice" | "exercice-detail";
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const CHILDREN = [
-  { id: "1", nom: "Amine Benali", age: 8, genre: "Garçon", ecole: "Al Khawarizmi", typeEcole: "Bilingue", type: "VIP", zkteco: "ZK-1001", statut: "actif", adresse: "12 Rue Hassan II, Casablanca", cp: "20000" },
-  { id: "2", nom: "Nora Cherkaoui", age: 10, genre: "Fille", ecole: "École Lumière", typeEcole: "Mission", type: "Normal", zkteco: "ZK-1002", statut: "actif", adresse: "5 Av. Mohamed V, Casablanca", cp: "20100" },
-  { id: "3", nom: "Youssef El Alami", age: 7, genre: "Garçon", ecole: "Mission Française", typeEcole: "Mission", type: "Normal", zkteco: "ZK-1003", statut: "actif", adresse: "34 Bd Zerktouni", cp: "20200" },
-  { id: "4", nom: "Sara Moussaoui", age: 9, genre: "Fille", ecole: "Al Khawarizmi", typeEcole: "Bilingue", type: "VIP", zkteco: "ZK-1004", statut: "expiré", adresse: "7 Rue Ibn Batouta", cp: "20050" },
-  { id: "5", nom: "Hamza Raji", age: 11, genre: "Garçon", ecole: "École Lumière", typeEcole: "Mission", type: "Normal", zkteco: "ZK-1005", statut: "actif", adresse: "22 Av. Lalla Yacout", cp: "20300" },
-  { id: "6", nom: "Lina Tahiri", age: 8, genre: "Fille", ecole: "Mission Française", typeEcole: "Mission", type: "Normal", zkteco: "ZK-1006", statut: "actif", adresse: "9 Rue Colbert", cp: "20400" },
-];
-
-const PARENTS = [
-  { id: "1", nom: "Fatima Benali", telephone: "06 12 34 56 78", email: "f.benali@gmail.com", cin: "AB123456", enfants: ["Amine Benali"] },
-  { id: "2", nom: "Mohamed Cherkaoui", telephone: "06 23 45 67 89", email: "m.cherkaoui@gmail.com", cin: "CD234567", enfants: ["Nora Cherkaoui"] },
-  { id: "3", nom: "Aicha El Alami", telephone: "06 34 56 78 90", email: "a.elalami@gmail.com", cin: "EF345678", enfants: ["Youssef El Alami"] },
-  { id: "4", nom: "Omar Raji", telephone: "06 45 67 89 01", email: "o.raji@gmail.com", cin: "GH456789", enfants: ["Hamza Raji"] },
-];
-
-const SUBSCRIPTIONS = [
-  { id: "1", enfant: "Amine Benali", type: "Annuel", forfait: "2 Act/sem", montant: 10200, remise: 0, statut: "actif", debut: "2025-09-01", fin: "2026-06-30", confirme: true },
-  { id: "2", enfant: "Nora Cherkaoui", type: "Session", forfait: "1 Act/sem", montant: 3900, remise: 390, statut: "actif", debut: "2026-01-15", fin: "2026-07-15", confirme: true },
-  { id: "3", enfant: "Youssef El Alami", type: "Annuel", forfait: "3 Act/sem", montant: 13800, remise: 0, statut: "en_attente", debut: "2026-02-01", fin: "2027-01-31", confirme: false },
-  { id: "4", enfant: "Sara Moussaoui", type: "Session", forfait: "2 Act/sem", montant: 6300, remise: 0, statut: "expiré", debut: "2025-02-01", fin: "2025-08-01", confirme: true },
-  { id: "5", enfant: "Hamza Raji", type: "Annuel", forfait: "4 Act/sem", montant: 16200, remise: 1620, statut: "actif", debut: "2025-10-01", fin: "2026-09-30", confirme: true },
-];
-
-const EXERCICES = [
-  { id: "1", nom: "Football U8", jour: "Mercredi", type: "Football", heure: "14:00–18:00", coach: "M. Idrissi", enfants: 12, prix: 150 },
-  { id: "2", nom: "Gym Artistique", jour: "Mercredi", type: "Gymnastics", heure: "10:00–12:00", coach: "Mme. Bensaid", enfants: 8, prix: 180 },
-  { id: "3", nom: "Basketball U10", jour: "Vendredi", type: "Basketball", heure: "15:00–17:00", coach: "M. Ouali", enfants: 10, prix: 160 },
-  { id: "4", nom: "Natation Débutant", jour: "Samedi", type: "Swimming", heure: "09:00–10:30", coach: "Mme. Kharroubi", enfants: 6, prix: 200 },
-  { id: "5", nom: "Football U10", jour: "Mardi", type: "Football", heure: "16:00–18:00", coach: "M. Idrissi", enfants: 14, prix: 150 },
-];
-
-const COACHES = [
-  { id: "1", nom: "M. Karim Idrissi", specialite: "Football", telephone: "06 61 23 45 67", email: "k.idrissi@touptigym.ma", seances: 3, statut: "actif" },
-  { id: "2", nom: "Mme. Fatima Bensaid", specialite: "Gymnastics", telephone: "06 62 34 56 78", email: "f.bensaid@touptigym.ma", seances: 2, statut: "actif" },
-  { id: "3", nom: "M. Rachid Ouali", specialite: "Basketball", telephone: "06 63 45 67 89", email: "r.ouali@touptigym.ma", seances: 2, statut: "actif" },
-  { id: "4", nom: "Mme. Nadia Kharroubi", specialite: "Swimming", telephone: "06 64 56 78 90", email: "n.kharroubi@touptigym.ma", seances: 1, statut: "congé" },
-];
-
-const ABSENCES = [
-  { id: "1", enfant: "Sara Moussaoui", exercice: "Gym Artistique", date: "22/07/2026", type: "absence", justifie: false, justificatif: "" },
-  { id: "2", enfant: "Youssef El Alami", exercice: "Football U8", date: "21/07/2026", type: "retard", justifie: true, justificatif: "Transport perturbé" },
-  { id: "3", enfant: "Lina Tahiri", exercice: "Football U10", date: "20/07/2026", type: "depart_anticipe", justifie: false, justificatif: "" },
-  { id: "4", enfant: "Amine Benali", exercice: "Football U8", date: "19/07/2026", type: "absence", justifie: true, justificatif: "Compétition scolaire" },
-];
-
-const CHECKS = [
-  { id: "1", numero: "1023", montant: 5000, banque: "Banque Populaire", titulaire: "Fatima Benali", statut: "disponible", date: "15/07/2026" },
-  { id: "2", numero: "2056", montant: 3000, banque: "Attijariwafa Bank", titulaire: "Ali Alaoui", statut: "utilisé", date: "10/07/2026" },
-  { id: "3", numero: "3412", montant: 8000, banque: "CIH Bank", titulaire: "Karim Tahiri", statut: "disponible", date: "05/07/2026" },
-];
-
-const REQUESTS = [
-  { id: "1", enfant: "Amine Benali", exercice: "Football U8", date: "25/07/2026", notes: "Absence exceptionnelle — compétition scolaire", statut: "en_attente", cree_par: "M. Idrissi" },
-  { id: "2", enfant: "Nora Cherkaoui", exercice: "Gym Artistique", date: "20/07/2026", notes: "Demande de rattrapage de séance", statut: "approuvée", cree_par: "Employé" },
-  { id: "3", enfant: "Hamza Raji", exercice: "Basketball U10", date: "18/07/2026", notes: "Blessure légère — avis médical requis", statut: "rejetée", cree_par: "M. Ouali" },
-];
-
-const ACCESS_LOGS = [
-  { id: "1", enfant: "Ahmed Benali", heure: "13:55", type: "Entrée", statut: "autorisé", appareil: "SpeedFace-V5L" },
-  { id: "2", enfant: "Sara Alaoui", heure: "10:15", type: "Entrée", statut: "autorisé", appareil: "SpeedFace-V5L" },
-  { id: "3", enfant: "Omar Benali", heure: "12:35", type: "Entrée", statut: "refusé", appareil: "SpeedFace-V5L" },
-  { id: "4", enfant: "Ilyas Haddad", heure: "09:50", type: "Entrée", statut: "autorisé", appareil: "SpeedFace-V5L" },
-  { id: "5", enfant: "Hamza Raji", heure: "15:58", type: "Sortie", statut: "autorisé", appareil: "SpeedFace-V5L" },
-];
-
-const ATTENDANCE_DATA = [
-  { jour: "Lun", presents: 18, absents: 3 },
-  { jour: "Mar", presents: 21, absents: 2 },
-  { jour: "Mer", presents: 15, absents: 4 },
-  { jour: "Jeu", presents: 20, absents: 1 },
-  { jour: "Ven", presents: 24, absents: 2 },
-  { jour: "Sam", presents: 19, absents: 5 },
-];
-
-const REVENUE_DATA = [
-  { mois: "Jan", montant: 42000 },
-  { mois: "Fév", montant: 38000 },
-  { mois: "Mar", montant: 55000 },
-  { mois: "Avr", montant: 61000 },
-  { mois: "Mai", montant: 48000 },
-  { mois: "Jun", montant: 70000 },
-  { mois: "Jul", montant: 65000 },
-];
-
-const SPORT_PIE = [
-  { name: "Football", value: 38 },
-  { name: "Gym", value: 22 },
-  { name: "Basketball", value: 25 },
-  { name: "Natation", value: 15 },
-];
-const PIE_COLORS = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6"];
-
-// ─── Primitives are imported from ./components/shared ─────────────────────────
-// ─── Children components are imported from ./components/children ──────────────
-// ─── Parents components are imported from ./components/parents ────────────────
+// ─── Inline mock check type (no global mock data) ────────────────────────────
+type CheckItem = { id: string; numero: string; montant: number; banque: string; titulaire: string; statut: string; date: string };
+type AbsenceItem = { id: string; enfant: string; exercice: string; date: string; type: string; justifie: boolean; justificatif: string };
 
 // ─── Add Subscription Modal is imported from ./components/subscriptions ───────
 
@@ -142,18 +50,10 @@ function ModalAddCheck({ onClose }: { onClose: () => void }) {
           <Field label="Banque" required><input className={inputCls} placeholder="Nom de la banque" /></Field>
           <Field label="Titulaire" required>
             <input className={inputCls} placeholder="Nom du titulaire" />
-            <div className="mt-1 border border-slate-200 divide-y divide-slate-100">
-              {["Fatima Benali", "Mohamed Benali", "Sara Alaoui"].map(p => (
-                <button key={p} className="w-full text-left px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50">{p}</button>
-              ))}
-            </div>
           </Field>
         </div>
         <Field label="Image / Fichier du chèque (optionnel)">
           <input type="file" className={inputCls} accept="image/*,.pdf" />
-          <div className="mt-2 border border-dashed border-slate-300 h-20 flex items-center justify-center text-xs text-slate-400">
-            Aperçu image chèque
-          </div>
         </Field>
         <div className="flex gap-3 pt-2 border-t border-slate-100">
           <Btn><Check size={13} /> Créer</Btn>
@@ -165,7 +65,7 @@ function ModalAddCheck({ onClose }: { onClose: () => void }) {
 }
 
 // ─── Check Detail Modal ───────────────────────────────────────────────────────
-function ModalCheckDetail({ check, onClose }: { check: typeof CHECKS[0]; onClose: () => void }) {
+function ModalCheckDetail({ check, onClose }: { check: CheckItem; onClose: () => void }) {
   return (
     <Modal title="Détails du Chèque" onClose={onClose}>
       <div className="space-y-4">
@@ -195,7 +95,7 @@ function ModalCheckDetail({ check, onClose }: { check: typeof CHECKS[0]; onClose
 // ─── Add Trainer Modal is imported from ./components/trainers ─────────────────
 
 // ─── Justify Absence Modal ────────────────────────────────────────────────────
-function ModalJustifyAbsence({ absence, onClose }: { absence: typeof ABSENCES[0]; onClose: () => void }) {
+function ModalJustifyAbsence({ absence, onClose }: { absence: AbsenceItem; onClose: () => void }) {
   return (
     <Modal title="Justification d'Absence" onClose={onClose}>
       <div className="space-y-4">
@@ -222,35 +122,85 @@ function ModalJustifyAbsence({ absence, onClose }: { absence: typeof ABSENCES[0]
   );
 }
 
-// ─── Add Request Modal ────────────────────────────────────────────────────────
-function ModalAddRequest({ onClose }: { onClose: () => void }) {
+// ─── Add Request Modal (connected to API) ─────────────────────────────────────
+function ModalAddRequest({ onClose, onCreated }: { onClose: () => void; onCreated?: () => void }) {
+  const api = useApi();
+  const [childId, setChildId] = useState("");
+  const [exerciseId, setExerciseId] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [childrenList, setChildrenList] = useState<ChildType[]>([]);
+  const [exercisesList, setExercisesList] = useState<ExerciseType[]>([]);
+  const [searchEx, setSearchEx] = useState("");
+
+  useEffect(() => {
+    api.children.getAll().then(setChildrenList).catch(() => {});
+    api.exercises.getAll().then(setExercisesList).catch(() => {});
+  }, []);
+
+  const filteredExercises = useMemo(() => {
+    if (!searchEx) return exercisesList;
+    return exercisesList.filter(e => e.name.toLowerCase().includes(searchEx.toLowerCase()));
+  }, [exercisesList, searchEx]);
+
+  const selectedExercise = exercisesList.find(e => e.id === exerciseId);
+
+  const handleSubmit = async () => {
+    if (!childId || !exerciseId || !date) return;
+    setLoading(true);
+    try {
+      await api.requests.create({ child_id: childId, exercise_id: exerciseId, date, notes: notes || null });
+      onCreated?.();
+      onClose();
+    } catch (err: any) {
+      console.error("Failed to create request:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Modal title="Créer une Demande Urgente" onClose={onClose}>
       <div className="space-y-4">
         <Field label="Enfant">
-          <select className={selectCls}>
-            {CHILDREN.map(c => <option key={c.id}>{c.nom}</option>)}
+          <select className={selectCls} value={childId} onChange={e => setChildId(e.target.value)}>
+            <option value="">Sélectionner un enfant</option>
+            {childrenList.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Field>
-        <Field label="Date"><input type="date" className={inputCls} defaultValue="2026-07-25" /></Field>
+        <Field label="Date">
+          <input type="date" className={inputCls} value={date} onChange={e => setDate(e.target.value)} />
+        </Field>
         <div className="border border-slate-200 p-3">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-slate-500 uppercase">Exercice</p>
-            <Btn size="sm" variant="ghost"><Plus size={12} /> Créer</Btn>
           </div>
           <div className="relative mb-2">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input className={`${inputCls} pl-8`} placeholder="Rechercher des exercices..." />
+            <input className={`${inputCls} pl-8`} placeholder="Rechercher des exercices..." value={searchEx} onChange={e => setSearchEx(e.target.value)} />
           </div>
-          <div className="p-2 bg-emerald-50 text-xs text-emerald-700 flex items-center gap-1.5">
-            <Check size={11} /> Football — Lundi 14:00–16:00 (Coach: M. Idrissi)
-          </div>
+          <select className={`${selectCls} w-full`} value={exerciseId} onChange={e => setExerciseId(e.target.value)} size={3}>
+            <option value="">-- Choisir --</option>
+            {filteredExercises.map(e => (
+              <option key={e.id} value={e.id}>
+                {e.name} — {e.day} {e.start_time}–{e.end_time}
+              </option>
+            ))}
+          </select>
+          {selectedExercise && (
+            <div className="mt-2 p-2 bg-emerald-50 text-xs text-emerald-700 flex items-center gap-1.5">
+              <Check size={11} /> {selectedExercise.name} — {selectedExercise.day} {selectedExercise.start_time}–{selectedExercise.end_time}
+            </div>
+          )}
         </div>
         <Field label="Notes (optionnel)">
-          <textarea className={`${inputCls} h-20 resize-none`} placeholder="Description de la demande..." />
+          <textarea className={`${inputCls} h-20 resize-none`} placeholder="Description de la demande..." value={notes} onChange={e => setNotes(e.target.value)} />
         </Field>
         <div className="flex gap-3 pt-2 border-t border-slate-100">
-          <Btn>Envoyer</Btn>
+          <Btn onClick={handleSubmit} disabled={loading}>
+            {loading ? "Envoi..." : "Envoyer"}
+          </Btn>
           <Btn variant="outline" onClick={onClose}>Annuler</Btn>
         </div>
       </div>
@@ -258,12 +208,42 @@ function ModalAddRequest({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ─── Add Exercice Modal is imported from ./components/exercises ───────────────
+// ─── Page: Overview (with real data) ──────────────────────────────────────────
+const ATTENDANCE_DATA = [
+  { jour: "Lun", presents: 18, absents: 3 },
+  { jour: "Mar", presents: 21, absents: 2 },
+  { jour: "Mer", presents: 15, absents: 4 },
+  { jour: "Jeu", presents: 20, absents: 1 },
+  { jour: "Ven", presents: 24, absents: 2 },
+  { jour: "Sam", presents: 19, absents: 5 },
+];
+const REVENUE_DATA = [
+  { mois: "Jan", montant: 42000 },
+  { mois: "Fév", montant: 38000 },
+  { mois: "Mar", montant: 55000 },
+  { mois: "Avr", montant: 61000 },
+  { mois: "Mai", montant: 48000 },
+  { mois: "Jun", montant: 70000 },
+  { mois: "Jul", montant: 65000 },
+];
+const SPORT_PIE = [
+  { name: "Football", value: 38 },
+  { name: "Gym", value: 22 },
+  { name: "Basketball", value: 25 },
+  { name: "Natation", value: 15 },
+];
+const PIE_COLORS = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6"];
 
-// ─── PageWrap is imported from ./components/shared ────────────────────────────
-
-// ─── Page: Overview ───────────────────────────────────────────────────────────
 function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
+  const api = useApi();
+  const [requests, setRequests] = useState<UrgentRequest[]>([]);
+
+  useEffect(() => {
+    api.requests.getAll()
+      .then((data: UrgentRequest[]) => setRequests(data.slice(0, 5)))
+      .catch(() => {});
+  }, []);
+
   return (
     <PageWrap title="Tableau de Bord" sub="Mardi 22 Juillet 2026">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-slate-200">
@@ -335,15 +315,19 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
         <div className="bg-white border border-slate-200 p-5">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Demandes urgentes</p>
           <div className="divide-y divide-slate-100">
-            {REQUESTS.map(r => (
-              <div key={r.id} className="py-2.5">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-xs font-medium text-slate-800">{r.enfant}</p>
-                  <Tag color={r.statut === "approuvée" ? "green" : r.statut === "rejetée" ? "red" : "amber"}>{r.statut}</Tag>
+            {requests.length === 0 ? (
+              <p className="py-2.5 text-xs text-slate-400">Aucune demande</p>
+            ) : (
+              requests.map(r => (
+                <div key={r.id} className="py-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-medium text-slate-800">{r.children?.name || "Inconnu"}</p>
+                    <Tag color={r.status === "approuvée" ? "green" : r.status === "rejetée" ? "red" : "amber"}>{r.status}</Tag>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5 leading-snug">{r.notes || "Aucune note"}</p>
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5 leading-snug">{r.notes}</p>
-              </div>
-            ))}
+              ))
+            )}
           </div>
           <button onClick={() => openModal("add-request")} className="mt-2 text-xs text-orange-600 hover:underline flex items-center gap-1"><Plus size={11} /> Nouvelle demande</button>
         </div>
@@ -352,25 +336,137 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
   );
 }
 
-// ─── Page: Enfants is imported from ./components/children ─────────────────────
+// ─── Page: Demandes Urgentes (connected to API) ───────────────────────────────
+function PageDemandes({ canValidate, openModal, onRefresh }: {
+  canValidate?: boolean;
+  openModal: (m: ModalType) => void;
+  onRefresh?: number;
+}) {
+  const api = useApi();
+  const [requests, setRequests] = useState<UrgentRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-// ─── Page: Parents is imported from ./components/parents ──────────────────────
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data: UrgentRequest[] = await api.requests.getAll();
+      setRequests(data);
+    } catch (err: any) {
+      console.error("Failed to load requests:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-// ─── Page: Abonnements is imported from ./components/subscriptions ────────────
+  useEffect(() => { load(); }, [load, onRefresh]);
 
-// ─── Page: Exercices is imported from ./components/exercises ──────────────────
+  const handleApprove = async (id: string) => {
+    setActionLoading(id);
+    try {
+      await api.requests.approve(id);
+      await load();
+    } catch (err: any) {
+      console.error("Failed to approve:", err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
-// ─── Page: Entraîneurs is imported from ./components/trainers ─────────────────
+  const handleReject = async (id: string) => {
+    setActionLoading(id);
+    try {
+      await api.requests.reject(id);
+      await load();
+    } catch (err: any) {
+      console.error("Failed to reject:", err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const pendingCount = requests.filter(r => r.status === "en_attente").length;
+
+  return (
+    <PageWrap
+      title="Demandes Urgentes"
+      sub={`${requests.length} demandes (${pendingCount} en attente)`}
+      action={<Btn onClick={() => openModal("add-request")}><Plus size={13} /> Nouvelle demande</Btn>}
+    >
+      <div className="bg-white border border-slate-200">
+        {loading ? (
+          <div className="p-6 text-sm text-slate-500 text-center">Chargement...</div>
+        ) : requests.length === 0 ? (
+          <div className="p-6 text-sm text-slate-500 text-center">Aucune demande urgente.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                {["Enfant", "Date", "Exercice", "Demandeur", "Notes", "Statut", ...(canValidate ? ["Actions"] : [])].filter(Boolean).map(h => (
+                  <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {requests.map(r => (
+                <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3 font-medium text-slate-900">{r.children?.name || "—"}</td>
+                  <td className="px-4 py-3 text-slate-500">{r.date}</td>
+                  <td className="px-4 py-3 text-slate-500">{r.exercises?.name || "—"}</td>
+                  <td className="px-4 py-3 text-slate-400 text-xs">{r.users?.name || "—"}</td>
+                  <td className="px-4 py-3 text-slate-500 text-xs max-w-48 truncate">{r.notes || "—"}</td>
+                  <td className="px-4 py-3">
+                    <Tag color={r.status === "approuvée" ? "green" : r.status === "rejetée" ? "red" : "amber"}>
+                      {r.status}
+                    </Tag>
+                  </td>
+                  {canValidate && (
+                    <td className="px-4 py-3">
+                      {r.status === "en_attente" && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleApprove(r.id)}
+                            disabled={actionLoading === r.id}
+                            className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-xs border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+                          >
+                            <Check size={10} /> Approuver
+                          </button>
+                          <button
+                            onClick={() => handleReject(r.id)}
+                            disabled={actionLoading === r.id}
+                            className="flex items-center gap-1 px-2 py-1 bg-red-50 text-red-700 text-xs border border-red-200 hover:bg-red-100 disabled:opacity-50 transition-colors"
+                          >
+                            <X size={10} /> Rejeter
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </PageWrap>
+  );
+}
 
 // ─── Page: Chèques ────────────────────────────────────────────────────────────
+const CHECKS_MOCK: CheckItem[] = [
+  { id: "1", numero: "1023", montant: 5000, banque: "Banque Populaire", titulaire: "Fatima Benali", statut: "disponible", date: "15/07/2026" },
+  { id: "2", numero: "2056", montant: 3000, banque: "Attijariwafa Bank", titulaire: "Ali Alaoui", statut: "utilisé", date: "10/07/2026" },
+  { id: "3", numero: "3412", montant: 8000, banque: "CIH Bank", titulaire: "Karim Tahiri", statut: "disponible", date: "05/07/2026" },
+];
+
 function PageChecks({ openModal, setSelectedCheck }: {
   openModal: (m: ModalType) => void;
-  setSelectedCheck: (c: typeof CHECKS[0]) => void;
+  setSelectedCheck: (c: CheckItem) => void;
 }) {
   const [q, setQ] = useState("");
-  const list = useMemo(() => CHECKS.filter(c => c.numero.includes(q) || c.banque.toLowerCase().includes(q.toLowerCase()) || c.titulaire.toLowerCase().includes(q.toLowerCase())), [q]);
+  const list = useMemo(() => CHECKS_MOCK.filter(c => c.numero.includes(q) || c.banque.toLowerCase().includes(q.toLowerCase()) || c.titulaire.toLowerCase().includes(q.toLowerCase())), [q]);
   return (
-    <PageWrap title="Gestion des Chèques" sub={`${CHECKS.length} chèques enregistrés`} action={<Btn onClick={() => openModal("add-check")}><Plus size={13} /> Ajouter</Btn>}>
+    <PageWrap title="Gestion des Chèques" sub={`${CHECKS_MOCK.length} chèques enregistrés`} action={<Btn onClick={() => openModal("add-check")}><Plus size={13} /> Ajouter</Btn>}>
       <div className="bg-white border border-slate-200">
         <div className="px-4 py-3 border-b border-slate-200">
           <div className="relative max-w-xs">
@@ -412,6 +508,14 @@ function PageChecks({ openModal, setSelectedCheck }: {
 
 // ─── Page: Accès ZKTeco ───────────────────────────────────────────────────────
 function PageAcces() {
+  const logs = [
+    { id: "1", enfant: "Ahmed Benali", heure: "13:55", type: "Entrée", statut: "autorisé", appareil: "SpeedFace-V5L" },
+    { id: "2", enfant: "Sara Alaoui", heure: "10:15", type: "Entrée", statut: "autorisé", appareil: "SpeedFace-V5L" },
+    { id: "3", enfant: "Omar Benali", heure: "12:35", type: "Entrée", statut: "refusé", appareil: "SpeedFace-V5L" },
+    { id: "4", enfant: "Ilyas Haddad", heure: "09:50", type: "Entrée", statut: "autorisé", appareil: "SpeedFace-V5L" },
+    { id: "5", enfant: "Hamza Raji", heure: "15:58", type: "Sortie", statut: "autorisé", appareil: "SpeedFace-V5L" },
+  ];
+
   return (
     <PageWrap title="Contrôle d'Accès ZKTeco" sub="SpeedFace-V5L — Temps réel">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-slate-200">
@@ -445,7 +549,7 @@ function PageAcces() {
         <p className="text-xs font-semibold text-amber-700 uppercase mb-2">Alertes</p>
         <div className="space-y-1">
           <p className="text-sm text-amber-800">⚠ Omar Benali — Tentative d'accès hors horaire autorisé</p>
-          <p className="text-sm text-amber-800">⚠ Porte entrée — Ouverte depuis &gt; 5 min</p>
+          <p className="text-sm text-amber-800">{`⚠ Porte entrée — Ouverte depuis > 5 min`}</p>
         </div>
       </div>
 
@@ -463,54 +567,13 @@ function PageAcces() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {ACCESS_LOGS.map(log => (
+            {logs.map(log => (
               <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-4 py-3 font-mono text-slate-700">{log.heure}</td>
                 <td className="px-4 py-3 font-medium text-slate-900">{log.enfant}</td>
                 <td className="px-4 py-3 text-slate-500">{log.type}</td>
                 <td className="px-4 py-3"><Tag color={log.statut === "autorisé" ? "green" : "red"}>{log.statut}</Tag></td>
                 <td className="px-4 py-3 text-xs text-slate-400">{log.appareil}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </PageWrap>
-  );
-}
-
-// ─── Page: Demandes Urgentes ──────────────────────────────────────────────────
-function PageDemandes({ canValidate, openModal }: { canValidate?: boolean; openModal: (m: ModalType) => void }) {
-  return (
-    <PageWrap title="Demandes Urgentes" sub={`${REQUESTS.length} demandes`} action={<Btn onClick={() => openModal("add-request")}><Plus size={13} /> Nouvelle demande</Btn>}>
-      <div className="bg-white border border-slate-200">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              {["Enfant", "Date", "Exercice", "Demandeur", "Notes", "Statut", canValidate ? "Actions" : ""].filter(Boolean).map(h => (
-                <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {REQUESTS.map(r => (
-              <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3 font-medium text-slate-900">{r.enfant}</td>
-                <td className="px-4 py-3 text-slate-500">{r.date}</td>
-                <td className="px-4 py-3 text-slate-500">{r.exercice}</td>
-                <td className="px-4 py-3 text-slate-400 text-xs">{r.cree_par}</td>
-                <td className="px-4 py-3 text-slate-500 text-xs max-w-48 truncate">{r.notes}</td>
-                <td className="px-4 py-3"><Tag color={r.statut === "approuvée" ? "green" : r.statut === "rejetée" ? "red" : "amber"}>{r.statut}</Tag></td>
-                {canValidate && (
-                  <td className="px-4 py-3">
-                    {r.statut === "en_attente" && (
-                      <div className="flex gap-1">
-                        <button className="flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-xs border border-emerald-200 hover:bg-emerald-100 transition-colors"><Check size={10} /> Approuver</button>
-                        <button className="flex items-center gap-1 px-2 py-1 bg-red-50 text-red-700 text-xs border border-red-200 hover:bg-red-100 transition-colors"><X size={10} /> Rejeter</button>
-                      </div>
-                    )}
-                  </td>
-                )}
               </tr>
             ))}
           </tbody>
@@ -704,15 +767,15 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
   const [selectedParent, setSelectedParent] = useState<{ id: string; name: string; editMode?: boolean } | null>(null);
   const [selectedSubscription, setSelectedSubscription] = useState<{ id: string; name: string } | null>(null);
   const [selectedAbsence, setSelectedAbsence] = useState<any>(null);
-  const [selectedCheck, setSelectedCheck] = useState<typeof CHECKS[0] | null>(null);
+  const [selectedCheck, setSelectedCheck] = useState<CheckItem | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<{ id: string; name: string } | null>(null);
   const [selectedTrainer, setSelectedTrainer] = useState<{ id: string; name: string } | null>(null);
   const [selectedEx, setSelectedEx] = useState<{ id: string; name: string; day: string; start_time: string; end_time: string }>({
-    id: EXERCICES[0].id,
-    name: EXERCICES[0].nom,
-    day: EXERCICES[0].jour,
-    start_time: EXERCICES[0].heure.split("–")[0] || "",
-    end_time: EXERCICES[0].heure.split("–")[1] || "",
+    id: "",
+    name: "",
+    day: "",
+    start_time: "",
+    end_time: "",
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -728,7 +791,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       case "absences": return <PageAbsences openModal={setModal} setSelectedAbsence={setSelectedAbsence} />;
       case "checks": return <PageChecks openModal={setModal} setSelectedCheck={setSelectedCheck} />;
       case "acces": return <PageAcces />;
-      case "demandes": return <PageDemandes canValidate={role === "admin"} openModal={setModal} />;
+      case "demandes": return <PageDemandes canValidate={role === "admin"} openModal={setModal} onRefresh={refreshKey} />;
       case "tarifs": return <PageTarifs />;
       case "today": return <PageTrainerToday openModal={setModal} setSelectedEx={setSelectedEx} />;
       default: return null;
@@ -769,7 +832,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "add-trainer" && <ModalAddTrainer onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
       {modal === "trainer-detail" && selectedTrainer && <ModalTrainerDetail trainerId={selectedTrainer.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
       {modal === "justify-absence" && selectedAbsence && <ModalJustifyAbsence absence={selectedAbsence} onClose={() => setModal(null)} />}
-      {modal === "add-request" && <ModalAddRequest onClose={() => setModal(null)} />}
+      {modal === "add-request" && <ModalAddRequest onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
       {modal === "mark-attendance" && <ModalMarkAttendance exercice={selectedEx} onClose={() => setModal(null)} onSaved={() => setRefreshKey(k => k + 1)} />}
       {modal === "add-exercice" && <ModalAddExercice onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
       {modal === "exercice-detail" && selectedExercise && <ModalExerciceDetail exerciseId={selectedExercise.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
