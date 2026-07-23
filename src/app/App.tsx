@@ -641,12 +641,22 @@ function Sidebar({ role, items, active, onChange, onLogout }: {
   const roleLabel = { admin: "Administrateur", worker: "Employé", trainer: "Entraîneur" }[role];
   return (
     <aside
-      className="w-56 shrink-0 flex flex-col h-screen sticky top-0 overflow-y-auto"
+      className="w-64 shrink-0 flex flex-col h-screen sticky top-0 overflow-y-auto"
       style={{ background: "var(--sidebar)" }}
     >
-      {/* Logo */}
-      <div className="px-4 py-4 flex items-center" style={{ borderBottom: "1px solid var(--sidebar-border)" }}>
-        <img src="/src/app/assets/logo.png" alt="TouptiGym" className="h-20 w-auto" />
+      {/* Logo — large and prominent */}
+      <div
+        className="flex items-center justify-center"
+        style={{
+          height: "100px",
+          borderBottom: "1px solid var(--sidebar-border)",
+        }}
+      >
+        <img
+          src="/src/app/assets/logo.png"
+          alt="TouptiGym"
+          className="h-90 w-auto object-contain"
+        />
       </div>
 
       <nav className="flex-1 px-2 py-3 space-y-0.5">
