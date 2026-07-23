@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Search, Plus, Filter, Eye, Edit2, Trash2 } from "lucide-react";
-import { PageWrap, Btn, inputCls } from "../shared/Primitives";
+import { PageWrap, Btn, Tag, inputCls } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ModalType, Parent, Child } from "../../types";
 
@@ -85,7 +85,7 @@ export function PageParents({ canEdit, openModal, setSelectedParent, onRefresh }
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                {["Nom", "Téléphone", "Email", "CIN", "Enfants", ""].map(h => (
+                {["Nom", "Genre", "Téléphone", "Email", "CIN", "Enfants", ""].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -96,6 +96,13 @@ export function PageParents({ canEdit, openModal, setSelectedParent, onRefresh }
                 return (
                   <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-slate-900">{p.name}</td>
+                    <td className="px-4 py-3">
+                      {p.gender ? (
+                        <Tag color={p.gender === "Mère" ? "pink" : p.gender === "Père" ? "blue" : "gray"}>{p.gender}</Tag>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-500">{p.phone}</td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{p.email || "—"}</td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.id_card || "—"}</td>
@@ -107,7 +114,7 @@ export function PageParents({ canEdit, openModal, setSelectedParent, onRefresh }
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
                         <button onClick={() => { setSelectedParent({ id: p.id, name: p.name }); openModal("parent-detail"); }}
-                          className="p-1 text-slate-400 hover:text-orange-500 transition-colors"><Eye size={13} /></button>
+                          className="p-1 text-slate-400 hover:text-pink-500 transition-colors"><Eye size={13} /></button>
                         {canEdit && <>
                           <button onClick={() => { setSelectedParent({ id: p.id, name: p.name, editMode: true }); openModal("parent-detail"); }}
                             className="p-1 text-slate-400 hover:text-slate-700 transition-colors"><Edit2 size={13} /></button>

@@ -24,6 +24,7 @@ interface Subscription {
 
 interface Props {
   canConfirm?: boolean;
+  canCreate?: boolean;
   openModal: (m: ModalType) => void;
   setSelectedSubscription: (s: { id: string; name: string }) => void;
   onRefresh?: number;
@@ -31,7 +32,7 @@ interface Props {
 
 type PaymentFilter = "all" | "paid" | "partial" | "unpaid";
 
-export function PageAbonnements({ canConfirm, openModal, setSelectedSubscription, onRefresh }: Props) {
+export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedSubscription, onRefresh }: Props) {
   const api = useApi();
   const [q, setQ] = useState("");
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -138,7 +139,7 @@ export function PageAbonnements({ canConfirm, openModal, setSelectedSubscription
     <PageWrap
       title="Abonnements"
       sub={`${count} abonnements — ${totalCollected.toLocaleString()} Dhs encaissés`}
-      action={canConfirm && <Btn onClick={() => openModal("add-subscription")}><Plus size={13} /> Nouvel abonnement</Btn>}
+      action={canCreate && <Btn onClick={() => openModal("add-subscription")}><Plus size={13} /> Nouvel abonnement</Btn>}
     >
       {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-px bg-slate-200">

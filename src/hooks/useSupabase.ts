@@ -171,6 +171,27 @@ export function useApi() {
       getDevices: () => request('/zkteco/devices'),
       updateDeviceStatus: (id: string, status: string) =>
         request(`/zkteco/devices/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+      getLogs: (params?: { limit?: number; offset?: number; child_id?: string; status?: string; from?: string; to?: string }) => {
+        const q = new URLSearchParams()
+        if (params?.limit) q.set('limit', String(params.limit))
+        if (params?.offset) q.set('offset', String(params.offset))
+        if (params?.child_id) q.set('child_id', params.child_id)
+        if (params?.status) q.set('status', params.status)
+        if (params?.from) q.set('from', params.from)
+        if (params?.to) q.set('to', params.to)
+        return request(`/zkteco/logs${q.toString() ? `?${q}` : ''}`)
+      },
+      getAccessLogs: (params?: { limit?: number; offset?: number; child_id?: string }) => {
+        const q = new URLSearchParams()
+        if (params?.limit) q.set('limit', String(params.limit))
+        if (params?.offset) q.set('offset', String(params.offset))
+        if (params?.child_id) q.set('child_id', params.child_id)
+        return request(`/zkteco/access-logs${q.toString() ? `?${q}` : ''}`)
+      },
+      getStats: () => request('/zkteco/logs/stats'),
+      getDeviceCommands: (deviceId: string) => request(`/zkteco/devices/${deviceId}/commands`),
+      queueCommand: (deviceId: string, command: string, params?: Record<string, unknown>) =>
+        request(`/zkteco/devices/${deviceId}/commands`, { method: 'POST', body: JSON.stringify({ command, params }) }),
     },
   }
 }

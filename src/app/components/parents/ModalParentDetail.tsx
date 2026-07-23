@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Check, Trash2, Plus } from "lucide-react";
-import { Modal, Tag, Btn, Field, inputCls } from "../shared/Primitives";
+import { Modal, Tag, Btn, Field, inputCls, selectCls } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ParentDetail, Child } from "../../types";
 
@@ -10,7 +10,7 @@ export function ModalParentDetail({ parentId, onClose, onUpdated, startEditing =
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", email: "", id_card: "" });
+  const [form, setForm] = useState({ name: "", phone: "", email: "", id_card: "", gender: "" });
   const [selectedChildren, setSelectedChildren] = useState<string[]>([]);
 
   useEffect(() => {
@@ -31,6 +31,7 @@ export function ModalParentDetail({ parentId, onClose, onUpdated, startEditing =
         phone: parentData.phone,
         email: parentData.email || "",
         id_card: parentData.id_card || "",
+        gender: parentData.gender || "",
       });
       const linkedIds = (parentData.parent_children || []).map((pc: any) => pc.child_id);
       setSelectedChildren(linkedIds);
@@ -62,6 +63,7 @@ export function ModalParentDetail({ parentId, onClose, onUpdated, startEditing =
         phone: form.phone,
         email: form.email || null,
         id_card: form.id_card || null,
+        gender: form.gender || null,
       });
 
       // Sync child links
@@ -127,6 +129,13 @@ export function ModalParentDetail({ parentId, onClose, onUpdated, startEditing =
             <Field label="Téléphone" required>
               <input className={inputCls} value={form.phone} onChange={e => set("phone", e.target.value)} />
             </Field>
+            <Field label="Genre">
+              <select className={selectCls} value={form.gender} onChange={e => set("gender", e.target.value)}>
+                <option value="">Sélectionner...</option>
+                <option value="Père">Père</option>
+                <option value="Mère">Mère</option>
+              </select>
+            </Field>
             <Field label="Email">
               <input type="email" className={inputCls} value={form.email} onChange={e => set("email", e.target.value)} />
             </Field>
@@ -140,7 +149,7 @@ export function ModalParentDetail({ parentId, onClose, onUpdated, startEditing =
                 <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer">
                   <input
                     type="checkbox"
-                    className="accent-orange-500"
+                    className="accent-pink-500"
                     checked={selectedChildren.includes(c.id)}
                     onChange={() => toggleChild(c.id)}
                   />
@@ -159,6 +168,7 @@ export function ModalParentDetail({ parentId, onClose, onUpdated, startEditing =
           <div className="border border-slate-200 p-4 space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-slate-500">Nom</span><span className="font-medium text-slate-900">{parent.name}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Téléphone</span><span className="text-slate-900">{parent.phone}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Genre</span><span className="text-slate-900">{parent.gender || "—"}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Email</span><span className="text-slate-900">{parent.email || "—"}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">CIN</span><span className="font-mono text-slate-900">{parent.id_card || "—"}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Créé le</span><span className="text-slate-400 text-xs">{new Date(parent.created_at).toLocaleDateString()}</span></div>

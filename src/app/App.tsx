@@ -428,76 +428,199 @@ function PageDemandes({ canValidate, openModal, onRefresh }: {
   );
 }
 
-// ─── Page: Accès ZKTeco ───────────────────────────────────────────────────────
+// ─── Page: Accès ZKTeco (connected to API) ─────────────────────────────────────
 function PageAcces() {
-  const logs = [
-    { id: "1", enfant: "Ahmed Benali", heure: "13:55", type: "Entrée", statut: "autorisé", appareil: "SpeedFace-V5L" },
-    { id: "2", enfant: "Sara Alaoui", heure: "10:15", type: "Entrée", statut: "autorisé", appareil: "SpeedFace-V5L" },
-    { id: "3", enfant: "Omar Benali", heure: "12:35", type: "Entrée", statut: "refusé", appareil: "SpeedFace-V5L" },
-    { id: "4", enfant: "Ilyas Haddad", heure: "09:50", type: "Entrée", statut: "autorisé", appareil: "SpeedFace-V5L" },
-    { id: "5", enfant: "Hamza Raji", heure: "15:58", type: "Sortie", statut: "autorisé", appareil: "SpeedFace-V5L" },
-  ];
+  const api = useApi();
+  const [devices, setDevices] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>({ today_total: 0, total_devices: 0, today_unknown: 0, recent: [] });
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [todayStr, setTodayStr] = useState("");
+
+  useEffect(() => {
+    const now = new Date();
+    setTodayStr(now.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" }));
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [deviceData, statsData] = await Promise.all([
+        api.zkteco.getDevices().catch(() => []),
+        api.zkteco.getStats().catch(() => ({ today_total: 0, total_devices: 0, today_unknown: 0, recent: [] })),
+      ]);
+      setDevices(deviceData);
+      setStats(statsData);
+      setLogs(statsData.recent || []);
+    } catch (err: any) {
+      console.error("Failed to load ZKTeco data:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleRefresh = () => load();
+
+  const formatTime = (isoStr: string) => {
+    if (!isoStr) return "—";
+    try {
+      return new Date(isoStr).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return isoStr;
+    }
+  };
+
+  const formatDate = (isoStr: string) => {
+    if (!isoStr) return "—";
+    try {
+      return new Date(isoStr).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    } catch {
+      return isoStr;
+    }
+  };
+
+  const mapStatusLabel = (status: string): string => {
+    switch (status) {
+      case "granted": return "autorisé";
+      case "denied_no_subscription": return "refusé (abonnement)";
+      case "denied_unknown_user": return "refusé (inconnu)";
+      default: return status;
+    }
+  };
+
+  const mapStatusColor = (status: string): "green" | "red" | "amber" => {
+    if (status === "granted") return "green";
+    if (status === "denied_unknown_user") return "amber";
+    return "red";
+  };
+
+  const mapTypeLabel = (type: string): string => {
+    switch (type) {
+      case "entry": return "Entrée";
+      case "exit": return "Sortie";
+      case "unknown_pin": return "PIN inconnu";
+      default: return type;
+    }
+  };
+
+  const unknownCount = logs.filter(l => l.status === "denied_unknown_user").length;
+  const deniedCount = logs.filter(l => l.status && l.status !== "granted").length;
 
   return (
-    <PageWrap title="Contrôle d'Accès ZKTeco" sub="SpeedFace-V5L — Temps réel">
+    <PageWrap
+      title="Contrôle d'Accès ZKTeco"
+      sub={`SpeedFace-V5L — ${devices.length} appareil(s) enregistré(s)`}
+    >
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-slate-200">
-        {[
-          { label: "SpeedFace #1 — Entrée principale", status: "En ligne", online: true },
-          { label: "SpeedFace #2 — Salle sport", status: "En ligne", online: true },
-        ].map((d, i) => (
-          <div key={i} className="bg-white p-4">
+        {devices.length > 0 ? devices.slice(0, 4).map((d: any) => (
+          <div key={d.id} className="bg-white p-4">
             <div className="flex items-center gap-2 mb-1">
-              <span className={`w-2 h-2 ${d.online ? "bg-emerald-500" : "bg-red-500"}`} />
-              <span className={`text-xs font-semibold ${d.online ? "text-emerald-700" : "text-red-600"}`}>{d.status}</span>
+              <span className={`w-2 h-2 ${d.status === "online" ? "bg-emerald-500" : "bg-red-500"}`} />
+              <span className={`text-xs font-semibold ${d.status === "online" ? "text-emerald-700" : "text-red-600"}`}>
+                {d.status === "online" ? "En ligne" : "Hors ligne"}
+              </span>
             </div>
-            <p className="text-xs text-slate-500">{d.label}</p>
+            <p className="text-xs text-slate-500 truncate">{d.name || d.ip_address || "Appareil ZKTeco"}</p>
+            {d.last_seen && (
+              <p className="text-[10px] text-slate-400 mt-0.5">Dernier contact: {formatTime(d.last_seen)}</p>
+            )}
           </div>
-        ))}
-        {[
-          { label: "Passages aujourd'hui", value: "45", icon: Activity },
-          { label: "Refus aujourd'hui", value: "3", icon: Shield },
-        ].map((s, i) => (
-          <div key={i} className="bg-white p-4 flex items-center gap-3">
-            <s.icon size={16} className="text-pink-500 shrink-0" />
-            <div>
-              <p className="text-xs text-slate-500 uppercase font-semibold tracking-wide">{s.label}</p>
-              <p className="text-xl font-bold text-slate-900" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{s.value}</p>
+        )) : (
+          <>
+            <div className="bg-white p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2 h-2 bg-slate-300" />
+                <span className="text-xs font-semibold text-slate-400">En attente</span>
+              </div>
+              <p className="text-xs text-slate-400">Aucun appareil enregistré</p>
             </div>
+            <div className="bg-white p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2 h-2 bg-slate-300" />
+                <span className="text-xs font-semibold text-slate-400">En attente</span>
+              </div>
+              <p className="text-xs text-slate-400">L'appareil s'enregistre automatiquement</p>
+            </div>
+          </>
+        )}
+        <div className="bg-white p-4 flex items-center gap-3">
+          <Activity size={16} className="text-pink-500 shrink-0" />
+          <div>
+            <p className="text-xs text-slate-500 uppercase font-semibold tracking-wide">Passages aujourd'hui</p>
+            <p className="text-xl font-bold text-slate-900" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{stats.today_total || 0}</p>
           </div>
-        ))}
-      </div>
-
-      <div className="bg-amber-50 border border-amber-200 px-4 py-3">
-        <p className="text-xs font-semibold text-amber-700 uppercase mb-2">Alertes</p>
-        <div className="space-y-1">
-          <p className="text-sm text-amber-800">⚠ Omar Benali — Tentative d'accès hors horaire autorisé</p>
-          <p className="text-sm text-amber-800">{`⚠ Porte entrée — Ouverte depuis > 5 min`}</p>
+        </div>
+        <div className="bg-white p-4 flex items-center gap-3">
+          <Shield size={16} className="text-pink-500 shrink-0" />
+          <div>
+            <p className="text-xs text-slate-500 uppercase font-semibold tracking-wide">Refus aujourd'hui</p>
+            <p className="text-xl font-bold text-slate-900" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{deniedCount}</p>
+          </div>
         </div>
       </div>
 
+      {unknownCount > 0 && (
+        <div className="bg-amber-50 border border-amber-200 px-4 py-3">
+          <p className="text-xs font-semibold text-amber-700 uppercase mb-2">Alertes — PIN inconnus</p>
+          <div className="space-y-1">
+            {logs.filter(l => l.status === "denied_unknown_user").slice(0, 5).map((log: any, i: number) => (
+              <p key={i} className="text-sm text-amber-800">
+                ⚠ {formatTime(log.event_time)} — Tentative avec PIN inconnu (ID: {log.raw_data?.pin || "?"})
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white border border-slate-200">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Logs du jour — Aujourd'hui 22/07/2026</p>
-          <button className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700"><RefreshCw size={11} /> Actualiser</button>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            Logs d'accès — {todayStr ? `Aujourd'hui ${todayStr}` : "Temps réel"}
+          </p>
+          <button onClick={handleRefresh} className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700 transition-colors">
+            <RefreshCw size={11} /> Actualiser
+          </button>
         </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
-              {["Heure", "Enfant", "Type", "Statut", "Appareil"].map(h => (
+              {["Date/Heure", "Enfant", "Type", "Statut", "Appareil"].map(h => (
                 <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {logs.map(log => (
-              <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3 font-mono text-slate-700">{log.heure}</td>
-                <td className="px-4 py-3 font-medium text-slate-900">{log.enfant}</td>
-                <td className="px-4 py-3 text-slate-500">{log.type}</td>
-                <td className="px-4 py-3"><Tag color={log.statut === "autorisé" ? "green" : "red"}>{log.statut}</Tag></td>
-                <td className="px-4 py-3 text-xs text-slate-400">{log.appareil}</td>
+            {loading ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-sm text-slate-400 text-center">Chargement des logs...</td>
               </tr>
-            ))}
+            ) : logs.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-6 text-sm text-slate-400 text-center">
+                  Aucun log d'accès pour le moment. Configurez le PUSH SDK sur l'appareil.
+                </td>
+              </tr>
+            ) : (
+              logs.map((log: any, i: number) => (
+                <tr key={log.id || i} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3 font-mono text-slate-700 text-xs">
+                    {formatDate(log.event_time)} {formatTime(log.event_time)}
+                  </td>
+                  <td className="px-4 py-3 font-medium text-slate-900">
+                    {log.children?.name || `PIN #${log.raw_data?.pin || "?"}`}
+                  </td>
+                  <td className="px-4 py-3 text-slate-500">{mapTypeLabel(log.event_type)}</td>
+                  <td className="px-4 py-3">
+                    <Tag color={mapStatusColor(log.status)}>{mapStatusLabel(log.status)}</Tag>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-400 truncate max-w-32">
+                    {log.device_id || "SpeedFace-V5L"}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -648,14 +771,14 @@ function Sidebar({ role, items, active, onChange, onLogout }: {
       <div
         className="flex items-center justify-center"
         style={{
-          height: "100px",
+          height: "200px",
           borderBottom: "1px solid var(--sidebar-border)",
         }}
       >
         <img
-          src="/src/app/assets/logo.png"
+          src="/logo.png"
           alt="TouptiGym"
-          className="h-90 w-auto object-contain"
+          className="h-60 w-auto object-contain"
         />
       </div>
 
@@ -716,7 +839,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       case "overview": return <PageOverview openModal={setModal} />;
       case "enfants": return <PageEnfants canEdit={role !== "trainer"} openModal={setModal} setSelectedChild={setSelectedChild} onRefresh={refreshKey} />;
       case "parents": return <PageParents canEdit={role !== "trainer"} openModal={setModal} setSelectedParent={setSelectedParent} onRefresh={refreshKey} />;
-      case "abonnements": return <PageAbonnements canConfirm={role === "admin"} openModal={setModal} setSelectedSubscription={setSelectedSubscription} onRefresh={refreshKey} />;
+      case "abonnements": return <PageAbonnements canConfirm={role === "admin"} canCreate={role !== "trainer"} openModal={setModal} setSelectedSubscription={setSelectedSubscription} onRefresh={refreshKey} />;
       case "exercices": return <PageExercices canCreate={role !== "worker"} canEdit={role !== "trainer"} canViewPrice={role !== "trainer"} openModal={setModal} setSelectedExercise={setSelectedExercise} onRefresh={refreshKey} />;
       case "entraineurs": return <PageEntraineurs canEdit={role !== "trainer"} openModal={setModal} setSelectedTrainer={setSelectedTrainer} onRefresh={refreshKey} />;
       case "absences": return <PageAbsences openModal={setModal} setSelectedAbsence={setSelectedAbsence} />;
@@ -786,13 +909,8 @@ function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-pink-500 mb-4">
-            <Dumbbell size={24} className="text-white" />
-          </div>
-          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-            TOUPTI<span className="text-pink-500">GYM</span>
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">Sélectionnez votre profil</p>
+          <img src="/logo.png" alt="TouptiGym" className="h-28 w-auto mx-auto mb-2" />
+          <p className="text-sm text-slate-400 mt-2">Sélectionnez votre profil</p>
         </div>
 
         {/* Role buttons — vertical stack, full width */}

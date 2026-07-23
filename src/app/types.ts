@@ -34,6 +34,7 @@ export interface Parent {
   phone: string;
   email: string | null;
   id_card: string | null;
+  gender: string;
   created_at: string;
 }
 

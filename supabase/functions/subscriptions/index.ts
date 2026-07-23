@@ -18,7 +18,7 @@ serve(async (req) => {
       const childId = url.searchParams.get('child_id')
       const status = url.searchParams.get('status')
 
-      let query = supabase.from('subscriptions').select('*, children(name)').order('created_at', { ascending: false })
+      let query = supabase.from('subscriptions').select('*, children(name), parents!parent_id(name, gender)').order('created_at', { ascending: false })
       if (childId) query = query.eq('child_id', childId)
       if (status) query = query.eq('status', status)
 
@@ -29,7 +29,7 @@ serve(async (req) => {
 
     // GET /subscriptions/:id
     if (method === 'GET' && segments.length === 1) {
-      const { data, error } = await supabase.from('subscriptions').select('*, children(name)').eq('id', segments[0]).maybeSingle()
+      const { data, error } = await supabase.from('subscriptions').select('*, children(name), parents!parent_id(name, gender)').eq('id', segments[0]).maybeSingle()
       if (!data) return errorResponse('Subscription not found', 404)
       return jsonResponse(data)
     }
