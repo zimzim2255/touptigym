@@ -61,6 +61,8 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [subscriptionType, setSubscriptionType] = useState("Annuel");
   const [activities, setActivities] = useState("2");
   const [discount, setDiscount] = useState(0);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [discountType, setDiscountType] = useState<"fixed" | "percent">("fixed");
   const [insurance, setInsurance] = useState(300);
   const [entryFee, setEntryFee] = useState(700);
   const [subType, setSubType] = useState("");
@@ -122,7 +124,10 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   );
 
   const baseAmount = PRICE_TABLE[activities]?.[subscriptionType] || 0;
-  const total = baseAmount - discount + insurance + entryFee;
+  const effectiveDiscount = discountType === "percent"
+    ? Math.round(baseAmount * (discountPercent / 100))
+    : discount;
+  const total = baseAmount - effectiveDiscount + insurance + entryFee;
 
   const totalChecksAmount = selectedChecks.reduce((sum, s) => sum + s.amount, 0);
   const totalPaid = especeAmount + virementAmount + totalChecksAmount;
@@ -226,7 +231,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         type: subscriptionType,
         sub_type: subType || `${activities} activités/semaine`,
         amount: baseAmount,
-        discount: discount,
+        discount: effectiveDiscount,
         insurance: insurance,
         entry_fee: entryFee,
         exercises: selectedExercises,
@@ -435,9 +440,36 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
               <Field label="Montant de base (Dhs)">
                 <div className={`${inputCls} bg-slate-100 text-slate-600`}>{baseAmount.toLocaleString()} Dhs</div>
               </Field>
-              <Field label="Remise (Dhs)">
-                <input type="number" className={inputCls} value={discount} onChange={e => setDiscount(Number(e.target.value))} placeholder="0" />
-              </Field>
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-slate-500 mb-1">Remise</p>
+                    {discountType === "percent" ? (
+                      <div className="relative">
+                        <input type="number" className={`${inputCls} pr-8`} value={discountPercent} onChange={e => setDiscountPercent(Number(e.target.value))} placeholder="0" min="0" max="100" />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
+                      </div>
+                    ) : (
+                      <input type="number" className={inputCls} value={discount} onChange={e => setDiscount(Number(e.target.value))} placeholder="0" />
+                    )}
+                  </div>
+                  <div className="flex gap-1 pt-5">
+                    <button
+                      type="button"
+                      onClick={() => { setDiscountType("fixed"); setDiscountPercent(0); }}
+                      className={`px-2 py-1 text-xs border font-medium transition-colors ${discountType === "fixed" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-slate-200 text-slate-500 hover:border-slate-400"}`}
+                    >Dhs</button>
+                    <button
+                      type="button"
+                      onClick={() => { setDiscountType("percent"); setDiscount(0); }}
+                      className={`px-2 py-1 text-xs border font-medium transition-colors ${discountType === "percent" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-slate-200 text-slate-500 hover:border-slate-400"}`}
+                    >%</button>
+                  </div>
+                </div>
+                {discountType === "percent" && discountPercent > 0 && (
+                  <p className="text-xs text-slate-500 -mt-2 mb-2">{discountPercent}% = {Math.round(baseAmount * discountPercent / 100).toLocaleString()} Dhs de remise</p>
+                )}
+              </div>
               <Field label="Assurance (Dhs)">
                 <input type="number" className={inputCls} value={insurance} onChange={e => setInsurance(Number(e.target.value))} />
               </Field>
