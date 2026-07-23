@@ -645,11 +645,8 @@ function Sidebar({ role, items, active, onChange, onLogout }: {
       style={{ background: "var(--sidebar)" }}
     >
       {/* Logo */}
-      <div className="px-5 py-5" style={{ borderBottom: "1px solid var(--sidebar-border)" }}>
-        <p className="text-white font-bold text-xl tracking-tight" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-          TOUPTI<span className="text-pink-400">GYM</span>
-        </p>
-        <p className="text-xs mt-1" style={{ color: "rgba(226,232,240,0.5)" }}>{roleLabel}</p>
+      <div className="px-4 py-4 flex items-center" style={{ borderBottom: "1px solid var(--sidebar-border)" }}>
+        <img src="/src/app/assets/logo.png" alt="TouptiGym" className="h-20 w-auto" />
       </div>
 
       <nav className="flex-1 px-2 py-3 space-y-0.5">
@@ -710,7 +707,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       case "enfants": return <PageEnfants canEdit={role !== "trainer"} openModal={setModal} setSelectedChild={setSelectedChild} onRefresh={refreshKey} />;
       case "parents": return <PageParents canEdit={role !== "trainer"} openModal={setModal} setSelectedParent={setSelectedParent} onRefresh={refreshKey} />;
       case "abonnements": return <PageAbonnements canConfirm={role === "admin"} openModal={setModal} setSelectedSubscription={setSelectedSubscription} onRefresh={refreshKey} />;
-      case "exercices": return <PageExercices canCreate={role !== "worker"} canEdit={role !== "trainer"} openModal={setModal} setSelectedExercise={setSelectedExercise} onRefresh={refreshKey} />;
+      case "exercices": return <PageExercices canCreate={role !== "worker"} canEdit={role !== "trainer"} canViewPrice={role !== "trainer"} openModal={setModal} setSelectedExercise={setSelectedExercise} onRefresh={refreshKey} />;
       case "entraineurs": return <PageEntraineurs canEdit={role !== "trainer"} openModal={setModal} setSelectedTrainer={setSelectedTrainer} onRefresh={refreshKey} />;
       case "absences": return <PageAbsences openModal={setModal} setSelectedAbsence={setSelectedAbsence} />;
       case "checks": return <PageChecks canEdit={role !== "trainer"} openModal={setModal} setSelectedCheck={setSelectedCheck} onRefresh={refreshKey} />;
