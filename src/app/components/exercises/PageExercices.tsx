@@ -19,12 +19,14 @@ interface Exercise {
 
 interface Props {
   canCreate?: boolean;
+  canEdit?: boolean;
+  canViewPrice?: boolean;
   openModal: (m: ModalType) => void;
   setSelectedExercise: (e: { id: string; name: string }) => void;
   onRefresh?: number;
 }
 
-export function PageExercices({ canCreate, openModal, setSelectedExercise, onRefresh }: Props) {
+export function PageExercices({ canCreate, canEdit, canViewPrice = true, openModal, setSelectedExercise, onRefresh }: Props) {
   const api = useApi();
   const [q, setQ] = useState("");
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -75,6 +77,10 @@ export function PageExercices({ canCreate, openModal, setSelectedExercise, onRef
     [list, DAY_ORDER]
   );
 
+  const headers = canViewPrice
+    ? ["Nom", "Jour", "Horaire", "Type", "Coach", "Prix", ""]
+    : ["Nom", "Jour", "Horaire", "Type", "Coach", ""];
+
   return (
     <PageWrap
       title="Exercices & Séances"
@@ -97,7 +103,7 @@ export function PageExercices({ canCreate, openModal, setSelectedExercise, onRef
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                {["Nom", "Jour", "Horaire", "Type", "Coach", "Prix", ""].map(h => (
+                {headers.map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -112,12 +118,14 @@ export function PageExercices({ canCreate, openModal, setSelectedExercise, onRef
                     <Tag color={ex.type === "Football" ? "green" : ex.type === "Basketball" ? "default" : ex.type === "Swimming" ? "blue" : "gray"}>{ex.type}</Tag>
                   </td>
                   <td className="px-4 py-3 text-slate-500">{ex.trainers?.name || "—"}</td>
-                  <td className="px-4 py-3 text-slate-500">{ex.price || 0} Dhs</td>
+                  {canViewPrice && (
+                    <td className="px-4 py-3 text-slate-500">{ex.price || 0} Dhs</td>
+                  )}
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
                       <button onClick={() => { setSelectedExercise({ id: ex.id, name: ex.name }); openModal("exercice-detail"); }}
-                        className="p-1 text-slate-400 hover:text-orange-500 transition-colors"><Eye size={13} /></button>
-                      {canCreate && <>
+                        className="p-1 text-slate-400 hover:text-pink-500 transition-colors"><Eye size={13} /></button>
+                      {canEdit && <>
                         <button onClick={() => { setSelectedExercise({ id: ex.id, name: ex.name }); openModal("exercice-detail"); }}
                           className="p-1 text-slate-400 hover:text-slate-700 transition-colors"><Edit2 size={13} /></button>
                         <button onClick={() => handleDelete(ex.id)}

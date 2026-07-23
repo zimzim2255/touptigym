@@ -3,7 +3,7 @@ import { X, Check } from "lucide-react";
 // ─── Tag ────────────────────────────────────────────────────────────────────
 export function Tag({ children, color = "default" }: { children: React.ReactNode; color?: string }) {
   const map: Record<string, string> = {
-    default: "bg-orange-50 text-orange-700",
+    default: "bg-pink-50 text-pink-700",
     green: "bg-emerald-50 text-emerald-700",
     blue: "bg-blue-50 text-blue-700",
     red: "bg-red-50 text-red-700",
@@ -31,7 +31,7 @@ export function Btn({
   const base = "inline-flex items-center gap-1.5 font-medium transition-colors cursor-pointer border";
   const sizes = { sm: "px-3 py-1.5 text-xs", md: "px-4 py-2 text-sm" };
   const variants = {
-    primary: "bg-orange-500 text-white border-orange-500 hover:bg-orange-600 hover:border-orange-600",
+    primary: "bg-pink-500 text-white border-pink-500 hover:bg-pink-600 hover:border-pink-600",
     ghost: "bg-transparent text-slate-600 border-transparent hover:bg-slate-100 hover:text-slate-900",
     danger: "bg-transparent text-red-600 border-red-200 hover:bg-red-50",
     outline: "bg-white text-slate-700 border-slate-300 hover:bg-slate-50",
@@ -58,8 +58,8 @@ export function Field({ label, required, children }: { label: string; required?:
 }
 
 // ─── Input / Select classes ──────────────────────────────────────────────────
-export const inputCls = "w-full px-3 py-2 text-sm border border-slate-300 bg-white focus:outline-none focus:border-orange-500 transition-colors";
-export const selectCls = "w-full px-3 py-2 text-sm border border-slate-300 bg-white focus:outline-none focus:border-orange-500 appearance-none cursor-pointer";
+export const inputCls = "w-full px-3 py-2 text-sm border border-slate-300 bg-white focus:outline-none focus:border-pink-500 transition-colors";
+export const selectCls = "w-full px-3 py-2 text-sm border border-slate-300 bg-white focus:outline-none focus:border-pink-500 appearance-none cursor-pointer";
 
 // ─── Modal Shell ─────────────────────────────────────────────────────────────
 export function Modal({ title, onClose, children, wide = false }: {

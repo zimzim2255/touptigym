@@ -26,7 +26,7 @@ interface ExerciseData {
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const SPORTS = ["Football", "Basketball", "Swimming", "Gymnastics", "Other"];
 
-export function ModalExerciceDetail({ exerciseId, onClose, onUpdated }: { exerciseId: string; onClose: () => void; onUpdated?: () => void }) {
+export function ModalExerciceDetail({ exerciseId, onClose, onUpdated, role }: { exerciseId: string; onClose: () => void; onUpdated?: () => void; role?: string }) {
   const api = useApi();
   const [ex, setEx] = useState<ExerciseData | null>(null);
   const [trainers, setTrainers] = useState<Trainer[]>([]);
@@ -146,9 +146,11 @@ export function ModalExerciceDetail({ exerciseId, onClose, onUpdated }: { exerci
             <Field label="Horaire fin" required>
               <input type="time" className={inputCls} value={form.end_time} onChange={e => set("end_time", e.target.value)} />
             </Field>
-            <Field label="Prix (Dhs)">
-              <input type="number" className={inputCls} value={form.price} onChange={e => set("price", e.target.value)} />
-            </Field>
+            {role !== "trainer" && (
+              <Field label="Prix (Dhs)">
+                <input type="number" className={inputCls} value={form.price} onChange={e => set("price", e.target.value)} />
+              </Field>
+            )}
           </div>
           <div className="flex gap-3 pt-2 border-t border-slate-100">
             <Btn onClick={handleSave}><Check size={13} /> Enregistrer</Btn>
@@ -178,10 +180,12 @@ export function ModalExerciceDetail({ exerciseId, onClose, onUpdated }: { exerci
               <span className="text-slate-500">Coach</span>
               <span className="text-slate-900">{ex.trainers?.name || "—"}</span>
             </div>
-            <div className="flex items-center justify-between px-4 py-2.5">
-              <span className="text-slate-500">Prix</span>
-              <span className="text-slate-900">{ex.price || 0} Dhs</span>
-            </div>
+            {role !== "trainer" && (
+              <div className="flex items-center justify-between px-4 py-2.5">
+                <span className="text-slate-500">Prix</span>
+                <span className="text-slate-900">{ex.price || 0} Dhs</span>
+              </div>
+            )}
           </div>
           <div className="flex gap-3 pt-2 border-t border-slate-100">
             <Btn variant="outline" onClick={() => setEditing(true)}><Plus size={13} /> Modifier</Btn>

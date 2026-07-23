@@ -34,7 +34,7 @@ export function ModalMarkAttendance({ exercice, onClose, onSaved }: Props) {
   const [status, setStatus] = useState<Record<string, "present" | "absent">>({});
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [error, setError] = useState("");
-  const [isReadOnly, setIsReadOnly] = useState(false);
+  const [alreadyRecorded, setAlreadyRecorded] = useState(false);
   const [existingAbsences, setExistingAbsences] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export function ModalMarkAttendance({ exercice, onClose, onSaved }: Props) {
         const absMap: Record<string, string> = {};
         // result is { marked: boolean, absences: [{ child_id, type }] }
         if (result?.marked === true) {
-          setIsReadOnly(true);
+          setAlreadyRecorded(true);
           if (result.absences && Array.isArray(result.absences)) {
             result.absences.forEach((a: { child_id: string; type: string }) => { absMap[a.child_id] = a.type; });
             setExistingAbsences(absMap);
@@ -82,7 +82,7 @@ export function ModalMarkAttendance({ exercice, onClose, onSaved }: Props) {
         .filter(c => status[c.id] === "absent")
         .map(c => ({ child_id: c.id, type: "absence" }));
 
-      // Always call the API to mark this exercise+date as recorded
+      // Always call the API to mark this exercise+date as recorded (overwrites if already exists)
       await api.attendance.markAttendance({
         exercise_id: exercice.id,
         date,
@@ -107,13 +107,12 @@ export function ModalMarkAttendance({ exercice, onClose, onSaved }: Props) {
             value={date}
             onChange={e => setDate(e.target.value)}
             className={inputCls}
-            disabled={isReadOnly}
           />
         </Field>
 
-        {isReadOnly && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 flex items-center gap-2">
-            <Eye size={14} /> Présence déjà enregistrée — consultation seule
+        {alreadyRecorded && (
+          <div className="p-3 bg-amber-50 border border-amber-200 text-xs text-amber-700 flex items-center gap-2">
+            <Eye size={14} /> Présence déjà enregistrée — vous pouvez la modifier
           </div>
         )}
 
@@ -143,43 +142,28 @@ export function ModalMarkAttendance({ exercice, onClose, onSaved }: Props) {
                         <Tag color="red">Absent</Tag>
                       )}
                     </div>
-                    {!isReadOnly && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setStatus(p => ({ ...p, [child.id]: "present" }))}
-                          className={`px-3 py-1.5 text-xs font-medium border transition-colors ${
-                            s === "present"
-                              ? "bg-emerald-500 text-white border-emerald-500"
-                              : "border-slate-300 text-slate-600 hover:border-emerald-400"
-                          }`}
-                        >
-                          <Check size={11} className="inline mr-1" />Présent
-                        </button>
-                        <button
-                          onClick={() => setStatus(p => ({ ...p, [child.id]: "absent" }))}
-                          className={`px-3 py-1.5 text-xs font-medium border transition-colors ${
-                            s === "absent"
-                              ? "bg-red-500 text-white border-red-500"
-                              : "border-slate-300 text-slate-600 hover:border-red-400"
-                          }`}
-                        >
-                          <X size={11} className="inline mr-1" />Absent
-                        </button>
-                      </div>
-                    )}
-                    {isReadOnly && (
-                      <div className="flex items-center gap-2">
-                        {s === "present" ? (
-                          <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                            <Check size={12} /> Présent
-                          </span>
-                        ) : (
-                          <span className="text-xs text-red-600 font-medium flex items-center gap-1">
-                            <X size={12} /> Absent
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setStatus(p => ({ ...p, [child.id]: "present" }))}
+                        className={`px-3 py-1.5 text-xs font-medium border transition-colors ${
+                          s === "present"
+                            ? "bg-emerald-500 text-white border-emerald-500"
+                            : "border-slate-300 text-slate-600 hover:border-emerald-400"
+                        }`}
+                      >
+                        <Check size={11} className="inline mr-1" />Présent
+                      </button>
+                      <button
+                        onClick={() => setStatus(p => ({ ...p, [child.id]: "absent" }))}
+                        className={`px-3 py-1.5 text-xs font-medium border transition-colors ${
+                          s === "absent"
+                            ? "bg-red-500 text-white border-red-500"
+                            : "border-slate-300 text-slate-600 hover:border-red-400"
+                        }`}
+                      >
+                        <X size={11} className="inline mr-1" />Absent
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -187,13 +171,11 @@ export function ModalMarkAttendance({ exercice, onClose, onSaved }: Props) {
           </>
         )}
 
-        {!isReadOnly && (
-          <div className="flex gap-3 pt-2 border-t border-slate-100">
-            <Btn className="w-full justify-center" onClick={handleSave} disabled={saving || loading}>
-              <Check size={13} /> {saving ? "Enregistrement..." : "Enregistrer"}
-            </Btn>
-          </div>
-        )}
+        <div className="flex gap-3 pt-2 border-t border-slate-100">
+          <Btn className="w-full justify-center" onClick={handleSave} disabled={saving || loading}>
+            <Check size={13} /> {saving ? "Enregistrement..." : alreadyRecorded ? "Mettre à jour" : "Enregistrer"}
+          </Btn>
+        </div>
       </div>
     </Modal>
   );
