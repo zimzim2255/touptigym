@@ -8,15 +8,24 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url)
-    // Find 'parents' in path segments to handle any URL prefix
     const allSegments = url.pathname.split('/').filter(Boolean)
     const parentsIdx = allSegments.lastIndexOf('parents')
-    // Get segments after 'parents' keyword
     const segments = parentsIdx >= 0 ? allSegments.slice(parentsIdx + 1) : []
     const method = req.method
 
-    // GET / (list all parents)
+    // GET / (list all parents, or filter by child_id)
     if (method === 'GET' && segments.length === 0) {
+      const childId = url.searchParams.get('child_id')
+      if (childId) {
+        // Get parents linked to this child via parent_children
+        const { data, error } = await supabase
+          .from('parent_children')
+          .select('parents(*)')
+          .eq('child_id', childId)
+        if (error) return errorResponse(error.message, 500)
+        const parents = data.map((pc: any) => pc.parents).filter(Boolean)
+        return jsonResponse(parents)
+      }
       const { data, error } = await supabase.from('parents').select('*').order('name')
       if (error) return errorResponse(error.message, 500)
       return jsonResponse(data)
