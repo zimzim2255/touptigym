@@ -839,7 +839,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       case "overview": return <PageOverview openModal={setModal} />;
       case "enfants": return <PageEnfants canEdit={role !== "trainer"} openModal={setModal} setSelectedChild={setSelectedChild} onRefresh={refreshKey} />;
       case "parents": return <PageParents canEdit={role !== "trainer"} openModal={setModal} setSelectedParent={setSelectedParent} onRefresh={refreshKey} />;
-      case "abonnements": return <PageAbonnements canConfirm={role === "admin"} openModal={setModal} setSelectedSubscription={setSelectedSubscription} onRefresh={refreshKey} />;
+      case "abonnements": return <PageAbonnements canConfirm={role === "admin"} canCreate={role !== "trainer"} openModal={setModal} setSelectedSubscription={setSelectedSubscription} onRefresh={refreshKey} />;
       case "exercices": return <PageExercices canCreate={role !== "worker"} canEdit={role !== "trainer"} canViewPrice={role !== "trainer"} openModal={setModal} setSelectedExercise={setSelectedExercise} onRefresh={refreshKey} />;
       case "entraineurs": return <PageEntraineurs canEdit={role !== "trainer"} openModal={setModal} setSelectedTrainer={setSelectedTrainer} onRefresh={refreshKey} />;
       case "absences": return <PageAbsences openModal={setModal} setSelectedAbsence={setSelectedAbsence} />;
