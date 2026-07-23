@@ -12,10 +12,11 @@ interface Trainer {
 interface Props {
   onClose: () => void;
   onCreated?: () => void;
+  role?: string;
 }
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
-export function ModalAddExercice({ onClose, onCreated }: Props) {
+export function ModalAddExercice({ onClose, onCreated, role }: Props) {
   const api = useApi();
   const [loading, setLoading] = useState(false);
   const [trainers, setTrainers] = useState<Trainer[]>([]);
@@ -47,15 +48,16 @@ export function ModalAddExercice({ onClose, onCreated }: Props) {
     try {
       // Create one exercise per slot
       for (const slot of slots) {
-        await api.exercises.create({
+        const payload: any = {
           name,
           day: slot.day,
           type,
           start_time: slot.start,
           end_time: slot.end,
           coach_id: coachId,
-          price,
-        });
+        };
+        if (role !== "trainer") payload.price = price;
+        await api.exercises.create(payload);
       }
       onCreated?.();
       onClose();
@@ -83,9 +85,11 @@ export function ModalAddExercice({ onClose, onCreated }: Props) {
               {trainers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </Field>
-          <Field label="Prix (Dhs)">
-            <input type="number" className={inputCls} value={price} onChange={e => setPrice(Number(e.target.value))} />
-          </Field>
+          {role !== "trainer" && (
+            <Field label="Prix (Dhs)">
+              <input type="number" className={inputCls} value={price} onChange={e => setPrice(Number(e.target.value))} />
+            </Field>
+          )}
         </div>
 
         {/* Multiple day/time slots */}

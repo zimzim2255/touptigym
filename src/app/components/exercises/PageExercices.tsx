@@ -19,12 +19,13 @@ interface Exercise {
 
 interface Props {
   canCreate?: boolean;
+  canEdit?: boolean;
   openModal: (m: ModalType) => void;
   setSelectedExercise: (e: { id: string; name: string }) => void;
   onRefresh?: number;
 }
 
-export function PageExercices({ canCreate, openModal, setSelectedExercise, onRefresh }: Props) {
+export function PageExercices({ canCreate, canEdit, openModal, setSelectedExercise, onRefresh }: Props) {
   const api = useApi();
   const [q, setQ] = useState("");
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -117,7 +118,7 @@ export function PageExercices({ canCreate, openModal, setSelectedExercise, onRef
                     <div className="flex gap-1">
                       <button onClick={() => { setSelectedExercise({ id: ex.id, name: ex.name }); openModal("exercice-detail"); }}
                         className="p-1 text-slate-400 hover:text-orange-500 transition-colors"><Eye size={13} /></button>
-                      {canCreate && <>
+                      {canEdit && <>
                         <button onClick={() => { setSelectedExercise({ id: ex.id, name: ex.name }); openModal("exercice-detail"); }}
                           className="p-1 text-slate-400 hover:text-slate-700 transition-colors"><Edit2 size={13} /></button>
                         <button onClick={() => handleDelete(ex.id)}
