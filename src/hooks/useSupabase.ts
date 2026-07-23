@@ -147,6 +147,25 @@ export function useApi() {
         request(`/prices/discounts/${id}/toggle`, { method: 'PUT', body: JSON.stringify({ active }) }),
     },
 
+    // ─── Upload ──────────────────────────────────
+    upload: {
+      file: async (formData: FormData) => {
+        const res = await fetch(`${FUNCTIONS_URL}/upload`, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: formData,
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }))
+          throw new Error(err.error || 'Upload failed')
+        }
+        return res.json()
+      },
+    },
+
     // ─── ZKTeco ──────────────────────────────────
     zkteco: {
       getDevices: () => request('/zkteco/devices'),

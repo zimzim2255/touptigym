@@ -208,7 +208,7 @@ const SPORT_PIE = [
   { name: "Basketball", value: 25 },
   { name: "Natation", value: 15 },
 ];
-const PIE_COLORS = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6"];
+const PIE_COLORS = ["#D75077", "#92CC8D", "#3b82f6", "#8b5cf6"];
 
 function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
   const api = useApi();
@@ -230,7 +230,7 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
           { label: "Recettes (Jul)", value: "65 000 Dhs", sub: "↑12% vs juin", icon: Banknote },
         ].map((s, i) => (
           <div key={i} className="bg-white p-5 flex items-start gap-3">
-            <s.icon size={18} className="text-orange-500 mt-0.5 shrink-0" />
+            <s.icon size={18} className="text-pink-500 mt-0.5 shrink-0" />
             <div>
               <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{s.label}</p>
               <p className="text-2xl font-bold text-slate-900 mt-1" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{s.value}</p>
@@ -247,9 +247,9 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
             <BarChart data={ATTENDANCE_DATA} barSize={14} barGap={3}>
               <XAxis dataKey="jour" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", fontSize: 12 }} cursor={{ fill: "rgba(249,115,22,0.04)" }} />
-              <Bar dataKey="presents" name="Présents" fill="#f97316" radius={0} />
-              <Bar dataKey="absents" name="Absents" fill="#fed7aa" radius={0} />
+              <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", fontSize: 12 }} cursor={{ fill: "rgba(215,80,119,0.04)" }} />
+              <Bar dataKey="presents" name="Présents" fill="#D75077" radius={0} />
+              <Bar dataKey="absents" name="Absents" fill="#f5b7c9" radius={0} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -283,7 +283,7 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
               <XAxis dataKey="mois" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", fontSize: 12 }} />
-              <Line type="monotone" dataKey="montant" stroke="#f97316" strokeWidth={2} dot={{ fill: "#f97316", r: 3 }} />
+              <Line type="monotone" dataKey="montant" stroke="#D75077" strokeWidth={2} dot={{ fill: "#D75077", r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -305,7 +305,7 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
               ))
             )}
           </div>
-          <button onClick={() => openModal("add-request")} className="mt-2 text-xs text-orange-600 hover:underline flex items-center gap-1"><Plus size={11} /> Nouvelle demande</button>
+          <button onClick={() => openModal("add-request")} className="mt-2 text-xs text-pink-600 hover:underline flex items-center gap-1"><Plus size={11} /> Nouvelle demande</button>
         </div>
       </div>
     </PageWrap>
@@ -458,7 +458,7 @@ function PageAcces() {
           { label: "Refus aujourd'hui", value: "3", icon: Shield },
         ].map((s, i) => (
           <div key={i} className="bg-white p-4 flex items-center gap-3">
-            <s.icon size={16} className="text-orange-500 shrink-0" />
+            <s.icon size={16} className="text-pink-500 shrink-0" />
             <div>
               <p className="text-xs text-slate-500 uppercase font-semibold tracking-wide">{s.label}</p>
               <p className="text-xl font-bold text-slate-900" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{s.value}</p>
@@ -539,9 +539,9 @@ function PageTarifs() {
               {rows.map((r, i) => (
                 <tr key={i} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 text-slate-700">{r.act}</td>
-                  <td className="px-4 py-2.5"><input className="w-24 px-2 py-1 border border-slate-200 text-sm text-slate-900 font-medium focus:outline-none focus:border-orange-400" defaultValue={r.session} /></td>
-                  <td className="px-4 py-2.5"><input className="w-24 px-2 py-1 border border-slate-200 text-sm text-slate-900 font-medium focus:outline-none focus:border-orange-400" defaultValue={r.annuel} /></td>
-                  <td className="px-4 py-2.5"><button className="text-orange-500 hover:text-orange-700 text-xs font-medium">Sauv.</button></td>
+                  <td className="px-4 py-2.5"><input className="w-24 px-2 py-1 border border-slate-200 text-sm text-slate-900 font-medium focus:outline-none focus:border-pink-400" defaultValue={r.session} /></td>
+                  <td className="px-4 py-2.5"><input className="w-24 px-2 py-1 border border-slate-200 text-sm text-slate-900 font-medium focus:outline-none focus:border-pink-400" defaultValue={r.annuel} /></td>
+                  <td className="px-4 py-2.5"><button className="text-pink-500 hover:text-pink-700 text-xs font-medium">Sauv.</button></td>
                 </tr>
               ))}
             </tbody>
@@ -550,15 +550,15 @@ function PageTarifs() {
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Frais supplémentaires</p>
             <div className="flex items-center gap-3 text-sm">
               <span className="text-slate-600 w-44">Droit d'entrée</span>
-              <input className="w-20 px-2 py-1 border border-slate-200 text-sm font-medium focus:outline-none focus:border-orange-400" defaultValue="700" />
+              <input className="w-20 px-2 py-1 border border-slate-200 text-sm font-medium focus:outline-none focus:border-pink-400" defaultValue="700" />
               <span className="text-slate-400 text-xs">Dhs</span>
-              <button className="text-orange-500 text-xs font-medium">Sauv.</button>
+              <button className="text-pink-500 text-xs font-medium">Sauv.</button>
             </div>
             <div className="flex items-center gap-3 text-sm">
               <span className="text-slate-600 w-44">Assurance & Carte membre</span>
-              <input className="w-20 px-2 py-1 border border-slate-200 text-sm font-medium focus:outline-none focus:border-orange-400" defaultValue="300" />
+              <input className="w-20 px-2 py-1 border border-slate-200 text-sm font-medium focus:outline-none focus:border-pink-400" defaultValue="300" />
               <span className="text-slate-400 text-xs">Dhs</span>
-              <button className="text-orange-500 text-xs font-medium">Sauv.</button>
+              <button className="text-pink-500 text-xs font-medium">Sauv.</button>
             </div>
           </div>
         </div>
@@ -580,7 +580,7 @@ function PageTarifs() {
               {remises.map((r, i) => (
                 <tr key={i} className="hover:bg-slate-50">
                   <td className="px-4 py-2.5 text-slate-700">{r.nom}</td>
-                  <td className="px-4 py-2.5 font-semibold text-orange-600">{r.valeur}</td>
+                  <td className="px-4 py-2.5 font-semibold text-pink-600">{r.valeur}</td>
                   <td className="px-4 py-2.5"><Tag color={r.actif ? "green" : "gray"}>{r.actif ? "Actif" : "Inactif"}</Tag></td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1">
@@ -647,7 +647,7 @@ function Sidebar({ role, items, active, onChange, onLogout }: {
       {/* Logo */}
       <div className="px-5 py-5" style={{ borderBottom: "1px solid var(--sidebar-border)" }}>
         <p className="text-white font-bold text-xl tracking-tight" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-          TOUPTI<span className="text-orange-400">GYM</span>
+          TOUPTI<span className="text-pink-400">GYM</span>
         </p>
         <p className="text-xs mt-1" style={{ color: "rgba(226,232,240,0.5)" }}>{roleLabel}</p>
       </div>
@@ -659,7 +659,7 @@ function Sidebar({ role, items, active, onChange, onLogout }: {
             <button
               key={item.id}
               onClick={() => onChange(item.id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium transition-colors text-left ${active_ ? "bg-orange-500 text-white" : "text-slate-300 hover:bg-white/8 hover:text-white"}`}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium transition-colors text-left ${active_ ? "bg-pink-500 text-white" : "text-slate-300 hover:bg-white/8 hover:text-white"}`}
             >
               <item.icon size={14} className={active_ ? "text-white" : "text-slate-400"} />
               {item.label}
@@ -735,7 +735,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
           <button className="lg:hidden p-1.5 text-slate-500" onClick={() => setSidebarOpen(true)}><Menu size={16} /></button>
           <div className="flex items-center gap-3 ml-auto">
             <button className="text-slate-400 hover:text-slate-700 transition-colors"><Bell size={15} /></button>
-            <div className="w-7 h-7 bg-orange-100 flex items-center justify-center text-orange-700 text-xs font-bold border border-orange-200">
+            <div className="w-7 h-7 bg-pink-100 flex items-center justify-center text-pink-700 text-xs font-bold border border-pink-200">
               {role === "admin" ? "AD" : role === "worker" ? "EM" : "EN"}
             </div>
           </div>
@@ -779,11 +779,11 @@ function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-orange-500 mb-4">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-pink-500 mb-4">
             <Dumbbell size={24} className="text-white" />
           </div>
           <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-            TOUPTI<span className="text-orange-500">GYM</span>
+            TOUPTI<span className="text-pink-500">GYM</span>
           </h1>
           <p className="text-sm text-slate-400 mt-1">Sélectionnez votre profil</p>
         </div>
@@ -794,14 +794,14 @@ function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
             <button
               key={r.id}
               onClick={() => onSelect(r.id)}
-              className="w-full flex items-center gap-4 px-5 py-4 border border-slate-200 bg-white hover:border-orange-400 hover:bg-orange-50 transition-colors text-left group"
+              className="w-full flex items-center gap-4 px-5 py-4 border border-slate-200 bg-white hover:border-pink-400 hover:bg-pink-50 transition-colors text-left group"
             >
               <span className="text-2xl">{r.emoji}</span>
               <div className="flex-1">
-                <p className="font-semibold text-slate-900 group-hover:text-orange-700">{r.label}</p>
+                <p className="font-semibold text-slate-900 group-hover:text-pink-700">{r.label}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{r.sub}</p>
               </div>
-              <ChevronRight size={15} className="text-slate-300 group-hover:text-orange-400 transition-colors" />
+              <ChevronRight size={15} className="text-slate-300 group-hover:text-pink-400 transition-colors" />
             </button>
           ))}
         </div>

@@ -304,12 +304,12 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                       <button
                         key={c.id}
                         onClick={() => handleSelectChild(c)}
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-orange-50 transition-colors flex items-center justify-between ${
-                          selectedChild?.id === c.id ? "bg-orange-50 text-orange-700" : "text-slate-700"
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-pink-50 transition-colors flex items-center justify-between ${
+                          selectedChild?.id === c.id ? "bg-pink-50 text-pink-700" : "text-slate-700"
                         }`}
                       >
                         <span>{c.name} ({c.age} ans)</span>
-                        {selectedChild?.id === c.id && <Check size={13} className="text-orange-500" />}
+                        {selectedChild?.id === c.id && <Check size={13} className="text-pink-500" />}
                       </button>
                     ))
                   )}
@@ -338,7 +338,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                   }}
                   className={`px-4 py-2 text-sm border font-medium transition-colors ${
                     subscriptionType === t
-                      ? "border-orange-500 bg-orange-500 text-white"
+                      ? "border-pink-500 bg-pink-500 text-white"
                       : "border-slate-300 text-slate-600 hover:border-slate-400"
                   }`}
                 >{t}</button>
@@ -357,12 +357,12 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                     }}
                     className={`px-3 py-2 text-xs border font-medium transition-colors text-left ${
                       activities === key
-                        ? "border-orange-500 bg-orange-50 text-orange-700"
+                        ? "border-pink-500 bg-pink-50 text-pink-700"
                         : "border-slate-200 text-slate-600 hover:border-slate-400"
                     }`}
                   >
                     <div>{label}</div>
-                    <div className="text-orange-600 mt-0.5">{PRICE_TABLE[key][subscriptionType].toLocaleString()} Dhs</div>
+                    <div className="text-pink-600 mt-0.5">{PRICE_TABLE[key][subscriptionType].toLocaleString()} Dhs</div>
                   </button>
                 ))}
               </div>
@@ -374,7 +374,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                 {Object.entries(PRICE_TABLE).map(([act, prices]) => (
                   <div key={act} className="flex justify-between px-1">
                     <span>{ACTIVITY_LABELS[act]}</span>
-                    <span className={`font-semibold ${activities === act ? "text-orange-600" : ""}`}>
+                    <span className={`font-semibold ${activities === act ? "text-pink-600" : ""}`}>
                       {prices[subscriptionType]?.toLocaleString()} Dhs
                     </span>
                   </div>
@@ -457,12 +457,12 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                     <button
                       type="button"
                       onClick={() => { setDiscountType("fixed"); setDiscountPercent(0); }}
-                      className={`px-2 py-1 text-xs border font-medium transition-colors ${discountType === "fixed" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-slate-200 text-slate-500 hover:border-slate-400"}`}
+                      className={`px-2 py-1 text-xs border font-medium transition-colors ${discountType === "fixed" ? "border-pink-500 bg-pink-50 text-pink-700" : "border-slate-200 text-slate-500 hover:border-slate-400"}`}
                     >Dhs</button>
                     <button
                       type="button"
                       onClick={() => { setDiscountType("percent"); setDiscount(0); }}
-                      className={`px-2 py-1 text-xs border font-medium transition-colors ${discountType === "percent" ? "border-orange-500 bg-orange-50 text-orange-700" : "border-slate-200 text-slate-500 hover:border-slate-400"}`}
+                      className={`px-2 py-1 text-xs border font-medium transition-colors ${discountType === "percent" ? "border-pink-500 bg-pink-50 text-pink-700" : "border-slate-200 text-slate-500 hover:border-slate-400"}`}
                     >%</button>
                   </div>
                 </div>
@@ -479,7 +479,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
             </div>
             <div className="mt-3 border-t border-slate-200 pt-3 flex justify-between items-center">
               <span className="text-sm font-semibold text-slate-700">Total à payer</span>
-              <span className="text-lg font-bold text-orange-600">{total.toLocaleString()} Dhs</span>
+              <span className="text-lg font-bold text-pink-600">{total.toLocaleString()} Dhs</span>
             </div>
           </div>
         </div>
@@ -499,13 +499,13 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                     onClick={() => togglePaymentMethod(m)}
                     className={`flex items-center gap-2 px-4 py-2.5 text-sm border font-medium transition-colors ${
                       isSelected
-                        ? "border-orange-500 bg-orange-50 text-orange-700"
+                        ? "border-pink-500 bg-pink-50 text-pink-700"
                         : "border-slate-300 text-slate-600 hover:border-slate-400"
                     }`}
                   >
                     <Icon size={14} />
                     {METHOD_LABELS[m]}
-                    {isSelected && <Check size={12} className="text-orange-500" />}
+                    {isSelected && <Check size={12} className="text-pink-500" />}
                   </button>
                 );
               })}
@@ -602,7 +602,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                             <button
                               key={c.id}
                               onClick={() => handleSelectCheck(c)}
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-orange-50 transition-colors flex items-center justify-between text-slate-700"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-pink-50 transition-colors flex items-center justify-between text-slate-700"
                             >
                               <div>
                                 <span className="font-mono font-semibold">#{c.number}</span>

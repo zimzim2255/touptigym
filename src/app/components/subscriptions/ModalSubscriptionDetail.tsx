@@ -170,7 +170,7 @@ export function ModalSubscriptionDetail({ subscriptionId, onClose, onUpdated }: 
               <div className="flex gap-2">
                 {["Session", "Annuel"].map(t => (
                   <button key={t} onClick={() => set("type", t)}
-                    className={`px-4 py-2 text-sm border font-medium transition-colors ${form.type === t ? "border-orange-500 bg-orange-500 text-white" : "border-slate-300 text-slate-600 hover:border-slate-400"}`}
+                    className={`px-4 py-2 text-sm border font-medium transition-colors ${form.type === t ? "border-pink-500 bg-pink-500 text-white" : "border-slate-300 text-slate-600 hover:border-slate-400"}`}
                   >{t}</button>
                 ))}
               </div>
@@ -179,10 +179,10 @@ export function ModalSubscriptionDetail({ subscriptionId, onClose, onUpdated }: 
                 <div className="grid grid-cols-2 gap-2">
                   {Object.entries(ACTIVITY_LABELS).map(([key, label]) => (
                     <button key={key} onClick={() => set("activities", key)}
-                      className={`px-3 py-2 text-xs border font-medium transition-colors text-left ${form.activities === key ? "border-orange-500 bg-orange-50 text-orange-700" : "border-slate-200 text-slate-600 hover:border-slate-400"}`}
+                      className={`px-3 py-2 text-xs border font-medium transition-colors text-left ${form.activities === key ? "border-pink-500 bg-pink-50 text-pink-700" : "border-slate-200 text-slate-600 hover:border-slate-400"}`}
                     >
                       <div>{label}</div>
-                      <div className="text-orange-600 mt-0.5">{PRICE_TABLE[key][form.type].toLocaleString()} Dhs</div>
+                      <div className="text-pink-600 mt-0.5">{PRICE_TABLE[key][form.type].toLocaleString()} Dhs</div>
                     </button>
                   ))}
                 </div>
@@ -193,7 +193,7 @@ export function ModalSubscriptionDetail({ subscriptionId, onClose, onUpdated }: 
                   {Object.entries(PRICE_TABLE).map(([act, prices]) => (
                     <div key={act} className="flex justify-between px-1">
                       <span>{ACTIVITY_LABELS[act]}</span>
-                      <span className={`font-semibold ${form.activities === act ? "text-orange-600" : ""}`}>{prices[form.type]?.toLocaleString()} Dhs</span>
+                      <span className={`font-semibold ${form.activities === act ? "text-pink-600" : ""}`}>{prices[form.type]?.toLocaleString()} Dhs</span>
                     </div>
                   ))}
                 </div>
@@ -227,7 +227,7 @@ export function ModalSubscriptionDetail({ subscriptionId, onClose, onUpdated }: 
               </div>
               <div className="mt-3 border-t border-slate-200 pt-3 flex justify-between items-center">
                 <span className="text-sm font-semibold text-slate-700">Total à payer</span>
-                <span className="text-lg font-bold text-orange-600">{total.toLocaleString()} Dhs</span>
+                <span className="text-lg font-bold text-pink-600">{total.toLocaleString()} Dhs</span>
               </div>
             </div>
           </div>
@@ -279,7 +279,7 @@ export function ModalSubscriptionDetail({ subscriptionId, onClose, onUpdated }: 
               {sub.discount > 0 && (
                 <div className="flex items-center justify-between px-4 py-2.5 text-sm">
                   <span className="text-slate-500">Remise</span>
-                  <span className="text-orange-600">−{sub.discount.toLocaleString()} Dhs</span>
+                  <span className="text-pink-600">−{sub.discount.toLocaleString()} Dhs</span>
                 </div>
               )}
               {sub.insurance > 0 && (
@@ -296,7 +296,7 @@ export function ModalSubscriptionDetail({ subscriptionId, onClose, onUpdated }: 
               )}
               <div className="flex items-center justify-between px-4 py-2.5 text-sm border-t-2 border-slate-300 bg-slate-50">
                 <span className="font-semibold text-slate-700">Total</span>
-                <span className="text-lg font-bold text-orange-600">{displayTotal.toLocaleString()} Dhs</span>
+                <span className="text-lg font-bold text-pink-600">{displayTotal.toLocaleString()} Dhs</span>
               </div>
             </div>
           </div>
