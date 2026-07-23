@@ -26,6 +26,7 @@ CREATE TABLE parents (
   phone VARCHAR(50) NOT NULL,
   email VARCHAR(255),
   id_card VARCHAR(50),
+  gender VARCHAR(20) DEFAULT '' CHECK (gender IN ('', 'Père', 'Mère', 'Tuteur')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -120,92 +121,46 @@ CREATE TABLE subscriptions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 10. Payments (depends on subscriptions)
-CREATE TABLE payments (
+-- 10. Attendance / Absences
+CREATE TABLE attendance (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  subscription_id UUID REFERENCES subscriptions(id) ON DELETE CASCADE,
-  amount DECIMAL(10,2) NOT NULL,
-  method VARCHAR(50)[] NOT NULL,
-  check_ids UUID[] DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  child_id UUID REFERENCES children(id) ON DELETE CASCADE,
+  exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  type VARCHAR(20) NOT NULL CHECK (type IN ('absence', 'retard', 'depart_anticipe')),
+  justified BOOLEAN DEFAULT false,
+  justification TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(child_id, exercise_id, date)
 );
 
--- 11. Checks (depends on payments)
+-- 11. Checks
 CREATE TABLE checks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  number VARCHAR(50) NOT NULL,
+  number VARCHAR(100) NOT NULL,
   amount DECIMAL(10,2) NOT NULL,
   bank VARCHAR(255),
   account_holder VARCHAR(255),
   date_emission DATE,
   date_execution DATE,
-  used BOOLEAN DEFAULT false,
-  montant_used DECIMAL(10,2) DEFAULT 0,
-  payment_id UUID REFERENCES payments(id) ON DELETE SET NULL,
   file TEXT,
+  montant_used DECIMAL(10,2) DEFAULT 0,
+  used BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 12. ZKTeco Devices
-CREATE TABLE zkteco_devices (
+-- 12. Payments
+CREATE TABLE payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(255) NOT NULL,
-  ip_address VARCHAR(50),
-  port INT DEFAULT 4370,
-  status VARCHAR(20) DEFAULT 'offline' CHECK (status IN ('online', 'offline', 'maintenance')),
-  location VARCHAR(255),
-  last_log TIMESTAMPTZ,
+  subscription_id UUID REFERENCES subscriptions(id) ON DELETE CASCADE,
+  amount DECIMAL(10,2) NOT NULL,
+  method TEXT[] DEFAULT '{}',
+  check_ids UUID[] DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 13. Access Schedules (depends on children)
-CREATE TABLE access_schedules (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  child_id UUID REFERENCES children(id) ON DELETE CASCADE,
-  weekday INT NOT NULL CHECK (weekday BETWEEN 0 AND 6),
-  start_time TIME NOT NULL,
-  end_time TIME NOT NULL,
-  window_before INT DEFAULT 15,
-  window_after INT DEFAULT 30,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 14. Access Logs (depends on children, zkteco_devices)
-CREATE TABLE access_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  child_id UUID REFERENCES children(id) ON DELETE CASCADE,
-  device_id UUID REFERENCES zkteco_devices(id) ON DELETE SET NULL,
-  timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  type VARCHAR(20) NOT NULL CHECK (type IN ('entry', 'exit')),
-  status VARCHAR(20) NOT NULL CHECK (status IN ('granted', 'denied', 'error')),
-  denial_reason TEXT,
-  mode VARCHAR(20) DEFAULT 'online' CHECK (mode IN ('online', 'offline')),
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 15. Absences (depends on children, exercises)
-CREATE TABLE absences (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  child_id UUID REFERENCES children(id) ON DELETE CASCADE,
-  exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE,
-  date DATE NOT NULL,
-  type VARCHAR(30) NOT NULL CHECK (type IN ('absence', 'retard', 'depart_anticipe')),
-  justified BOOLEAN DEFAULT false,
-  justification TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 16. Attendance Records (tracks when attendance was marked for an exercise+date)
-CREATE TABLE attendance_records (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE,
-  date DATE NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE (exercise_id, date)
-);
-
--- 17. Urgent Requests (depends on children, exercises, users)
-CREATE TABLE urgent_requests (
+-- 13. Urgent Requests
+CREATE TABLE requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   child_id UUID REFERENCES children(id) ON DELETE CASCADE,
   exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE,
@@ -216,18 +171,34 @@ CREATE TABLE urgent_requests (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ============================================================
+-- 14. ZKTeco access logs
+CREATE TABLE zkteco_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  child_id UUID REFERENCES children(id) ON DELETE CASCADE,
+  device_id VARCHAR(100),
+  event_type VARCHAR(50),
+  event_time TIMESTAMPTZ,
+  status VARCHAR(20),
+  raw_data JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 15. ZKTeco devices
+CREATE TABLE zkteco_devices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  ip_address VARCHAR(50),
+  port INT DEFAULT 4370,
+  serial_number VARCHAR(100),
+  location VARCHAR(255),
+  status VARCHAR(20) DEFAULT 'offline',
+  last_seen TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes
--- ============================================================
-CREATE INDEX idx_children_name ON children(name);
-CREATE INDEX idx_children_zkteco ON children(zkteco_id);
+CREATE INDEX idx_attendance_date ON attendance(date);
+CREATE INDEX idx_attendance_child ON attendance(child_id);
 CREATE INDEX idx_subscriptions_child ON subscriptions(child_id);
-CREATE INDEX idx_subscriptions_status ON subscriptions(status);
-CREATE INDEX idx_access_logs_child ON access_logs(child_id);
-CREATE INDEX idx_access_logs_timestamp ON access_logs(timestamp);
-CREATE INDEX idx_absences_child ON absences(child_id);
-CREATE INDEX idx_absences_date ON absences(date);
-CREATE INDEX idx_urgent_requests_status ON urgent_requests(status);
-CREATE INDEX idx_exercises_coach ON exercises(coach_id);
-CREATE INDEX idx_exercises_day ON exercises(day);
-CREATE INDEX idx_attendance_records_exercise_date ON attendance_records(exercise_id, date);
+CREATE INDEX idx_parent_children_child ON parent_children(child_id);
+CREATE INDEX idx_parent_children_parent ON parent_children(parent_id);

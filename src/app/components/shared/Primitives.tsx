@@ -9,6 +9,7 @@ export function Tag({ children, color = "default" }: { children: React.ReactNode
     red: "bg-red-50 text-red-700",
     amber: "bg-amber-50 text-amber-700",
     gray: "bg-slate-100 text-slate-600",
+    pink: "bg-pink-50 text-pink-700",
   };
   return (
     <span className={`inline-block px-2 py-0.5 text-xs font-medium border border-current/15 ${map[color] ?? map.default}`}>

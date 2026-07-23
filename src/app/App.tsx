@@ -648,14 +648,14 @@ function Sidebar({ role, items, active, onChange, onLogout }: {
       <div
         className="flex items-center justify-center"
         style={{
-          height: "100px",
+          height: "200px",
           borderBottom: "1px solid var(--sidebar-border)",
         }}
       >
         <img
-          src="/src/app/assets/logo.png"
+          src="/logo.png"
           alt="TouptiGym"
-          className="h-90 w-auto object-contain"
+          className="h-60 w-auto object-contain"
         />
       </div>
 
@@ -786,13 +786,8 @@ function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-pink-500 mb-4">
-            <Dumbbell size={24} className="text-white" />
-          </div>
-          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-            TOUPTI<span className="text-pink-500">GYM</span>
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">Sélectionnez votre profil</p>
+          <img src="/logo.png" alt="TouptiGym" className="h-28 w-auto mx-auto mb-2" />
+          <p className="text-sm text-slate-400 mt-2">Sélectionnez votre profil</p>
         </div>
 
         {/* Role buttons — vertical stack, full width */}
