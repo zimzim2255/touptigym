@@ -10,7 +10,8 @@ export type ModalType =
   | "justify-absence"
   | "add-request"
   | "mark-attendance"
-  | "add-exercice" | "exercice-detail";
+  | "add-exercice" | "exercice-detail"
+  | "add-group";
 
 export interface Child {
   id: string;
@@ -54,6 +55,14 @@ export interface Exercise {
   coach_id: string | null;
   price: number;
   created_at: string;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  exercises?: Exercise[];
 }
 
 export interface Check {

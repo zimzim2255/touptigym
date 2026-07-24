@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { ModalAddChild, ModalChildDetail, PageEnfants } from "./components/children";
 import { ModalAddParent, ModalParentDetail, PageParents } from "./components/parents";
 import { ModalAddSubscription, ModalSubscriptionDetail, PageAbonnements } from "./components/subscriptions";
-import { ModalAddExercice, ModalExerciceDetail, PageExercices } from "./components/exercises";
+import { ModalAddExercice, ModalExerciceDetail, PageExercices, ModalAddGroup } from "./components/exercises";
 import { ModalAddTrainer, ModalTrainerDetail, PageEntraineurs } from "./components/trainers";
 import { ModalAddCheck, ModalCheckDetail, PageChecks } from "./components/checks";
 import { PagePaiements, ModalPayRest } from "./components/payments";
@@ -33,7 +33,8 @@ type ModalType =
   | "justify-absence"
   | "add-request"
   | "mark-attendance"
-  | "add-exercice" | "exercice-detail";
+  | "add-exercice" | "exercice-detail"
+  | "add-group";
 
 type AbsenceItem = { id: string; enfant: string; exercice: string; date: string; type: string; justifie: boolean; justificatif: string };
 
@@ -889,6 +890,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "justify-absence" && selectedAbsence && <ModalJustifyAbsence absence={selectedAbsence} onClose={() => setModal(null)} />}
       {modal === "add-request" && <ModalAddRequest onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
       {modal === "mark-attendance" && <ModalMarkAttendance exercice={selectedEx} onClose={() => setModal(null)} onSaved={() => setRefreshKey(k => k + 1)} />}
+      {modal === "add-group" && <ModalAddGroup onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
       {modal === "add-exercice" && <ModalAddExercice onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} role={role} />}
       {modal === "exercice-detail" && selectedExercise && <ModalExerciceDetail exerciseId={selectedExercise.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} role={role} />}
       {selectedPaySub && <ModalPayRest subscription={selectedPaySub} onClose={() => setSelectedPaySub(null)} onPaid={() => setRefreshKey(k => k + 1)} />}
