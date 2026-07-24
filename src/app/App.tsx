@@ -656,7 +656,7 @@ function PageTarifs() {
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Activités</th>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Session (24 sem)</th>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Annuel (48 sem)</th>
-                <th className="px-4 py-2.5" />
+                <th className="px-5 py-2.5" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
