@@ -656,7 +656,7 @@ function PageTarifs() {
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Activités</th>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Session (24 sem)</th>
                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase">Annuel (48 sem)</th>
-                <th className="px-4 py-2.5" />
+                <th className="px-5 py-2.5" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -902,10 +902,10 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
 
 // ─── Role Selector ────────────────────────────────────────────────────────────
 function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
-  const roles: { id: Role; label: string; sub: string; emoji: string }[] = [
-    { id: "admin", label: "Administrateur", sub: "Gestion complète de l'établissement", emoji: "👑" },
-    { id: "worker", label: "Employé", sub: "Gestion opérationnelle quotidienne", emoji: "👷" },
-    { id: "trainer", label: "Entraîneur", sub: "Suivi des activités et des présences", emoji: "🏃" },
+  const roles: { id: Role; label: string; sub: string }[] = [
+    { id: "admin", label: "Administrateur", sub: "Gestion complète de l'établissement" },
+    { id: "worker", label: "Employé", sub: "Gestion opérationnelle quotidienne" },
+    { id: "trainer", label: "Entraîneur", sub: "Suivi des activités et des présences" },
   ];
 
   return (
@@ -925,7 +925,6 @@ function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
               onClick={() => onSelect(r.id)}
               className="w-full flex items-center gap-4 px-5 py-4 border border-slate-200 bg-white hover:border-pink-400 hover:bg-pink-50 transition-colors text-left group"
             >
-              <span className="text-2xl">{r.emoji}</span>
               <div className="flex-1">
                 <p className="font-semibold text-slate-900 group-hover:text-pink-700">{r.label}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{r.sub}</p>
