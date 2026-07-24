@@ -2,11 +2,19 @@ import { useState, useEffect } from "react";
 import { Check, X, Plus } from "lucide-react";
 import { Modal, Field, Btn, inputCls, selectCls } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
+import { Group } from "../../types";
 
 interface Trainer {
   id: string;
   name: string;
   specialty: string;
+}
+
+interface Slot {
+  day: string;
+  start: string;
+  end: string;
+  coach_id: string;
 }
 
 interface Props {
@@ -20,21 +28,28 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
   const api = useApi();
   const [loading, setLoading] = useState(false);
   const [trainers, setTrainers] = useState<Trainer[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [groupId, setGroupId] = useState("");
   const [name, setName] = useState("");
-  const [type, setType] = useState("");
-  const [coachId, setCoachId] = useState("");
   const [price, setPrice] = useState(0);
-  const [slots, setSlots] = useState([{ day: "Lundi", start: "09:00", end: "10:00" }]);
+  const [slots, setSlots] = useState<Slot[]>([{ day: "Lundi", start: "09:00", end: "10:00", coach_id: "" }]);
 
   useEffect(() => {
     api.trainers.getAll().then(setTrainers).catch(console.error);
+    api.groups.getAll().then(setGroups).catch(console.error);
   }, []);
 
+  const selectedGroup = groups.find(g => g.id === groupId);
+  let groupItems: string[] = [];
+  try {
+    if (selectedGroup?.description) groupItems = JSON.parse(selectedGroup.description);
+  } catch { groupItems = []; }
+
   function addSlot() {
-    setSlots([...slots, { day: "Lundi", start: "09:00", end: "10:00" }]);
+    setSlots([...slots, { day: "Lundi", start: "09:00", end: "10:00", coach_id: "" }]);
   }
 
-  function updateSlot(i: number, field: "day" | "start" | "end", value: string) {
+  function updateSlot(i: number, field: keyof Slot, value: string) {
     setSlots(slots.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)));
   }
 
@@ -43,18 +58,21 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
   }
 
   async function handleSubmit() {
-    if (!name || !coachId) return alert("Veuillez remplir tous les champs obligatoires");
+    if (!name) return alert("Veuillez remplir tous les champs obligatoires");
+    const hasCoach = slots.some(s => s.coach_id);
+    if (!hasCoach) return alert("Au moins un créneau doit avoir un coach");
     setLoading(true);
     try {
-      // Create one exercise per slot
       for (const slot of slots) {
+        if (!slot.coach_id) continue;
         const payload: any = {
           name,
           day: slot.day,
-          type,
+          type: "",
           start_time: slot.start,
           end_time: slot.end,
-          coach_id: coachId,
+          coach_id: slot.coach_id,
+          group_id: groupId || null,
         };
         if (role !== "trainer") payload.price = price;
         await api.exercises.create(payload);
@@ -69,21 +87,24 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
   }
 
   return (
-    <Modal title="Créer une Séance" onClose={onClose} wide>
+    <Modal title="Créer une Activité" onClose={onClose} wide>
       <div className="space-y-4">
-        {/* Basic info */}
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Nom de la séance" required>
-            <input className={inputCls} placeholder="Ex: Football U8" value={name} onChange={e => setName(e.target.value)} />
-          </Field>
-          <Field label="Type de sport" required>
-            <input className={inputCls} placeholder="Ex: Football, Basketball, Natation..." value={type} onChange={e => setType(e.target.value)} />
-          </Field>
-          <Field label="Coach / Entraîneur" required>
-            <select className={selectCls} value={coachId} onChange={e => setCoachId(e.target.value)}>
-              <option value="">Sélectionner...</option>
-              {trainers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          <Field label="Nom de l'activité" required>
+            <select className={selectCls} value={groupId} onChange={e => { setGroupId(e.target.value); setName(""); }}>
+              <option value="">Sélectionner un activité...</option>
+              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
+          </Field>
+          <Field label="Groupe">
+            {groupId && groupItems.length > 0 ? (
+              <select className={selectCls} value={name} onChange={e => setName(e.target.value)}>
+                <option value="">Sélectionner...</option>
+                {groupItems.map((item, i) => <option key={i} value={item}>{item}</option>)}
+              </select>
+            ) : (
+              <input className={inputCls} placeholder="Ex: Football U8" value={name} onChange={e => setName(e.target.value)} />
+            )}
           </Field>
           {role !== "trainer" && (
             <Field label="Prix (Dhs)">
@@ -92,7 +113,6 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
           )}
         </div>
 
-        {/* Multiple day/time slots */}
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Jours & Horaires</p>
@@ -101,6 +121,10 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
           <div className="border border-slate-200 divide-y divide-slate-100">
             {slots.map((slot, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
+                <select className={selectCls} value={slot.coach_id} onChange={e => updateSlot(i, "coach_id", e.target.value)}>
+                  <option value="">Coach...</option>
+                  {trainers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
                 <select className={selectCls} value={slot.day} onChange={e => updateSlot(i, "day", e.target.value)}>
                   {DAYS.map(d => <option key={d}>{d}</option>)}
                 </select>
@@ -119,7 +143,7 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
 
         <div className="flex gap-3 pt-2 border-t border-slate-100">
           <Btn onClick={handleSubmit} disabled={loading}>
-            {loading ? "Création..." : <><Check size={13} /> Créer la séance</>}
+            {loading ? "Création..." : <><Check size={13} /> Créer l'activité</>}
           </Btn>
           <Btn variant="outline" onClick={onClose}>Annuler</Btn>
         </div>

@@ -91,7 +91,7 @@ export function ModalExerciceDetail({ exerciseId, onClose, onUpdated, role }: { 
   }
 
   async function handleDelete() {
-    if (!confirm("Supprimer cette séance ? Cette action est irréversible.")) return;
+    if (!confirm("Supprimer cette activité ? Cette action est irréversible.")) return;
     try {
       await api.exercises.remove(exerciseId);
       onUpdated?.();
@@ -103,7 +103,7 @@ export function ModalExerciceDetail({ exerciseId, onClose, onUpdated, role }: { 
 
   if (loading && !ex) {
     return (
-      <Modal title="Détails de la Séance" onClose={onClose}>
+      <Modal title="Détails de l'Activité" onClose={onClose}>
         <div className="p-6 text-sm text-slate-500 text-center">Chargement...</div>
       </Modal>
     );
@@ -111,14 +111,14 @@ export function ModalExerciceDetail({ exerciseId, onClose, onUpdated, role }: { 
 
   if (!ex) {
     return (
-      <Modal title="Détails de la Séance" onClose={onClose}>
-        <div className="p-6 text-sm text-red-500 text-center">Séance introuvable.</div>
+      <Modal title="Détails de l'Activité" onClose={onClose}>
+        <div className="p-6 text-sm text-red-500 text-center">Activité introuvable.</div>
       </Modal>
     );
   }
 
   return (
-    <Modal title={editing ? "Modifier la Séance" : "Détails de la Séance"} onClose={onClose} wide>
+    <Modal title={editing ? "Modifier l'Activité" : "Détails de l'Activité"} onClose={onClose} wide>
       {editing ? (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

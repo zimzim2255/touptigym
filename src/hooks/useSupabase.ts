@@ -166,6 +166,15 @@ export function useApi() {
       },
     },
 
+    // ─── Groups ──────────────────────────────────
+    groups: {
+      getAll: () => request('/groups'),
+      getById: (id: string) => request(`/groups/${id}`),
+      create: (data: any) => request('/groups', { method: 'POST', body: JSON.stringify(data) }),
+      update: (id: string, data: any) => request(`/groups/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      remove: (id: string) => request(`/groups/${id}`, { method: 'DELETE' }),
+    },
+
     // ─── ZKTeco ──────────────────────────────────
     zkteco: {
       getDevices: () => request('/zkteco/devices'),

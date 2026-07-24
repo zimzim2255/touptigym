@@ -84,7 +84,7 @@ export function PageAbsences({ openModal, setSelectedAbsence }: Props) {
 
   // ─── Export helpers ────────────────────────────────────────────────────
   function exportCSV() {
-    const headers = ["Enfant", "Date", "Exercice", "Type", "Justifié", "Justification"];
+    const headers = ["Enfant", "Date", "Activité", "Type", "Justifié", "Justification"];
     const rows = list.map(a => [
       a.children?.name || "",
       a.date,
@@ -144,7 +144,7 @@ export function PageAbsences({ openModal, setSelectedAbsence }: Props) {
         <h1>Rapport d'absences — TouptiGym</h1>
         <p>${title} — Total: ${list.length} enregistrements</p>
         <table>
-          <thead><tr><th>Enfant</th><th>Date</th><th>Exercice</th><th>Type</th><th>Justifié</th></tr></thead>
+          <thead><tr><th>Enfant</th><th>Date</th><th>Activité</th><th>Type</th><th>Justifié</th></tr></thead>
           <tbody>${tableRows}</tbody>
         </table>
         <div class="total">
@@ -184,9 +184,9 @@ export function PageAbsences({ openModal, setSelectedAbsence }: Props) {
             </select>
           </div>
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Exercice</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase mb-1">Activité</p>
             <select className={`${selectCls} text-xs`} value={filterExercise} onChange={e => setFilterExercise(e.target.value)}>
-              <option value="">Tous les exercices</option>
+              <option value="">Toutes les activités</option>
               {exercises.map(ex => (
                 <option key={ex.id} value={ex.id}>{ex.name}</option>
               ))}
@@ -242,7 +242,7 @@ export function PageAbsences({ openModal, setSelectedAbsence }: Props) {
           <table className="w-full text-sm" ref={tableRef}>
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                {["Enfant", "Date", "Exercice", "Type", "Justifié", ""].map(h => (
+                {["Enfant", "Date", "Activité", "Type", "Justifié", ""].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>

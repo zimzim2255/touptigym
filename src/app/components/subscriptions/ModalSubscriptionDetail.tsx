@@ -379,22 +379,22 @@ export function ModalSubscriptionDetail({ subscriptionId, onClose, onUpdated }: 
             </div>
           </div>
 
-          {/* ── Section 3 : Exercices inclus ── */}
+          {/* ── Section 3 : Activités incluses ── */}
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Exercices inclus</p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Activités incluses</p>
             <div className="border border-slate-200 p-4">
               <div className="relative mb-3">
                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   className={`${inputCls} pl-8`}
-                  placeholder="Rechercher un exercice..."
+                  placeholder="Rechercher une activité..."
                   value={exSearch}
                   onChange={e => setExSearch(e.target.value)}
                 />
               </div>
               <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200">
                 {filteredExercises.length === 0 ? (
-                  <div className="px-3 py-3 text-xs text-slate-400 text-center">Aucun exercice trouvé</div>
+                  <div className="px-3 py-3 text-xs text-slate-400 text-center">Aucune activité trouvée</div>
                 ) : (
                   filteredExercises.map(ex => {
                     const isSelected = selectedExercises.includes(ex.id);
@@ -422,7 +422,7 @@ export function ModalSubscriptionDetail({ subscriptionId, onClose, onUpdated }: 
                 )}
               </div>
               {selectedExercises.length > 0 && (
-                <p className="text-xs text-emerald-600 mt-2">{selectedExercises.length} exercice(s) sélectionné(s)</p>
+                <p className="text-xs text-emerald-600 mt-2">{selectedExercises.length} activité(s) sélectionnée(s)</p>
               )}
             </div>
           </div>
