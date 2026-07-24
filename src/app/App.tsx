@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { ModalAddChild, ModalChildDetail, PageEnfants } from "./components/children";
 import { ModalAddParent, ModalParentDetail, PageParents } from "./components/parents";
 import { ModalAddSubscription, ModalSubscriptionDetail, PageAbonnements } from "./components/subscriptions";
-import { ModalAddExercice, ModalExerciceDetail, PageExercices, ModalAddGroup } from "./components/exercises";
+import { ModalAddExercice, ModalExerciceDetail, PageExercices, ModalAddGroup, ModalEditGroup } from "./components/exercises";
 import { ModalAddTrainer, ModalTrainerDetail, PageEntraineurs } from "./components/trainers";
 import { ModalAddCheck, ModalCheckDetail, PageChecks } from "./components/checks";
 import { PagePaiements, ModalPayRest } from "./components/payments";
@@ -34,7 +34,7 @@ type ModalType =
   | "add-request"
   | "mark-attendance"
   | "add-exercice" | "exercice-detail"
-  | "add-group";
+  | "add-group" | "edit-group";
 
 type AbsenceItem = { id: string; enfant: string; exercice: string; date: string; type: string; justifie: boolean; justificatif: string };
 
@@ -823,6 +823,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
   const [selectedAbsence, setSelectedAbsence] = useState<any>(null);
   const [selectedCheck, setSelectedCheck] = useState<CheckType | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<{ id: string; name: string } | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [selectedTrainer, setSelectedTrainer] = useState<{ id: string; name: string } | null>(null);
   const [selectedEx, setSelectedEx] = useState<{ id: string; name: string; day: string; start_time: string; end_time: string }>({
     id: "",
@@ -841,7 +842,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       case "enfants": return <PageEnfants canEdit={role !== "trainer"} openModal={setModal} setSelectedChild={setSelectedChild} onRefresh={refreshKey} />;
       case "parents": return <PageParents canEdit={role !== "trainer"} openModal={setModal} setSelectedParent={setSelectedParent} onRefresh={refreshKey} />;
       case "abonnements": return <PageAbonnements canConfirm={role === "admin"} canCreate={role !== "trainer"} openModal={setModal} setSelectedSubscription={setSelectedSubscription} onRefresh={refreshKey} />;
-      case "exercices": return <PageExercices canCreate={role !== "worker"} canEdit={role !== "trainer"} canViewPrice={role !== "trainer"} openModal={setModal} setSelectedExercise={setSelectedExercise} onRefresh={refreshKey} />;
+      case "exercices": return <PageExercices canCreate={role !== "worker"} canEdit={role !== "trainer"} canViewPrice={role !== "trainer"} openModal={setModal} setSelectedExercise={setSelectedExercise} setSelectedGroup={setSelectedGroup} onRefresh={refreshKey} />;
       case "entraineurs": return <PageEntraineurs canEdit={role !== "trainer"} openModal={setModal} setSelectedTrainer={setSelectedTrainer} onRefresh={refreshKey} />;
       case "absences": return <PageAbsences openModal={setModal} setSelectedAbsence={setSelectedAbsence} />;
       case "checks": return <PageChecks canEdit={role !== "trainer"} openModal={setModal} setSelectedCheck={setSelectedCheck} onRefresh={refreshKey} />;
@@ -891,6 +892,7 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "add-request" && <ModalAddRequest onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
       {modal === "mark-attendance" && <ModalMarkAttendance exercice={selectedEx} onClose={() => setModal(null)} onSaved={() => setRefreshKey(k => k + 1)} />}
       {modal === "add-group" && <ModalAddGroup onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} />}
+      {modal === "edit-group" && selectedGroup && <ModalEditGroup group={selectedGroup} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} />}
       {modal === "add-exercice" && <ModalAddExercice onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} role={role} />}
       {modal === "exercice-detail" && selectedExercise && <ModalExerciceDetail exerciseId={selectedExercise.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} role={role} />}
       {selectedPaySub && <ModalPayRest subscription={selectedPaySub} onClose={() => setSelectedPaySub(null)} onPaid={() => setRefreshKey(k => k + 1)} />}

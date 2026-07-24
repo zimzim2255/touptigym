@@ -25,10 +25,11 @@ interface Props {
   canViewPrice?: boolean;
   openModal: (m: ModalType) => void;
   setSelectedExercise: (e: { id: string; name: string }) => void;
+  setSelectedGroup?: (g: any) => void;
   onRefresh?: number;
 }
 
-export function PageExercices({ canCreate, canEdit, canViewPrice = true, openModal, setSelectedExercise, onRefresh }: Props) {
+export function PageExercices({ canCreate, canEdit, canViewPrice = true, openModal, setSelectedExercise, setSelectedGroup, onRefresh }: Props) {
   const api = useApi();
   const [q, setQ] = useState("");
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -176,10 +177,10 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
                     )}
                   </div>
                   <div className="flex gap-1">
-                    <button onClick={() => openModal("add-exercice")}
-                      className="p-1 text-slate-400 hover:text-pink-500 transition-colors" title="Modifier">
-                      <Edit2 size={13} />
-                    </button>
+                      <button onClick={() => { setSelectedGroup?.(group); openModal("edit-group" as any); }}
+                        className="p-1 text-slate-400 hover:text-pink-500 transition-colors" title="Modifier">
+                        <Edit2 size={13} />
+                      </button>
                     <button onClick={() => handleDeleteGroup(group.id)}
                       className="p-1 text-slate-400 hover:text-red-500 transition-colors" title="Supprimer">
                       <Trash2 size={13} />

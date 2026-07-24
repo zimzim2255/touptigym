@@ -10,6 +10,13 @@ interface Trainer {
   specialty: string;
 }
 
+interface Slot {
+  day: string;
+  start: string;
+  end: string;
+  coach_id: string;
+}
+
 interface Props {
   onClose: () => void;
   onCreated?: () => void;
@@ -24,9 +31,8 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupId, setGroupId] = useState("");
   const [name, setName] = useState("");
-  const [coachId, setCoachId] = useState("");
   const [price, setPrice] = useState(0);
-  const [slots, setSlots] = useState([{ day: "Lundi", start: "09:00", end: "10:00" }]);
+  const [slots, setSlots] = useState<Slot[]>([{ day: "Lundi", start: "09:00", end: "10:00", coach_id: "" }]);
 
   useEffect(() => {
     api.trainers.getAll().then(setTrainers).catch(console.error);
@@ -40,10 +46,10 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
   } catch { groupItems = []; }
 
   function addSlot() {
-    setSlots([...slots, { day: "Lundi", start: "09:00", end: "10:00" }]);
+    setSlots([...slots, { day: "Lundi", start: "09:00", end: "10:00", coach_id: "" }]);
   }
 
-  function updateSlot(i: number, field: "day" | "start" | "end", value: string) {
+  function updateSlot(i: number, field: keyof Slot, value: string) {
     setSlots(slots.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)));
   }
 
@@ -52,17 +58,20 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
   }
 
   async function handleSubmit() {
-    if (!name || !coachId) return alert("Veuillez remplir tous les champs obligatoires");
+    if (!name) return alert("Veuillez remplir tous les champs obligatoires");
+    const hasCoach = slots.some(s => s.coach_id);
+    if (!hasCoach) return alert("Au moins un créneau doit avoir un coach");
     setLoading(true);
     try {
       for (const slot of slots) {
+        if (!slot.coach_id) continue;
         const payload: any = {
           name,
           day: slot.day,
           type: "",
           start_time: slot.start,
           end_time: slot.end,
-          coach_id: coachId,
+          coach_id: slot.coach_id,
           group_id: groupId || null,
         };
         if (role !== "trainer") payload.price = price;
@@ -97,12 +106,6 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
               <input className={inputCls} placeholder="Ex: Football U8" value={name} onChange={e => setName(e.target.value)} />
             )}
           </Field>
-          <Field label="Coach / Entraîneur" required>
-            <select className={selectCls} value={coachId} onChange={e => setCoachId(e.target.value)}>
-              <option value="">Sélectionner...</option>
-              {trainers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </Field>
           {role !== "trainer" && (
             <Field label="Prix (Dhs)">
               <input type="number" className={inputCls} value={price} onChange={e => setPrice(Number(e.target.value))} />
@@ -118,6 +121,10 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
           <div className="border border-slate-200 divide-y divide-slate-100">
             {slots.map((slot, i) => (
               <div key={i} className="flex items-center gap-3 px-4 py-3">
+                <select className={selectCls} value={slot.coach_id} onChange={e => updateSlot(i, "coach_id", e.target.value)}>
+                  <option value="">Coach...</option>
+                  {trainers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
                 <select className={selectCls} value={slot.day} onChange={e => updateSlot(i, "day", e.target.value)}>
                   {DAYS.map(d => <option key={d}>{d}</option>)}
                 </select>

@@ -11,7 +11,7 @@ export type ModalType =
   | "add-request"
   | "mark-attendance"
   | "add-exercice" | "exercice-detail"
-  | "add-group";
+  | "add-group" | "edit-group";
 
 export interface Child {
   id: string;
