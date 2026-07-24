@@ -734,7 +734,7 @@ const ADMIN_NAV: NavItem[] = [
   { id: "enfants", label: "Enfants", icon: Baby },
   { id: "parents", label: "Parents", icon: Users },
   { id: "abonnements", label: "Abonnements", icon: CreditCard },
-  { id: "exercices", label: "Activités", icon: Dumbbell },
+  { id: "exercices", label: "Activités/Groupe", icon: Dumbbell },
   { id: "entraineurs", label: "Entraîneurs", icon: UserCheck },
   { id: "absences", label: "Présences", icon: CalendarCheck },
   { id: "paiements", label: "Paiements", icon: TrendingUp },

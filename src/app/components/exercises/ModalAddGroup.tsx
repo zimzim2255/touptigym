@@ -60,7 +60,7 @@ export function ModalAddGroup({ onClose, onCreated }: Props) {
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Activité</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Groupe</p>
             <Btn size="sm" variant="ghost" onClick={addItem}><Plus size={12} /> Ajouter</Btn>
           </div>
           <div className="border border-slate-200 divide-y divide-slate-100">
