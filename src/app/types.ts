@@ -54,7 +54,9 @@ export interface Exercise {
   end_time: string;
   coach_id: string | null;
   price: number;
+  group_id: string | null;
   created_at: string;
+  groups?: { name: string; description: string };
 }
 
 export interface Group {
