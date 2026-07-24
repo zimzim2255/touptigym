@@ -101,8 +101,8 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
   );
 
   const headers = canViewPrice
-    ? ["Nom", "Jour", "Horaire", "Type", "Coach", "Prix", ""]
-    : ["Nom", "Jour", "Horaire", "Type", "Coach", ""];
+    ? ["Activité", "Jour", "Horaire", "Groupe", "Coach", "Prix", ""]
+    : ["Activité", "Jour", "Horaire", "Groupe", "Coach", ""];
 
   return (
     <PageWrap
@@ -214,12 +214,10 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
               <tbody className="divide-y divide-slate-100">
                 {sorted.map(ex => (
                   <tr key={ex.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-slate-900">{ex.name}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900">{ex.groups?.name || ex.name}</td>
                     <td className="px-4 py-3 text-slate-500">{ex.day}</td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-600">{ex.start_time}–{ex.end_time}</td>
-                    <td className="px-4 py-3">
-                      <Tag color={ex.type === "Football" ? "green" : ex.type === "Basketball" ? "default" : ex.type === "Swimming" ? "blue" : "gray"}>{ex.type}</Tag>
-                    </td>
+                    <td className="px-4 py-3 text-slate-500">{ex.name}</td>
                     <td className="px-4 py-3 text-slate-500">{ex.trainers?.name || "—"}</td>
                     {canViewPrice && (
                       <td className="px-4 py-3 text-slate-500">{ex.price || 0} Dhs</td>

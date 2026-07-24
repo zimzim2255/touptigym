@@ -31,7 +31,6 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupId, setGroupId] = useState("");
   const [name, setName] = useState("");
-  const [price, setPrice] = useState(0);
   const [slots, setSlots] = useState<Slot[]>([{ day: "Lundi", start: "09:00", end: "10:00", coach_id: "" }]);
 
   useEffect(() => {
@@ -74,7 +73,6 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
           coach_id: slot.coach_id,
           group_id: groupId || null,
         };
-        if (role !== "trainer") payload.price = price;
         await api.exercises.create(payload);
       }
       onCreated?.();
@@ -90,13 +88,13 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
     <Modal title="Créer une Activité" onClose={onClose} wide>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Nom de l'activité" required>
+          <Field label="Groupe" required>
             <select className={selectCls} value={groupId} onChange={e => { setGroupId(e.target.value); setName(""); }}>
-              <option value="">Sélectionner un activité...</option>
+              <option value="">Sélectionner un groupe...</option>
               {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
           </Field>
-          <Field label="Groupe">
+          <Field label="Nom de l'activité" required>
             {groupId && groupItems.length > 0 ? (
               <select className={selectCls} value={name} onChange={e => setName(e.target.value)}>
                 <option value="">Sélectionner...</option>
@@ -106,11 +104,6 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
               <input className={inputCls} placeholder="Ex: Football U8" value={name} onChange={e => setName(e.target.value)} />
             )}
           </Field>
-          {role !== "trainer" && (
-            <Field label="Prix (Dhs)">
-              <input type="number" className={inputCls} value={price} onChange={e => setPrice(Number(e.target.value))} />
-            </Field>
-          )}
         </div>
 
         <div>

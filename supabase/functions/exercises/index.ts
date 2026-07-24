@@ -19,7 +19,7 @@ serve(async (req) => {
       const day = url.searchParams.get('day')
       const coachId = url.searchParams.get('coach_id')
 
-      let query = supabase.from('exercises').select('*, trainers(name)').order('day')
+      let query = supabase.from('exercises').select('*, trainers(name), groups(name, description)').order('day')
       if (day) query = query.eq('day', day)
       if (coachId) query = query.eq('coach_id', coachId)
 
@@ -30,7 +30,7 @@ serve(async (req) => {
 
     // GET /exercises/:id
     if (method === 'GET' && segments.length === 1) {
-      const { data, error } = await supabase.from('exercises').select('*, trainers(name)').eq('id', segments[0]).single()
+      const { data, error } = await supabase.from('exercises').select('*, trainers(name), groups(name, description)').eq('id', segments[0]).single()
       if (error) return errorResponse('Exercise not found', 404)
       return jsonResponse(data)
     }
