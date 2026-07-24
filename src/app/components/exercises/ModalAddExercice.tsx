@@ -69,11 +69,11 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
   }
 
   return (
-    <Modal title="Créer une Séance" onClose={onClose} wide>
+    <Modal title="Créer une Activité" onClose={onClose} wide>
       <div className="space-y-4">
         {/* Basic info */}
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Nom de la séance" required>
+          <Field label="Nom de l'activité" required>
             <input className={inputCls} placeholder="Ex: Football U8" value={name} onChange={e => setName(e.target.value)} />
           </Field>
           <Field label="Type de sport" required>
@@ -119,7 +119,7 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
 
         <div className="flex gap-3 pt-2 border-t border-slate-100">
           <Btn onClick={handleSubmit} disabled={loading}>
-            {loading ? "Création..." : <><Check size={13} /> Créer la séance</>}
+            {loading ? "Création..." : <><Check size={13} /> Créer l'activité</>}
           </Btn>
           <Btn variant="outline" onClick={onClose}>Annuler</Btn>
         </div>

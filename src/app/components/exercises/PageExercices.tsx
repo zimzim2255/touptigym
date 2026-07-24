@@ -59,7 +59,7 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
   }, [exercises, q]);
 
   async function handleDelete(id: string) {
-    if (!confirm("Supprimer cette séance ?")) return;
+    if (!confirm("Supprimer cette activité ?")) return;
     try {
       await api.exercises.remove(id);
       refresh();
@@ -83,9 +83,9 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
 
   return (
     <PageWrap
-      title="Exercices & Séances"
-      sub={`${count} séances programmées`}
-      action={canCreate && <Btn onClick={() => openModal("add-exercice")}><Plus size={13} /> Créer une séance</Btn>}
+      title="Activités"
+      sub={`${count} activités programmées`}
+      action={canCreate && <Btn onClick={() => openModal("add-exercice")}><Plus size={13} /> Créer une activité</Btn>}
     >
       <div className="bg-white border border-slate-200">
         <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200">
@@ -98,7 +98,7 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
         {loading ? (
           <div className="p-6 text-sm text-slate-500 text-center">Chargement...</div>
         ) : sorted.length === 0 ? (
-          <div className="p-6 text-sm text-slate-500 text-center">Aucune séance trouvée.</div>
+          <div className="p-6 text-sm text-slate-500 text-center">Aucune activité trouvée.</div>
         ) : (
           <table className="w-full text-sm">
             <thead>

@@ -133,13 +133,13 @@ function ModalAddRequest({ onClose, onCreated }: { onClose: () => void; onCreate
         </Field>
         <div className="border border-slate-200 p-3" ref={searchRef}>
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase">Exercice</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase">Activité</p>
           </div>
           <div className="relative">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               className={`${inputCls} pl-8`}
-              placeholder="Rechercher des exercices..."
+              placeholder="Rechercher des activités..."
               value={searchEx}
               onChange={e => { setSearchEx(e.target.value); setShowResults(true); }}
               onFocus={() => setShowResults(true)}
@@ -148,7 +148,7 @@ function ModalAddRequest({ onClose, onCreated }: { onClose: () => void; onCreate
           {showResults && searchEx && (
             <div className="mt-1 border border-slate-200 divide-y divide-slate-100 max-h-40 overflow-y-auto">
               {filteredExercises.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-slate-400">Aucun exercice trouvé</div>
+                <div className="px-3 py-2 text-xs text-slate-400">Aucune activité trouvée</div>
               ) : (
                 filteredExercises.map(e => (
                   <button
@@ -378,7 +378,7 @@ function PageDemandes({ canValidate, openModal, onRefresh }: {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                {["Enfant", "Date", "Exercice", "Demandeur", "Notes", "Statut", ...(canValidate ? ["Actions"] : [])].filter(Boolean).map(h => (
+                {["Enfant", "Date", "Activité", "Demandeur", "Notes", "Statut", ...(canValidate ? ["Actions"] : [])].filter(Boolean).map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -733,7 +733,7 @@ const ADMIN_NAV: NavItem[] = [
   { id: "enfants", label: "Enfants", icon: Baby },
   { id: "parents", label: "Parents", icon: Users },
   { id: "abonnements", label: "Abonnements", icon: CreditCard },
-  { id: "exercices", label: "Exercices", icon: Dumbbell },
+  { id: "exercices", label: "Activités", icon: Dumbbell },
   { id: "entraineurs", label: "Entraîneurs", icon: UserCheck },
   { id: "absences", label: "Présences", icon: CalendarCheck },
   { id: "paiements", label: "Paiements", icon: TrendingUp },
@@ -751,8 +751,8 @@ const WORKER_NAV: NavItem[] = [
 ];
 
 const TRAINER_NAV: NavItem[] = [
-  { id: "today", label: "Exercices du jour", icon: CalendarCheck },
-  { id: "exercices", label: "Tous les exercices", icon: Dumbbell },
+  { id: "today", label: "Activités du jour", icon: CalendarCheck },
+  { id: "exercices", label: "Toutes les activités", icon: Dumbbell },
   { id: "absences", label: "Présences / Absences", icon: Activity },
   { id: "demandes", label: "Demandes urgentes", icon: AlertCircle },
 ];
@@ -901,7 +901,7 @@ function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
   const roles: { id: Role; label: string; sub: string; emoji: string }[] = [
     { id: "admin", label: "Administrateur", sub: "Gestion complète de l'établissement", emoji: "👑" },
     { id: "worker", label: "Employé", sub: "Gestion opérationnelle quotidienne", emoji: "👷" },
-    { id: "trainer", label: "Entraîneur", sub: "Suivi des séances et des présences", emoji: "🏃" },
+    { id: "trainer", label: "Entraîneur", sub: "Suivi des activités et des présences", emoji: "🏃" },
   ];
 
   return (
