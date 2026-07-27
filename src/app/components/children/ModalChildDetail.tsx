@@ -10,6 +10,7 @@ export function ModalChildDetail({ childId, onClose, onDeleted }: { childId: str
   const [tab, setTab] = useState<"info" | "parents" | "acces">("info");
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
+  const [parents, setParents] = useState<any[]>([]);
 
   useEffect(() => { loadData(); }, [childId]);
 
@@ -19,11 +20,14 @@ export function ModalChildDetail({ childId, onClose, onDeleted }: { childId: str
       const c = await api.children.getById(childId);
       let subs: any[] = [];
       let scheds: any[] = [];
+      let p: any[] = [];
       try { subs = await api.subscriptions.getAll({ child_id: childId }) || []; } catch {}
       try { scheds = await api.attendance.getSchedules(childId) || []; } catch {}
+      try { p = await api.parents.getAll(childId) || []; } catch {}
       setChild(c);
       setSubscriptions(subs || []);
       setSchedules(scheds || []);
+      setParents(p);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -104,7 +108,25 @@ export function ModalChildDetail({ childId, onClose, onDeleted }: { childId: str
         )}
 
         {tab === "parents" && (
-          <div className="text-sm text-slate-500 p-3">Parents liés — à venir</div>
+          <div className="text-sm">
+            {parents.length === 0 ? (
+              <p className="text-slate-500 p-3">Aucun parent lié à cet enfant.</p>
+            ) : (
+              <div className="border border-slate-200 divide-y divide-slate-100">
+                {parents.map((p) => (
+                  <div key={p.id} className="px-4 py-3 flex items-center justify-between">
+                    <div>
+                      <span className="text-slate-900 font-medium">{p.name}</span>
+                      <span className="text-slate-400 ml-2 text-xs">{p.phone}</span>
+                    </div>
+                    <Tag color={p.gender === "Mère" ? "pink" : p.gender === "Père" ? "blue" : "gray"}>
+                      {p.gender || "Tuteur"}
+                    </Tag>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         {tab === "acces" && (
