@@ -43,7 +43,7 @@ export function useApi() {
 
     // ─── Parents ─────────────────────────────────
     parents: {
-      getAll: () => request('/parents'),
+      getAll: (childId?: string) => request(`/parents${childId ? `?child_id=${childId}` : ''}`),
       getById: (id: string) => request(`/parents/${id}`),
       create: (data: any) => request('/parents', { method: 'POST', body: JSON.stringify(data) }),
       update: (id: string, data: any) => request(`/parents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

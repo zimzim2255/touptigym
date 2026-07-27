@@ -2,6 +2,17 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { supabase } from '../_shared/supabaseClient.ts'
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts'
 
+function calculateAge(birthDate: string): number {
+  const birth = new Date(birthDate)
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const monthDiff = today.getMonth() - birth.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--
+  }
+  return age
+}
+
 serve(async (req) => {
   const cors = handleCors(req)
   if (cors) return cors
@@ -31,6 +42,10 @@ serve(async (req) => {
     // POST /children
     if (method === 'POST') {
       const body = await req.json()
+      // Compute age from birth_date if provided
+      if (body.birth_date) {
+        body.age = calculateAge(body.birth_date)
+      }
       const { data, error } = await supabase.from('children').insert([body]).select().single()
       if (error) return errorResponse(error.message)
       return jsonResponse(data, 201)
@@ -39,6 +54,10 @@ serve(async (req) => {
     // PUT /children/:id
     if (method === 'PUT' && id) {
       const body = await req.json()
+      // Recompute age if birth_date was changed
+      if (body.birth_date) {
+        body.age = calculateAge(body.birth_date)
+      }
       const { data, error } = await supabase.from('children').update(body).eq('id', id).select().single()
       if (error) return errorResponse(error.message)
       return jsonResponse(data)
