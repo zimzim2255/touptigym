@@ -44,3 +44,6 @@ yarn-error.log*
 .eslintcache
 .stylelintcache
 *.tsbuildinfo
+
+# Sensitive files
+passwords.txt

@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Check, Trash2, Plus, Eye, Search, X, Banknote, Landmark, FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { Modal, Tag, Btn, Field, inputCls } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
-import { Child, Check as CheckType, Exercise, Group } from "../../types";
+import { Child, Parent, Check as CheckType, Exercise, Group } from "../../types";
 
 interface SubscriptionData {
   id: string;
   child_id: string;
+  parent_id?: string;
   type: string;
   sub_type: string | null;
   amount: number;
@@ -23,6 +24,7 @@ interface SubscriptionData {
   created_by?: string;
   confirmed_by?: string;
   children?: { name: string };
+  parents?: { name: string; gender: string };
 }
 
 type PaymentMethod = "espece" | "virement" | "cheque";
@@ -816,6 +818,25 @@ export function ModalSubscriptionDetail({ subscriptionId, onClose, onUpdated }: 
               <Tag color={statusColor}>{sub.status}</Tag>
             </div>
           </div>
+
+          {/* ── Parent info ── */}
+          {sub.parents && (
+            <div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Parent / Tuteur</p>
+              <div className="border border-slate-200 p-3 bg-slate-50">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-slate-900">{sub.parents.name}</span>
+                  {sub.parents.gender && (
+                    <span className={`text-xs px-1.5 py-0.5 ${
+                      sub.parents.gender === "Père" ? "bg-blue-50 text-blue-700" : "bg-pink-50 text-pink-700"
+                    }`}>
+                      {sub.parents.gender}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── Subscription type ── */}
           <div>

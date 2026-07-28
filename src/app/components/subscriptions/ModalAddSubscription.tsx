@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Search, Check, X, Plus, Banknote, Landmark, FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { Modal, Field, Btn, inputCls, selectCls } from "../shared/Primitives";
-import { useApi } from "../../../hooks/useSupabase";
-import { Child, Check as CheckType, Exercise, Group } from "../../types";
+import { useApi, SUPABASE_URL, SUPABASE_ANON_KEY } from "../../../hooks/useSupabase";
+import { Child, Parent, Check as CheckType, Exercise, Group } from "../../types";
 import { ModalType } from "../../types";
 
 interface Props {
@@ -68,6 +68,11 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
 
   // Expanded sections for the hierarchical view
   const [expandedActivities, setExpandedActivities] = useState<Set<string>>(new Set());
+
+  // Parent selection state
+  const [childParents, setChildParents] = useState<Parent[]>([]);
+  const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
+  const [loadingParents, setLoadingParents] = useState(false);
 
   // Payment state
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -184,6 +189,17 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
     setSelectedChild({ id: child.id, name: child.name });
     setChildSearch(child.name);
     setShowSuggestions(false);
+    setSelectedParentId(null);
+    setChildParents([]);
+    // Fetch parents linked to this child
+    setLoadingParents(true);
+    api.parents.getAll(child.id).then(parents => {
+      setChildParents(parents);
+      // Auto-select if only one parent found
+      if (parents.length === 1) {
+        setSelectedParentId(parents[0].id);
+      }
+    }).catch(console.error).finally(() => setLoadingParents(false));
   }
 
   function toggleActivity(activityType: string) {
@@ -313,6 +329,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
       // 1. Create subscription
       const sub = await api.subscriptions.create({
         child_id: selectedChild.id,
+        parent_id: selectedParentId || undefined,
         type: subscriptionType,
         sub_type: subType || `${activities} activités/semaine`,
         amount: baseAmount,
@@ -346,6 +363,33 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         // 3. Update checks montant_used
         for (const sc of selectedChecks) {
           await api.checks.useCheck(sc.check.id, sc.amount, payment.id);
+        }
+      }
+
+      // 4. Send welcome email to parent if email is available
+      if (selectedParentId) {
+        const parent = childParents.find(p => p.id === selectedParentId);
+        if (parent?.email) {
+          try {
+            await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              },
+              body: JSON.stringify({
+                to: parent.email,
+                parentName: parent.name,
+                childName: selectedChild.name,
+                subscriptionType: `${subscriptionType} - ${subType || `${activities} activités/semaine`}`,
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0],
+              }),
+            });
+          } catch (emailErr) {
+            console.error('Failed to send welcome email:', emailErr);
+          }
         }
       }
 
@@ -415,6 +459,81 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
             )}
           </div>
         </div>
+
+        {/* ── Section 1.5 : Parent selection ── */}
+        {selectedChild && (
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Parent / Tuteur</p>
+            <div className="border border-slate-200 p-4">
+              {loadingParents ? (
+                <p className="text-xs text-slate-400">Chargement des parents...</p>
+              ) : childParents.length === 0 ? (
+                <div className="text-center">
+                  <p className="text-xs text-slate-400 mb-2">Aucun parent lié à cet enfant</p>
+                  {openModal && (
+                    <Btn size="sm" onClick={() => openModal("add-parent")}>
+                      <Plus size={11} /> Créer un nouveau parent
+                    </Btn>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-slate-500 mb-2">Sélectionner le parent responsable</p>
+                  <div className="space-y-2">
+                    {childParents.map(p => {
+                      const isSelected = selectedParentId === p.id;
+                      const genderLabel = p.gender === "Père" ? "Père" : p.gender === "Mère" ? "Mère" : "Tuteur";
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => setSelectedParentId(p.id)}
+                          className={`w-full text-left px-3 py-2.5 text-sm flex items-center justify-between border transition-colors ${
+                            isSelected
+                              ? "border-pink-500 bg-pink-50 text-pink-800"
+                              : "border-slate-200 text-slate-700 hover:border-slate-400"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-4 h-4 border-2 flex items-center justify-center rounded-full ${
+                              isSelected ? "border-pink-500" : "border-slate-300"
+                            }`}>
+                              {isSelected && <div className="w-2 h-2 bg-pink-500 rounded-full" />}
+                            </div>
+                            <div>
+                              <span className="font-medium">{p.name}</span>
+                              {p.gender && (
+                                <span className={`text-xs ml-2 px-1.5 py-0.5 ${
+                                  p.gender === "Père" ? "bg-blue-50 text-blue-700" : "bg-pink-50 text-pink-700"
+                                }`}>
+                                  {genderLabel}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            {p.phone && <span>{p.phone}</span>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2">
+                    {openModal && (
+                      <Btn size="sm" variant="ghost" onClick={() => openModal("add-parent")}>
+                        <Plus size={11} /> Créer un nouveau parent
+                      </Btn>
+                    )}
+                  </div>
+                </>
+              )}
+              {selectedParentId && (
+                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                  <Check size={11} /> Parent sélectionné
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Section 2 : Type & Activités (Price Plan) ── */}
         <div>

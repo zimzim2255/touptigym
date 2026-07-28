@@ -86,7 +86,7 @@ Currently, the child details page displays **all parents**.
 
 It should only display the **actual parent(s)** linked to that specific child.
 
- ## 11. Subscription Type & Payment Logic
+  ✅ ## 11. Subscription Type & Payment Logic
 
 Add a dropdown called **Type d'abonnement** with two options:
 
@@ -117,7 +117,7 @@ Update the discount calculation:
 * The **Assurance** and **Droit d'entrée** must **not** be affected by the discount.
 * Currently, the Remise is applied to the **total amount**, which is incorrect.
 
-## 12. Parent Selection During Subscription Creation
+## ✅ 12. Parent Selection During Subscription Creation
 
 After selecting a child:
 
