@@ -66,6 +66,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [insurance, setInsurance] = useState(300);
   const [entryFee, setEntryFee] = useState(700);
   const [subType, setSubType] = useState("");
+  const [subscriptionDate, setSubscriptionDate] = useState(new Date().toISOString().split("T")[0]);
   const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
   const [exSearch, setExSearch] = useState("");
 
@@ -237,6 +238,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         exercises: selectedExercises,
         status: "actif",
         paid_amount: totalPaid > 0 ? totalPaid : 0,
+        subscription_date: subscriptionDate,
         start_date: startDate.toISOString().split("T")[0],
         end_date: endDate.toISOString().split("T")[0],
       });
@@ -484,9 +486,24 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
           </div>
         </div>
 
-        {/* ── Section 5 : Paiement ── */}
+        {/* ── Section 5 : Date d'abonnement ── */}
         <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">5. Moyen de paiement</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">5. Date d'abonnement</p>
+          <div className="border border-slate-200 p-4">
+            <Field label="Date d'abonnement">
+              <input
+                type="date"
+                className={inputCls}
+                value={subscriptionDate}
+                onChange={e => setSubscriptionDate(e.target.value)}
+              />
+            </Field>
+          </div>
+        </div>
+
+        {/* ── Section 6 : Paiement ── */}
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">6. Moyen de paiement</p>
           <div className="border border-slate-200 p-4 space-y-4">
             {/* Payment method selection */}
             <div className="flex gap-2 flex-wrap">

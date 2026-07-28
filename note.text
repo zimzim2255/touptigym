@@ -46,7 +46,7 @@ Reorganize the table columns in the following order:
 * Highlight rows approaching end date (within 30 days) with amber background.
 * Sorted by start date.
 
-## 8. Subscription Creation
+ ✅ ## 8. Subscription Creation
 
 * Add a new field:
 
