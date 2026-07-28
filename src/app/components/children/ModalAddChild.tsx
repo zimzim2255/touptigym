@@ -1,7 +1,19 @@
-import { useState } from "react";
-import { Check } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Check, Cake } from "lucide-react";
 import { Modal, Field, Btn, inputCls, selectCls } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
+
+function calculateAge(birthDate: string): number | null {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+}
 
 export function ModalAddChild({ onClose, onCreated }: { onClose: () => void; onCreated?: () => void }) {
   const api = useApi();
@@ -11,6 +23,8 @@ export function ModalAddChild({ onClose, onCreated }: { onClose: () => void; onC
     school: "", school_type: "Bilingue", client_type: "Normal",
     zkteco_id: "", address: "", postal_code: "",
   });
+
+  const computedAge = useMemo(() => calculateAge(form.birth_date), [form.birth_date]);
 
   function set(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -53,7 +67,14 @@ export function ModalAddChild({ onClose, onCreated }: { onClose: () => void; onC
             </select>
           </Field>
           <Field label="Date de naissance" required>
-            <input type="date" className={inputCls} value={form.birth_date} onChange={e => set("birth_date", e.target.value)} />
+            <div className="relative">
+              <input type="date" className={inputCls} value={form.birth_date} onChange={e => set("birth_date", e.target.value)} />
+              {computedAge !== null && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-pink-500 font-semibold flex items-center gap-1">
+                  <Cake size={12} /> {computedAge} ans
+                </span>
+              )}
+            </div>
           </Field>
           <Field label="Nom de l'école">
             <input className={inputCls} placeholder="École" value={form.school} onChange={e => set("school", e.target.value)} />

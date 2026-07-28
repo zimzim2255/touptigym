@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Check, Plus, X } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Check, Plus, X, Search } from "lucide-react";
 import { Modal, Field, Btn, inputCls } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 
@@ -13,6 +13,7 @@ export function ModalAddGroup({ onClose, onCreated }: Props) {
   const [name, setName] = useState("");
   const [items, setItems] = useState<string[]>([""]);
   const [loading, setLoading] = useState(false);
+  const [itemSearch, setItemSearch] = useState("");
 
   function addItem() {
     setItems([...items, ""]);
@@ -25,6 +26,15 @@ export function ModalAddGroup({ onClose, onCreated }: Props) {
   function removeItem(i: number) {
     if (items.length > 1) setItems(items.filter((_, idx) => idx !== i));
   }
+
+  // Track which item indices are visible based on search
+  const visibleIndices = useMemo(() => {
+    if (!itemSearch) return items.map((_, i) => i);
+    return items
+      .map((item, i) => ({ item, i }))
+      .filter(({ item }) => item.toLowerCase().includes(itemSearch.toLowerCase()))
+      .map(({ i }) => i);
+  }, [items, itemSearch]);
 
   async function handleSubmit() {
     if (!name.trim()) return alert("Veuillez saisir un nom pour le groupe");
@@ -63,22 +73,35 @@ export function ModalAddGroup({ onClose, onCreated }: Props) {
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Groupe</p>
             <Btn size="sm" variant="ghost" onClick={addItem}><Plus size={12} /> Ajouter</Btn>
           </div>
-          <div className="border border-slate-200 divide-y divide-slate-100">
-            {items.map((item, i) => (
-              <div key={i} className="flex items-center gap-2 px-4 py-2.5">
-                <input
-                  className={`${inputCls} flex-1`}
-                  placeholder="Ex: Football U8, Baby Gym..."
-                  value={item}
-                  onChange={e => updateItem(i, e.target.value)}
-                />
-                {items.length > 1 && (
-                  <button onClick={() => removeItem(i)} className="p-1 text-slate-400 hover:text-red-500 transition-colors shrink-0">
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-            ))}
+          <div className="relative mb-2">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              className={`${inputCls} pl-8`}
+              placeholder="Rechercher une activité..."
+              value={itemSearch}
+              onChange={e => setItemSearch(e.target.value)}
+            />
+          </div>
+          <div className="border border-slate-200 divide-y divide-slate-100 max-h-48 overflow-y-auto">
+            {visibleIndices.length === 0 ? (
+              <div className="px-4 py-3 text-xs text-slate-400 text-center">Aucune activité trouvée</div>
+            ) : (
+              visibleIndices.map(idx => (
+                <div key={idx} className="flex items-center gap-2 px-4 py-2.5">
+                  <input
+                    className={`${inputCls} flex-1`}
+                    placeholder="Ex: Football U8, Baby Gym..."
+                    value={items[idx]}
+                    onChange={e => updateItem(idx, e.target.value)}
+                  />
+                  {items.length > 1 && (
+                    <button onClick={() => removeItem(idx)} className="p-1 text-slate-400 hover:text-red-500 transition-colors shrink-0">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
 

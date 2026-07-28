@@ -43,8 +43,8 @@ const handler = async (req: Request): Promise<Response> => {
   <style>
     body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f9f9f9; }
     .container { max-width: 600px; margin: 20px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    .header { background: #e91e63; padding: 30px; text-align: center; }
-    .header h1 { color: #fff; margin: 0; font-size: 24px; }
+    .header { background: #fff5f9; padding: 30px; text-align: center; }
+    .header img { max-height: 200px; width: auto; }
     .body { padding: 30px; }
     .body h2 { color: #333; margin-top: 0; }
     .body p { color: #555; line-height: 1.6; }
@@ -58,7 +58,7 @@ const handler = async (req: Request): Promise<Response> => {
 <body>
   <div class="container">
     <div class="header">
-      <h1>🏋️ Toupti Gym</h1>
+      <img src="https://lpjdpcguplkpdfgxomps.supabase.co/storage/v1/object/public/logo/logo.png" alt="Toupti Gym" />
     </div>
     <div class="body">
       <h2>Bienvenue ${parentName || 'chez Toupti Gym'} !</h2>

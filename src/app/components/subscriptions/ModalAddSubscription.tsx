@@ -58,16 +58,15 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [subscriptionDate, setSubscriptionDate] = useState(new Date().toISOString().split("T")[0]);
   const [subscriptionTypeOption, setSubscriptionTypeOption] = useState("Nouvel abonnement");
 
-  // Step 3 selections: activities → groups → courses
-  const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
+  // Step 3 selections: groups → courses
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
-  const [activitySearch, setActivitySearch] = useState("");
   const [groupSearch, setGroupSearch] = useState("");
   const [courseSearch, setCourseSearch] = useState("");
+  const [filterDay, setFilterDay] = useState("");
 
   // Expanded sections for the hierarchical view
-  const [expandedActivities, setExpandedActivities] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // Parent selection state
   const [childParents, setChildParents] = useState<Parent[]>([]);
@@ -92,25 +91,6 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [showNewCheckForm, setShowNewCheckForm] = useState(false);
   const checkSearchRef = useRef<HTMLDivElement>(null);
 
-  // Derived data: unique activity types from exercises
-  const activityTypes = useMemo(() => {
-    const types = new Set(allExercises.map(ex => ex.type));
-    return Array.from(types).sort();
-  }, [allExercises]);
-
-  // Groups filtered by selected activities
-  const groupsByActivity = useMemo(() => {
-    // Get all exercise IDs for selected activity types
-    const activityExerciseIds = selectedActivities.length > 0
-      ? allExercises.filter(ex => selectedActivities.includes(ex.type)).map(ex => ex.id)
-      : [];
-    
-    // Get groups that have exercises in the selected activity types
-    return groups.filter(g => 
-      g.exercises?.some(ex => activityExerciseIds.includes(ex.id))
-    );
-  }, [selectedActivities, allExercises, groups]);
-
   // Courses (exercises) filtered by selected groups
   const coursesByGroup = useMemo(() => {
     if (selectedGroups.length === 0) return [];
@@ -119,11 +99,11 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
     );
   }, [selectedGroups, allExercises]);
 
-  // All available courses from selected activities and groups (for display when no groups selected)
+  // All available courses from selected groups (for display when no groups selected)
   const coursesFiltered = useMemo(() => {
     let filtered = allExercises;
-    if (selectedActivities.length > 0) {
-      filtered = filtered.filter(ex => selectedActivities.includes(ex.type));
+    if (selectedGroups.length > 0) {
+      filtered = filtered.filter(ex => ex.group_id && selectedGroups.includes(ex.group_id));
     }
     if (courseSearch) {
       filtered = filtered.filter(ex =>
@@ -131,7 +111,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
       );
     }
     return filtered;
-  }, [allExercises, selectedActivities, courseSearch]);
+  }, [allExercises, selectedGroups, courseSearch]);
 
   useEffect(() => {
     api.children.getAll().then(setChildren).catch(console.error);
@@ -153,16 +133,6 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const filteredChildren = children.filter(c =>
     c.name.toLowerCase().includes(childSearch.toLowerCase())
   );
-
-  // Group exercises by type for the expanded view
-  const exercisesByType = useMemo(() => {
-    const map: Record<string, Exercise[]> = {};
-    for (const ex of allExercises) {
-      if (!map[ex.type]) map[ex.type] = [];
-      map[ex.type].push(ex);
-    }
-    return map;
-  }, [allExercises]);
 
   const baseAmount = PRICE_TABLE[activities]?.[subscriptionType] || 0;
   const effectiveDiscount = discountType === "percent"
@@ -202,25 +172,6 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
     }).catch(console.error).finally(() => setLoadingParents(false));
   }
 
-  function toggleActivity(activityType: string) {
-    setSelectedActivities(prev => {
-      if (prev.includes(activityType)) {
-        // Remove this activity and any groups/courses that depend on it
-        const activityExerciseIds = allExercises.filter(ex => ex.type === activityType).map(ex => ex.id);
-        const affectedGroupIds = groups
-          .filter(g => g.exercises?.some(ex => activityExerciseIds.includes(ex.id)))
-          .map(g => g.id);
-        setSelectedGroups(prevGroups => prevGroups.filter(gid => !affectedGroupIds.includes(gid)));
-        setSelectedCourses(prevCourses => prevCourses.filter(cid => {
-          const ex = allExercises.find(e => e.id === cid);
-          return ex && !activityExerciseIds.includes(ex.id);
-        }));
-        return prev.filter(a => a !== activityType);
-      }
-      return [...prev, activityType];
-    });
-  }
-
   function toggleGroup(groupId: string) {
     setSelectedGroups(prev => {
       if (prev.includes(groupId)) {
@@ -239,11 +190,11 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
     );
   }
 
-  function toggleActivityExpand(activityType: string) {
-    setExpandedActivities(prev => {
+  function toggleGroupExpand(groupId: string) {
+    setExpandedGroups(prev => {
       const next = new Set(prev);
-      if (next.has(activityType)) next.delete(activityType);
-      else next.add(activityType);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
       return next;
     });
   }
@@ -338,9 +289,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         entry_fee: entryFee,
         subscription_type_option: subscriptionTypeOption,
         exercises: selectedCourses, // keep backward compat
-        activity_ids: selectedActivities.length > 0 
-          ? allExercises.filter(ex => selectedActivities.includes(ex.type)).map(ex => ex.id)
-          : [],
+        activity_ids: [],
         group_ids: selectedGroups,
         course_ids: selectedCourses,
         status: "actif",
@@ -405,6 +354,38 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   return (
     <Modal title="Créer un Abonnement" onClose={onClose} wide>
       <div className="space-y-5 max-h-[80vh] overflow-y-auto pr-1">
+
+        {/* ── Section 0 : Type de souscription (Nouvel / Réabonnement) at the TOP ── */}
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Type de souscription</p>
+          <div className="border border-slate-200 p-4">
+            <div className="flex gap-2">
+              {["Nouvel abonnement", "Réabonnement"].map(t => (
+                <button
+                  key={t}
+                  onClick={() => {
+                    setSubscriptionTypeOption(t);
+                    if (t === "Réabonnement") {
+                      setEntryFee(0);
+                    } else {
+                      setEntryFee(700);
+                    }
+                  }}
+                  className={`px-4 py-2 text-sm border font-medium transition-colors flex-1 ${
+                    subscriptionTypeOption === t
+                      ? "border-pink-500 bg-pink-500 text-white"
+                      : "border-slate-300 text-slate-600 hover:border-slate-400"
+                  }`}
+                >{t}</button>
+              ))}
+            </div>
+            {subscriptionTypeOption === "Réabonnement" && (
+              <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                <Check size={11} /> Droit d'entrée automatiquement défini à 0 DH
+              </p>
+            )}
+          </div>
+        </div>
 
         {/* ── Section 1 : Enfant with search ── */}
         <div>
@@ -587,232 +568,103 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
           </div>
         </div>
 
-        {/* ── Section 2.5 : Type d'abonnement (Nouvel / Réabonnement) ── */}
-        <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Type d'abonnement</p>
-          <div className="border border-slate-200 p-4">
-            <select
-              className={selectCls}
-              value={subscriptionTypeOption}
-              onChange={e => {
-                const val = e.target.value;
-                setSubscriptionTypeOption(val);
-                if (val === "Réabonnement") {
-                  setEntryFee(0);
-                } else {
-                  setEntryFee(700);
-                }
-              }}
-            >
-              <option value="Nouvel abonnement">Nouvel abonnement</option>
-              <option value="Réabonnement">Réabonnement</option>
-            </select>
-            {subscriptionTypeOption === "Réabonnement" && (
-              <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-                <Check size={11} /> Droit d'entrée automatiquement défini à 0 DH
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* ── Section 3 : Activities → Groups → Courses (Hierarchical) ── */}
+        {/* ── Section 3 : Groupes & Cours (same structure as Activités page) ── */}
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Activités, Groupes & Cours</p>
-          <div className="border border-slate-200 p-4 space-y-4">
-            
-            {/* Step 3a: Select Activities (by type) */}
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase mb-2">a) Types d'activités</p>
-              <div className="relative mb-2">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  className={`${inputCls} pl-8`}
-                  placeholder="Filtrer les types d'activités..."
-                  value={activitySearch}
-                  onChange={e => setActivitySearch(e.target.value)}
-                />
-              </div>
-              <div className="max-h-32 overflow-y-auto border border-slate-200 divide-y divide-slate-100">
-                {activityTypes
-                  .filter(at => at.toLowerCase().includes(activitySearch.toLowerCase()))
-                  .map(type => {
-                    const count = allExercises.filter(ex => ex.type === type).length;
-                    const isSelected = selectedActivities.includes(type);
+          <div className="border border-slate-200 p-4">
+            <div className="relative mb-2">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                className={`${inputCls} pl-8`}
+                placeholder="Rechercher un groupe..."
+                value={groupSearch}
+                onChange={e => setGroupSearch(e.target.value)}
+              />
+            </div>
+            <div className="border border-slate-200 divide-y divide-slate-200">
+              {groups.length === 0 ? (
+                <div className="p-4 text-sm text-slate-500 text-center">Aucun groupe trouvé.</div>
+              ) : (
+                groups
+                  .filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase()))
+                  .map(group => {
+                    const isExpanded = expandedGroups.has(group.id);
+                    const isSelected = selectedGroups.includes(group.id);
+                    const groupCourses = allExercises.filter(ex => ex.group_id === group.id);
+                    let items: string[] = [];
+                    try {
+                      if (group.description) items = JSON.parse(group.description);
+                    } catch { items = []; }
+
                     return (
-                      <button
-                        key={type}
-                        onClick={() => toggleActivity(type)}
-                        className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-colors ${
-                          isSelected ? "bg-blue-50 text-blue-800" : "text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className={`w-4 h-4 border flex items-center justify-center ${
-                            isSelected ? "bg-blue-500 border-blue-500" : "border-slate-300"
-                          }`}>
-                            {isSelected && <Check size={10} className="text-white" />}
-                          </div>
-                          <span className="font-medium">{type}</span>
-                          <span className="text-xs text-slate-400">({count} cours)</span>
-                        </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleActivityExpand(type); }}
-                          className="p-1 text-slate-400 hover:text-slate-600"
+                      <div key={group.id}>
+                        {/* Group row - clickable to expand */}
+                        <div
+                          onClick={() => toggleGroupExpand(group.id)}
+                          className="flex items-center justify-between px-3 py-3 hover:bg-slate-50 transition-colors cursor-pointer"
                         >
-                          {expandedActivities.has(type) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        </button>
-                      </button>
-                    );
-                  })}
-              </div>
-              {/* Expanded view showing exercises in each activity type */}
-              {selectedActivities.map(type => {
-                if (!expandedActivities.has(type)) return null;
-                const typeExercises = allExercises.filter(ex => ex.type === type);
-                return (
-                  <div key={`exp-${type}`} className="mt-2 ml-4 border-l-2 border-blue-200 pl-3">
-                    <p className="text-xs text-blue-600 mb-1">Cours disponibles pour {type}:</p>
-                    <div className="space-y-1 max-h-24 overflow-y-auto">
-                      {typeExercises.map(ex => {
-                        const isCourseSelected = selectedCourses.includes(ex.id);
-                        return (
-                          <button
-                            key={ex.id}
-                            onClick={() => toggleCourse(ex.id)}
-                            className={`w-full text-left px-2 py-1 text-xs flex items-center justify-between rounded ${
-                              isCourseSelected ? "bg-emerald-50 text-emerald-700" : "text-slate-600 hover:bg-slate-50"
+                          <div className="flex items-center gap-3 flex-1">
+                            {isExpanded ? <ChevronDown size={14} className="text-slate-400 shrink-0" /> : <ChevronRight size={14} className="text-slate-400 shrink-0" />}
+                            <div className={`w-4 h-4 border flex items-center justify-center shrink-0 ${
+                              isSelected ? "bg-blue-500 border-blue-500" : "border-slate-300"
                             }`}
-                          >
-                            <span>{ex.name} ({ex.day} · {ex.start_time})</span>
-                            <div className={`w-3 h-3 border flex items-center justify-center ${
-                              isCourseSelected ? "bg-emerald-500 border-emerald-500" : "border-slate-300"
-                            }`}>
-                              {isCourseSelected && <Check size={8} className="text-white" />}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-              {selectedActivities.length > 0 && (
-                <p className="text-xs text-blue-600 mt-1">{selectedActivities.length} type(s) d'activité sélectionné(s)</p>
-              )}
-            </div>
-
-            {/* Step 3b: Select Groups (filtered by selected activities) */}
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase mb-2">b) Groupes</p>
-              {selectedActivities.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">Sélectionnez d'abord des types d'activités</p>
-              ) : (
-                <>
-                  <div className="relative mb-2">
-                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      className={`${inputCls} pl-8`}
-                      placeholder="Filtrer les groupes..."
-                      value={groupSearch}
-                      onChange={e => setGroupSearch(e.target.value)}
-                    />
-                  </div>
-                  <div className="max-h-32 overflow-y-auto border border-slate-200 divide-y divide-slate-100">
-                    {groupsByActivity.length === 0 ? (
-                      <div className="px-3 py-3 text-xs text-slate-400 text-center">Aucun groupe trouvé pour les activités sélectionnées</div>
-                    ) : (
-                      groupsByActivity
-                        .filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase()))
-                        .map(group => {
-                          const isSelected = selectedGroups.includes(group.id);
-                          const groupCourses = allExercises.filter(ex => ex.group_id === group.id);
-                          return (
-                            <button
-                              key={group.id}
-                              onClick={() => toggleGroup(group.id)}
-                              className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-colors ${
-                                isSelected ? "bg-purple-50 text-purple-800" : "text-slate-700 hover:bg-slate-50"
-                              }`}
+                              onClick={(e) => { e.stopPropagation(); toggleGroup(group.id); }}
                             >
-                              <div className="flex items-center gap-2">
-                                <div className={`w-4 h-4 border flex items-center justify-center ${
-                                  isSelected ? "bg-purple-500 border-purple-500" : "border-slate-300"
-                                }`}>
-                                  {isSelected && <Check size={10} className="text-white" />}
-                                </div>
-                                <div>
-                                  <span className="font-medium">{group.name}</span>
-                                  <span className="text-xs text-slate-400 ml-2">({groupCourses.length} cours)</span>
-                                  {group.description && (
-                                    <span className="text-xs text-slate-400 ml-1">— {group.description}</span>
-                                  )}
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })
-                    )}
-                  </div>
-                  {selectedGroups.length > 0 && (
-                    <p className="text-xs text-purple-600 mt-1">{selectedGroups.length} groupe(s) sélectionné(s)</p>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Step 3c: Select Courses (exercises, filtered by selected groups/activities) */}
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase mb-2">c) Cours</p>
-              {(selectedActivities.length === 0 && selectedGroups.length === 0) ? (
-                <p className="text-xs text-slate-400 italic">Sélectionnez d'abord des activités ou des groupes</p>
-              ) : (
-                <>
-                  <div className="relative mb-2">
-                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      className={`${inputCls} pl-8`}
-                      placeholder="Rechercher un cours..."
-                      value={courseSearch}
-                      onChange={e => setCourseSearch(e.target.value)}
-                    />
-                  </div>
-                  <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200">
-                    {coursesFiltered.length === 0 ? (
-                      <div className="px-3 py-3 text-xs text-slate-400 text-center">Aucun cours trouvé</div>
-                    ) : (
-                      coursesFiltered.map(ex => {
-                        const isSelected = selectedCourses.includes(ex.id);
-                        const groupName = groups.find(g => g.id === ex.group_id)?.name;
-                        return (
-                          <button
-                            key={ex.id}
-                            onClick={() => toggleCourse(ex.id)}
-                            className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-colors ${
-                              isSelected ? "bg-emerald-50 text-emerald-800" : "text-slate-700 hover:bg-slate-50"
-                            }`}
-                          >
-                            <div>
-                              <span className="font-medium">{ex.name}</span>
-                              <span className="text-xs text-slate-400 ml-2">{ex.day} · {ex.start_time}–{ex.end_time}</span>
-                              {groupName && <span className="text-xs text-slate-400 ml-1">[{groupName}]</span>}
-                              {ex.trainers?.name && <span className="text-xs text-slate-400 ml-1">({ex.trainers.name})</span>}
-                            </div>
-                            <div className={`w-4 h-4 border flex items-center justify-center ${
-                              isSelected ? "bg-emerald-500 border-emerald-500" : "border-slate-300"
-                            }`}>
                               {isSelected && <Check size={10} className="text-white" />}
                             </div>
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                  {selectedCourses.length > 0 && (
-                    <p className="text-xs text-emerald-600 mt-1">{selectedCourses.length} cours sélectionné(s)</p>
-                  )}
-                </>
+                            <span className="text-sm font-semibold text-slate-900">{group.name}</span>
+                            <span className="text-xs text-slate-400">({groupCourses.length} cours)</span>
+                            {items.length > 0 && (
+                              <span className="text-xs text-slate-400 ml-1">{items.join(" · ")}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Expanded courses under this group (like Activités page) */}
+                        {isExpanded && (
+                          <div className="bg-slate-50 border-t border-slate-100">
+                            {groupCourses.length === 0 ? (
+                              <div className="px-12 py-3 text-xs text-slate-400 italic">Aucun cours dans ce groupe</div>
+                            ) : (
+                              groupCourses.map(course => {
+                                const isCourseSelected = selectedCourses.includes(course.id);
+                                return (
+                                  <div key={course.id}>
+                                    {/* Course row */}
+                                    <div
+                                      onClick={() => toggleCourse(course.id)}
+                                      className="flex items-center justify-between px-12 py-2.5 text-sm hover:bg-white transition-colors cursor-pointer border-b border-slate-100"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <div className={`w-4 h-4 border flex items-center justify-center shrink-0 ${
+                                          isCourseSelected ? "bg-emerald-500 border-emerald-500" : "border-slate-300"
+                                        }`}>
+                                          {isCourseSelected && <Check size={10} className="text-white" />}
+                                        </div>
+                                        <span className="font-medium text-slate-800">{course.name}</span>
+                                        <span className="text-xs text-slate-400">{course.day} · {course.start_time}–{course.end_time}</span>
+                                        {course.trainers?.name && (
+                                          <span className="text-xs text-slate-400">({course.trainers.name})</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
               )}
             </div>
+            {selectedGroups.length > 0 && (
+              <p className="text-xs text-blue-600 mt-2">{selectedGroups.length} groupe(s) sélectionné(s)</p>
+            )}
+            {selectedCourses.length > 0 && (
+              <p className="text-xs text-emerald-600 mt-1">{selectedCourses.length} cours sélectionné(s)</p>
+            )}
           </div>
         </div>
 
@@ -999,59 +851,81 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                   )}
                 </div>
 
+                {/* Selected checks list */}
                 {selectedChecks.length > 0 && (
-                  <div className="space-y-2">
-                    {selectedChecks.map(sc => {
-                      const rest = sc.check.amount - sc.check.montant_used;
-                      return (
-                        <div key={sc.check.id} className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-mono font-semibold text-slate-900">#{sc.check.number}</p>
-                            <p className="text-xs text-slate-400">{sc.check.bank} — {sc.check.account_holder}</p>
-                            <p className="text-xs text-slate-400">Disponible: {rest.toLocaleString()} Dhs</p>
-                          </div>
-                          <div className="w-32">
-                            <Field label="Montant">
-                              <input type="number" className={`${inputCls} text-sm`} value={sc.amount} onChange={e => updateCheckAmount(sc.check.id, Number(e.target.value))} max={rest} />
-                            </Field>
-                          </div>
-                          <button onClick={() => removeSelectedCheck(sc.check.id)} className="p-1 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>
+                  <div className="space-y-1">
+                    {selectedChecks.map(sc => (
+                      <div key={sc.check.id} className="flex items-center justify-between bg-slate-50 px-3 py-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-semibold text-slate-700">#{sc.check.number}</span>
+                          <span className="text-xs text-slate-400">{sc.check.bank}</span>
                         </div>
-                      );
-                    })}
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            className="w-24 text-xs border border-slate-200 px-2 py-1 text-right"
+                            value={sc.amount}
+                            onChange={e => updateCheckAmount(sc.check.id, Number(e.target.value))}
+                            min={0}
+                            max={sc.check.amount - sc.check.montant_used}
+                          />
+                          <span className="text-xs text-slate-400">/ {(sc.check.amount - sc.check.montant_used).toLocaleString()} Dhs</span>
+                          <button onClick={() => removeSelectedCheck(sc.check.id)} className="p-1 text-slate-400 hover:text-red-500 transition-colors">
+                            <X size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
             )}
 
-            <div className="border-t border-slate-200 pt-3 space-y-1 text-sm">
-              <div className="flex justify-between text-slate-600">
-                <span>Total à payer</span>
-                <span className="font-semibold">{total.toLocaleString()} Dhs</span>
+            {/* Payment summary */}
+            {paymentMethods.length > 0 && (
+              <div className="border-t border-slate-200 pt-3 space-y-1 text-sm">
+                <div className="flex justify-between text-slate-600">
+                  <span>Total à payer</span>
+                  <span className="font-semibold">{total.toLocaleString()} Dhs</span>
+                </div>
+                {especeAmount > 0 && (
+                  <div className="flex justify-between text-slate-500 text-xs">
+                    <span>Espèce</span>
+                    <span>{especeAmount.toLocaleString()} Dhs</span>
+                  </div>
+                )}
+                {virementAmount > 0 && (
+                  <div className="flex justify-between text-slate-500 text-xs">
+                    <span>Virement</span>
+                    <span>{virementAmount.toLocaleString()} Dhs</span>
+                  </div>
+                )}
+                {totalChecksAmount > 0 && (
+                  <div className="flex justify-between text-slate-500 text-xs">
+                    <span>Chèques</span>
+                    <span>{totalChecksAmount.toLocaleString()} Dhs</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-semibold border-t border-slate-200 pt-1">
+                  <span>Payé</span>
+                  <span className={totalPaid >= total ? "text-emerald-600" : "text-amber-600"}>
+                    {totalPaid.toLocaleString()} Dhs
+                    {totalPaid < total && (
+                      <span className="text-xs text-slate-400 ml-1">(reste {remaining.toLocaleString()} Dhs)</span>
+                    )}
+                  </span>
+                </div>
               </div>
-              {paymentMethods.includes("espece") && especeAmount > 0 && (
-                <div className="flex justify-between text-emerald-600"><span>Espèce</span><span>{especeAmount.toLocaleString()} Dhs</span></div>
-              )}
-              {paymentMethods.includes("virement") && virementAmount > 0 && (
-                <div className="flex justify-between text-blue-600"><span>Virement</span><span>{virementAmount.toLocaleString()} Dhs</span></div>
-              )}
-              {paymentMethods.includes("cheque") && totalChecksAmount > 0 && (
-                <div className="flex justify-between text-purple-600"><span>Chèque(s) ({selectedChecks.length})</span><span>{totalChecksAmount.toLocaleString()} Dhs</span></div>
-              )}
-              <div className="flex justify-between font-semibold pt-1 border-t border-slate-100">
-                <span className={remaining === 0 ? "text-emerald-600" : "text-red-500"}>{remaining === 0 ? "Payé" : "Reste à payer"}</span>
-                <span className={remaining === 0 ? "text-emerald-600" : "text-red-500"}>{Math.abs(remaining).toLocaleString()} Dhs</span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
         {/* ── Submit ── */}
-        <div className="flex gap-3 pt-2 border-t border-slate-100">
-          <Btn onClick={handleSubmit} disabled={loading}>
-            {loading ? "Création..." : <><Check size={13} /> Créer l'abonnement</>}
-          </Btn>
+        <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
           <Btn variant="outline" onClick={onClose}>Annuler</Btn>
+          <Btn onClick={handleSubmit} disabled={loading || !selectedChild}>
+            {loading ? "Création..." : "Créer l'abonnement"}
+          </Btn>
         </div>
       </div>
     </Modal>
