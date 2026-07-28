@@ -68,6 +68,10 @@ export function useApi() {
         request(`/subscriptions/${id}/confirm`, { method: 'POST', body: JSON.stringify({ confirmed_by: confirmedBy }) }),
       reject: (id: string) => request(`/subscriptions/${id}/reject`, { method: 'POST' }),
       pay: (id: string, data: any) => request(`/subscriptions/${id}/pay`, { method: 'POST', body: JSON.stringify(data) }),
+      // New: get activities/groups/courses for a subscription
+      getActivities: (id: string) => request(`/subscriptions/${id}/activities`),
+      getGroups: (id: string) => request(`/subscriptions/${id}/groups`),
+      getCourses: (id: string) => request(`/subscriptions/${id}/courses`),
     },
 
     // ─── Exercises ───────────────────────────────
