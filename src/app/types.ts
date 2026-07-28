@@ -57,6 +57,28 @@ export interface Exercise {
   group_id: string | null;
   created_at: string;
   groups?: { name: string; description: string };
+  trainers?: { name: string };
+}
+
+export interface SubscriptionActivity {
+  id: string;
+  subscription_id: string;
+  activity_id: string;
+  created_at: string;
+}
+
+export interface SubscriptionGroup {
+  id: string;
+  subscription_id: string;
+  group_id: string;
+  created_at: string;
+}
+
+export interface SubscriptionCourse {
+  id: string;
+  subscription_id: string;
+  exercise_id: string;
+  created_at: string;
 }
 
 export interface Group {

@@ -18,6 +18,7 @@ interface Subscription {
   exercises: string[];
   start_date: string;
   end_date: string;
+  subscription_date?: string;
   created_at: string;
   children?: { name: string };
 }
@@ -39,6 +40,11 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
   const [loading, setLoading] = useState(true);
   const [count, setCount] = useState(0);
   const [payFilter, setPayFilter] = useState<PaymentFilter>("all");
+  const [dateFilterStart, setDateFilterStart] = useState("");
+  const [dateFilterEnd, setDateFilterEnd] = useState("");
+  const [smartFilter, setSmartFilter] = useState<"all" | "approaching">("all");
+  const [dateQuickFilter, setDateQuickFilter] = useState("");
+  const [dateQuickType, setDateQuickType] = useState<"start" | "end">("start");
 
   const active = subscriptions.filter(s => s.status === "actif").length;
   const expired = subscriptions.filter(s => s.status === "expiré" || s.status === "résilié").length;
@@ -81,8 +87,27 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
         return true;
       });
     }
+    // Date range filters
+    if (dateFilterStart) {
+      filtered = filtered.filter(s => s.start_date >= dateFilterStart);
+    }
+    if (dateFilterEnd) {
+      filtered = filtered.filter(s => s.end_date <= dateFilterEnd);
+    }
+    // Smart filter: approaching end date (within 30 days)
+    if (smartFilter === "approaching") {
+      const now = new Date();
+      const thirtyDays = new Date();
+      thirtyDays.setDate(thirtyDays.getDate() + 30);
+      filtered = filtered.filter(s => {
+        const end = new Date(s.end_date);
+        return end >= now && end <= thirtyDays;
+      });
+    }
+    // Sort by start date
+    filtered = [...filtered].sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
     return filtered;
-  }, [subscriptions, q, payFilter]);
+  }, [subscriptions, q, payFilter, dateFilterStart, dateFilterEnd, smartFilter]);
 
   function getPayStatus(total: number, paid: number): { label: string; color: string } {
     const rest = total - paid;
@@ -182,6 +207,26 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
               </button>
             ))}
           </div>
+          <div className="flex items-center gap-1">
+            <select value={dateQuickType} onChange={e => setDateQuickType(e.target.value as "start" | "end")} className={`${inputCls} text-xs w-16`}>
+              <option value="start">Début</option>
+              <option value="end">Fin</option>
+            </select>
+            <select value={dateQuickFilter} onChange={e => { setDateQuickFilter(e.target.value); if (e.target.value) { const d = e.target.value; if (dateQuickType === "start") { setDateFilterStart(d); setDateFilterEnd(""); } else { setDateFilterEnd(d); setDateFilterStart(""); } } else { setDateFilterStart(""); setDateFilterEnd(""); } }} className={`${inputCls} text-xs w-32`}>
+              <option value="">Dates...</option>
+              {subscriptions
+                .map(s => dateQuickType === "start" ? s.start_date : s.end_date)
+                .filter((v, i, a) => a.indexOf(v) === i)
+                .sort()
+                .slice(0, 10)
+                .map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+            </select>
+          </div>
+          <input type="date" value={dateFilterStart} onChange={e => setDateFilterStart(e.target.value)} className={`${inputCls} text-xs w-32`} title="Date de début" />
+          <span className="text-xs text-slate-400">→</span>
+          <input type="date" value={dateFilterEnd} onChange={e => setDateFilterEnd(e.target.value)} className={`${inputCls} text-xs w-32`} title="Date de fin" />
         </div>
 
         {loading ? (
@@ -192,7 +237,7 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                {["Enfant", "Type", "Total", "Payé", "Reste", "Validité", "Statut", "Paiement", "Actions"].map(h => (
+                {["Enfant", "Type", "Total", "Payé", "Reste", "Date d'abonnement", "Validité", "Statut", "Paiement", "Actions"].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -205,8 +250,16 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
                 const rest = total - paid;
                 const payStatus = getPayStatus(total, paid);
 
+                const isApproaching = (() => {
+                  const now = new Date();
+                  const end = new Date(s.end_date);
+                  const thirtyDays = new Date();
+                  thirtyDays.setDate(thirtyDays.getDate() + 30);
+                  return end >= now && end <= thirtyDays && s.status === "actif";
+                })();
+
                 return (
-                  <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={s.id} className={`hover:bg-slate-50 transition-colors ${isApproaching ? "bg-amber-50 border-l-4 border-l-amber-400" : ""}`}>
                     <td className="px-4 py-3 font-medium text-slate-900">{s.children?.name || "—"}</td>
                     <td className="px-4 py-3 text-slate-500 text-xs">{s.type}{s.sub_type ? ` — ${s.sub_type}` : ""}</td>
                     <td className="px-4 py-3 font-semibold text-slate-900">{total.toLocaleString()} Dhs</td>
@@ -216,6 +269,7 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
                         {rest <= 0 ? "—" : `${rest.toLocaleString()} Dhs`}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-xs text-slate-400">{s.subscription_date || "—"}</td>
                     <td className="px-4 py-3 text-xs text-slate-400">{s.start_date} → {s.end_date}</td>
                     <td className="px-4 py-3">
                       <Tag color={status === "actif" ? "green" : status === "expiré" || status === "résilié" ? "red" : "amber"}>{status}</Tag>

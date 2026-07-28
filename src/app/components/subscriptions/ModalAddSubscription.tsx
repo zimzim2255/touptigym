@@ -1,19 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Search, Check, X, Plus, Banknote, Landmark, FileText, Upload } from "lucide-react";
+import { Search, Check, X, Plus, Banknote, Landmark, FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { Modal, Field, Btn, inputCls, selectCls } from "../shared/Primitives";
-import { useApi } from "../../../hooks/useSupabase";
-import { Child, Check as CheckType } from "../../types";
+import { useApi, SUPABASE_URL, SUPABASE_ANON_KEY } from "../../../hooks/useSupabase";
+import { Child, Parent, Check as CheckType, Exercise, Group } from "../../types";
 import { ModalType } from "../../types";
-
-interface Exercise {
-  id: string;
-  name: string;
-  day: string;
-  start_time: string;
-  end_time: string;
-  type: string;
-  trainers?: { name: string };
-}
 
 interface Props {
   onClose: () => void;
@@ -30,13 +20,6 @@ const PRICE_TABLE: Record<string, Record<string, number>> = {
   "4": { Session: 9300, Annuel: 16200 },
 };
 
-const ACTIVITY_LABELS: Record<string, string> = {
-  "1": "1 activité/semaine",
-  "2": "2 activités/semaine",
-  "3": "3 activités/semaine",
-  "4": "4 activités/semaine",
-};
-
 const METHOD_LABELS: Record<PaymentMethod, string> = {
   espece: "Espèce",
   virement: "Virement",
@@ -49,11 +32,17 @@ const METHOD_ICONS: Record<PaymentMethod, React.ElementType> = {
   cheque: FileText,
 };
 
+type Step3Selection = {
+  type: "activity" | "group" | "course";
+  ids: string[];
+};
+
 export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const api = useApi();
   const [loading, setLoading] = useState(false);
   const [children, setChildren] = useState<Child[]>([]);
-  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [allExercises, setAllExercises] = useState<Exercise[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [checks, setChecks] = useState<CheckType[]>([]);
   const [childSearch, setChildSearch] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -66,8 +55,24 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [insurance, setInsurance] = useState(300);
   const [entryFee, setEntryFee] = useState(700);
   const [subType, setSubType] = useState("");
-  const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
-  const [exSearch, setExSearch] = useState("");
+  const [subscriptionDate, setSubscriptionDate] = useState(new Date().toISOString().split("T")[0]);
+  const [subscriptionTypeOption, setSubscriptionTypeOption] = useState("Nouvel abonnement");
+
+  // Step 3 selections: activities → groups → courses
+  const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
+  const [activitySearch, setActivitySearch] = useState("");
+  const [groupSearch, setGroupSearch] = useState("");
+  const [courseSearch, setCourseSearch] = useState("");
+
+  // Expanded sections for the hierarchical view
+  const [expandedActivities, setExpandedActivities] = useState<Set<string>>(new Set());
+
+  // Parent selection state
+  const [childParents, setChildParents] = useState<Parent[]>([]);
+  const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
+  const [loadingParents, setLoadingParents] = useState(false);
 
   // Payment state
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
@@ -76,7 +81,6 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [selectedChecks, setSelectedChecks] = useState<{ check: CheckType; amount: number }[]>([]);
   const [especeAmount, setEspeceAmount] = useState(0);
   const [virementAmount, setVirementAmount] = useState(0);
-  // Inline check creation state
   const [newCheckNum, setNewCheckNum] = useState("");
   const [newCheckAmount, setNewCheckAmount] = useState("");
   const [newCheckBank, setNewCheckBank] = useState("");
@@ -88,9 +92,51 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [showNewCheckForm, setShowNewCheckForm] = useState(false);
   const checkSearchRef = useRef<HTMLDivElement>(null);
 
+  // Derived data: unique activity types from exercises
+  const activityTypes = useMemo(() => {
+    const types = new Set(allExercises.map(ex => ex.type));
+    return Array.from(types).sort();
+  }, [allExercises]);
+
+  // Groups filtered by selected activities
+  const groupsByActivity = useMemo(() => {
+    // Get all exercise IDs for selected activity types
+    const activityExerciseIds = selectedActivities.length > 0
+      ? allExercises.filter(ex => selectedActivities.includes(ex.type)).map(ex => ex.id)
+      : [];
+    
+    // Get groups that have exercises in the selected activity types
+    return groups.filter(g => 
+      g.exercises?.some(ex => activityExerciseIds.includes(ex.id))
+    );
+  }, [selectedActivities, allExercises, groups]);
+
+  // Courses (exercises) filtered by selected groups
+  const coursesByGroup = useMemo(() => {
+    if (selectedGroups.length === 0) return [];
+    return allExercises.filter(ex => 
+      ex.group_id && selectedGroups.includes(ex.group_id)
+    );
+  }, [selectedGroups, allExercises]);
+
+  // All available courses from selected activities and groups (for display when no groups selected)
+  const coursesFiltered = useMemo(() => {
+    let filtered = allExercises;
+    if (selectedActivities.length > 0) {
+      filtered = filtered.filter(ex => selectedActivities.includes(ex.type));
+    }
+    if (courseSearch) {
+      filtered = filtered.filter(ex =>
+        ex.name.toLowerCase().includes(courseSearch.toLowerCase())
+      );
+    }
+    return filtered;
+  }, [allExercises, selectedActivities, courseSearch]);
+
   useEffect(() => {
     api.children.getAll().then(setChildren).catch(console.error);
-    api.exercises.getAll().then(setExercises).catch(console.error);
+    api.exercises.getAll().then(setAllExercises).catch(console.error);
+    api.groups.getAll().then(setGroups).catch(console.error);
     api.checks.getAll().then(setChecks).catch(console.error);
   }, []);
 
@@ -108,9 +154,25 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
     c.name.toLowerCase().includes(childSearch.toLowerCase())
   );
 
-  const filteredExercises = exercises.filter(ex =>
-    ex.name.toLowerCase().includes(exSearch.toLowerCase())
-  );
+  // Group exercises by type for the expanded view
+  const exercisesByType = useMemo(() => {
+    const map: Record<string, Exercise[]> = {};
+    for (const ex of allExercises) {
+      if (!map[ex.type]) map[ex.type] = [];
+      map[ex.type].push(ex);
+    }
+    return map;
+  }, [allExercises]);
+
+  const baseAmount = PRICE_TABLE[activities]?.[subscriptionType] || 0;
+  const effectiveDiscount = discountType === "percent"
+    ? Math.round(baseAmount * (discountPercent / 100))
+    : discount;
+  const total = baseAmount - effectiveDiscount + insurance + entryFee;
+
+  const totalChecksAmount = selectedChecks.reduce((sum, s) => sum + s.amount, 0);
+  const totalPaid = especeAmount + virementAmount + totalChecksAmount;
+  const remaining = total - totalPaid;
 
   const availableChecks = useMemo(() => {
     const selectedIds = selectedChecks.map(s => s.check.id);
@@ -123,26 +185,67 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
     (c.account_holder && c.account_holder.toLowerCase().includes(checkSearch.toLowerCase()))
   );
 
-  const baseAmount = PRICE_TABLE[activities]?.[subscriptionType] || 0;
-  const effectiveDiscount = discountType === "percent"
-    ? Math.round(baseAmount * (discountPercent / 100))
-    : discount;
-  const total = baseAmount - effectiveDiscount + insurance + entryFee;
-
-  const totalChecksAmount = selectedChecks.reduce((sum, s) => sum + s.amount, 0);
-  const totalPaid = especeAmount + virementAmount + totalChecksAmount;
-  const remaining = total - totalPaid;
-
   function handleSelectChild(child: Child) {
     setSelectedChild({ id: child.id, name: child.name });
     setChildSearch(child.name);
     setShowSuggestions(false);
+    setSelectedParentId(null);
+    setChildParents([]);
+    // Fetch parents linked to this child
+    setLoadingParents(true);
+    api.parents.getAll(child.id).then(parents => {
+      setChildParents(parents);
+      // Auto-select if only one parent found
+      if (parents.length === 1) {
+        setSelectedParentId(parents[0].id);
+      }
+    }).catch(console.error).finally(() => setLoadingParents(false));
   }
 
-  function toggleExercise(exId: string) {
-    setSelectedExercises(prev =>
-      prev.includes(exId) ? prev.filter(id => id !== exId) : [...prev, exId]
+  function toggleActivity(activityType: string) {
+    setSelectedActivities(prev => {
+      if (prev.includes(activityType)) {
+        // Remove this activity and any groups/courses that depend on it
+        const activityExerciseIds = allExercises.filter(ex => ex.type === activityType).map(ex => ex.id);
+        const affectedGroupIds = groups
+          .filter(g => g.exercises?.some(ex => activityExerciseIds.includes(ex.id)))
+          .map(g => g.id);
+        setSelectedGroups(prevGroups => prevGroups.filter(gid => !affectedGroupIds.includes(gid)));
+        setSelectedCourses(prevCourses => prevCourses.filter(cid => {
+          const ex = allExercises.find(e => e.id === cid);
+          return ex && !activityExerciseIds.includes(ex.id);
+        }));
+        return prev.filter(a => a !== activityType);
+      }
+      return [...prev, activityType];
+    });
+  }
+
+  function toggleGroup(groupId: string) {
+    setSelectedGroups(prev => {
+      if (prev.includes(groupId)) {
+        // Remove this group and its courses
+        const groupExerciseIds = allExercises.filter(ex => ex.group_id === groupId).map(ex => ex.id);
+        setSelectedCourses(prevCourses => prevCourses.filter(cid => !groupExerciseIds.includes(cid)));
+        return prev.filter(g => g !== groupId);
+      }
+      return [...prev, groupId];
+    });
+  }
+
+  function toggleCourse(exerciseId: string) {
+    setSelectedCourses(prev =>
+      prev.includes(exerciseId) ? prev.filter(id => id !== exerciseId) : [...prev, exerciseId]
     );
+  }
+
+  function toggleActivityExpand(activityType: string) {
+    setExpandedActivities(prev => {
+      const next = new Set(prev);
+      if (next.has(activityType)) next.delete(activityType);
+      else next.add(activityType);
+      return next;
+    });
   }
 
   function togglePaymentMethod(method: PaymentMethod) {
@@ -188,7 +291,6 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         date_emission: newCheckDateEmission || null,
         date_execution: newCheckDateExecution || null,
       });
-      // Refresh checks list and select the new check
       const updatedChecks = await api.checks.getAll();
       setChecks(updatedChecks);
       setNewCheckNum("");
@@ -198,7 +300,6 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
       setNewCheckDateEmission(new Date().toISOString().split("T")[0]);
       setNewCheckDateExecution("");
       setNewCheckCreated(true);
-      // Auto-select the created check
       const freshCheck = updatedChecks.find((c: CheckType) => c.id === created.id);
       if (freshCheck) {
         handleSelectCheck(freshCheck);
@@ -228,15 +329,23 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
       // 1. Create subscription
       const sub = await api.subscriptions.create({
         child_id: selectedChild.id,
+        parent_id: selectedParentId || undefined,
         type: subscriptionType,
         sub_type: subType || `${activities} activités/semaine`,
         amount: baseAmount,
         discount: effectiveDiscount,
         insurance: insurance,
         entry_fee: entryFee,
-        exercises: selectedExercises,
+        subscription_type_option: subscriptionTypeOption,
+        exercises: selectedCourses, // keep backward compat
+        activity_ids: selectedActivities.length > 0 
+          ? allExercises.filter(ex => selectedActivities.includes(ex.type)).map(ex => ex.id)
+          : [],
+        group_ids: selectedGroups,
+        course_ids: selectedCourses,
         status: "actif",
         paid_amount: totalPaid > 0 ? totalPaid : 0,
+        subscription_date: subscriptionDate,
         start_date: startDate.toISOString().split("T")[0],
         end_date: endDate.toISOString().split("T")[0],
       });
@@ -254,6 +363,33 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         // 3. Update checks montant_used
         for (const sc of selectedChecks) {
           await api.checks.useCheck(sc.check.id, sc.amount, payment.id);
+        }
+      }
+
+      // 4. Send welcome email to parent if email is available
+      if (selectedParentId) {
+        const parent = childParents.find(p => p.id === selectedParentId);
+        if (parent?.email) {
+          try {
+            await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              },
+              body: JSON.stringify({
+                to: parent.email,
+                parentName: parent.name,
+                childName: selectedChild.name,
+                subscriptionType: `${subscriptionType} - ${subType || `${activities} activités/semaine`}`,
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0],
+              }),
+            });
+          } catch (emailErr) {
+            console.error('Failed to send welcome email:', emailErr);
+          }
         }
       }
 
@@ -324,7 +460,82 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
           </div>
         </div>
 
-        {/* ── Section 2 : Type & Activités ── */}
+        {/* ── Section 1.5 : Parent selection ── */}
+        {selectedChild && (
+          <div>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Parent / Tuteur</p>
+            <div className="border border-slate-200 p-4">
+              {loadingParents ? (
+                <p className="text-xs text-slate-400">Chargement des parents...</p>
+              ) : childParents.length === 0 ? (
+                <div className="text-center">
+                  <p className="text-xs text-slate-400 mb-2">Aucun parent lié à cet enfant</p>
+                  {openModal && (
+                    <Btn size="sm" onClick={() => openModal("add-parent")}>
+                      <Plus size={11} /> Créer un nouveau parent
+                    </Btn>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-slate-500 mb-2">Sélectionner le parent responsable</p>
+                  <div className="space-y-2">
+                    {childParents.map(p => {
+                      const isSelected = selectedParentId === p.id;
+                      const genderLabel = p.gender === "Père" ? "Père" : p.gender === "Mère" ? "Mère" : "Tuteur";
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => setSelectedParentId(p.id)}
+                          className={`w-full text-left px-3 py-2.5 text-sm flex items-center justify-between border transition-colors ${
+                            isSelected
+                              ? "border-pink-500 bg-pink-50 text-pink-800"
+                              : "border-slate-200 text-slate-700 hover:border-slate-400"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-4 h-4 border-2 flex items-center justify-center rounded-full ${
+                              isSelected ? "border-pink-500" : "border-slate-300"
+                            }`}>
+                              {isSelected && <div className="w-2 h-2 bg-pink-500 rounded-full" />}
+                            </div>
+                            <div>
+                              <span className="font-medium">{p.name}</span>
+                              {p.gender && (
+                                <span className={`text-xs ml-2 px-1.5 py-0.5 ${
+                                  p.gender === "Père" ? "bg-blue-50 text-blue-700" : "bg-pink-50 text-pink-700"
+                                }`}>
+                                  {genderLabel}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            {p.phone && <span>{p.phone}</span>}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2">
+                    {openModal && (
+                      <Btn size="sm" variant="ghost" onClick={() => openModal("add-parent")}>
+                        <Plus size={11} /> Créer un nouveau parent
+                      </Btn>
+                    )}
+                  </div>
+                </>
+              )}
+              {selectedParentId && (
+                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                  <Check size={11} /> Parent sélectionné
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Section 2 : Type & Activités (Price Plan) ── */}
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">2. Type d'abonnement</p>
           <div className="border border-slate-200 p-4 space-y-3">
@@ -346,9 +557,14 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
             </div>
 
             <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Activités</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Forfait (activités/semaine)</p>
               <div className="grid grid-cols-2 gap-2">
-                {Object.entries(ACTIVITY_LABELS).map(([key, label]) => (
+                {Object.entries({
+                  "1": "1 activité/semaine",
+                  "2": "2 activités/semaine",
+                  "3": "3 activités/semaine",
+                  "4": "4 activités/semaine",
+                }).map(([key, label]) => (
                   <button
                     key={key}
                     onClick={() => {
@@ -368,67 +584,235 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
               </div>
             </div>
 
-            <div className="border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs font-semibold text-slate-500 mb-2">Tarifs {subscriptionType}</p>
-              <div className="grid grid-cols-2 gap-1 text-xs text-slate-700">
-                {Object.entries(PRICE_TABLE).map(([act, prices]) => (
-                  <div key={act} className="flex justify-between px-1">
-                    <span>{ACTIVITY_LABELS[act]}</span>
-                    <span className={`font-semibold ${activities === act ? "text-pink-600" : ""}`}>
-                      {prices[subscriptionType]?.toLocaleString()} Dhs
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* ── Section 3 : Activités ── */}
+        {/* ── Section 2.5 : Type d'abonnement (Nouvel / Réabonnement) ── */}
         <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Activités incluses</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Type d'abonnement</p>
           <div className="border border-slate-200 p-4">
-            <div className="relative mb-3">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                className={`${inputCls} pl-8`}
-                placeholder="Rechercher une activité..."
-                value={exSearch}
-                onChange={e => setExSearch(e.target.value)}
-              />
-            </div>
-            <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200">
-              {filteredExercises.length === 0 ? (
-                <div className="px-3 py-3 text-xs text-slate-400 text-center">Aucune activité trouvée</div>
-              ) : (
-                filteredExercises.map(ex => {
-                  const isSelected = selectedExercises.includes(ex.id);
-                  return (
-                    <button
-                      key={ex.id}
-                      onClick={() => toggleExercise(ex.id)}
-                      className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-colors ${
-                        isSelected ? "bg-emerald-50 text-emerald-800" : "text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div>
-                        <span className="font-medium">{ex.name}</span>
-                        <span className="text-xs text-slate-400 ml-2">{ex.day} · {ex.start_time}–{ex.end_time}</span>
-                        <span className="text-xs text-slate-400 ml-1">({ex.trainers?.name || "—"})</span>
-                      </div>
-                      <div className={`w-4 h-4 border flex items-center justify-center ${
-                        isSelected ? "bg-emerald-500 border-emerald-500" : "border-slate-300"
-                      }`}>
-                        {isSelected && <Check size={10} className="text-white" />}
-                      </div>
-                    </button>
-                  );
-                })
+            <select
+              className={selectCls}
+              value={subscriptionTypeOption}
+              onChange={e => {
+                const val = e.target.value;
+                setSubscriptionTypeOption(val);
+                if (val === "Réabonnement") {
+                  setEntryFee(0);
+                } else {
+                  setEntryFee(700);
+                }
+              }}
+            >
+              <option value="Nouvel abonnement">Nouvel abonnement</option>
+              <option value="Réabonnement">Réabonnement</option>
+            </select>
+            {subscriptionTypeOption === "Réabonnement" && (
+              <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                <Check size={11} /> Droit d'entrée automatiquement défini à 0 DH
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* ── Section 3 : Activities → Groups → Courses (Hierarchical) ── */}
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Activités, Groupes & Cours</p>
+          <div className="border border-slate-200 p-4 space-y-4">
+            
+            {/* Step 3a: Select Activities (by type) */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase mb-2">a) Types d'activités</p>
+              <div className="relative mb-2">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  className={`${inputCls} pl-8`}
+                  placeholder="Filtrer les types d'activités..."
+                  value={activitySearch}
+                  onChange={e => setActivitySearch(e.target.value)}
+                />
+              </div>
+              <div className="max-h-32 overflow-y-auto border border-slate-200 divide-y divide-slate-100">
+                {activityTypes
+                  .filter(at => at.toLowerCase().includes(activitySearch.toLowerCase()))
+                  .map(type => {
+                    const count = allExercises.filter(ex => ex.type === type).length;
+                    const isSelected = selectedActivities.includes(type);
+                    return (
+                      <button
+                        key={type}
+                        onClick={() => toggleActivity(type)}
+                        className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-colors ${
+                          isSelected ? "bg-blue-50 text-blue-800" : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-4 h-4 border flex items-center justify-center ${
+                            isSelected ? "bg-blue-500 border-blue-500" : "border-slate-300"
+                          }`}>
+                            {isSelected && <Check size={10} className="text-white" />}
+                          </div>
+                          <span className="font-medium">{type}</span>
+                          <span className="text-xs text-slate-400">({count} cours)</span>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleActivityExpand(type); }}
+                          className="p-1 text-slate-400 hover:text-slate-600"
+                        >
+                          {expandedActivities.has(type) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </button>
+                      </button>
+                    );
+                  })}
+              </div>
+              {/* Expanded view showing exercises in each activity type */}
+              {selectedActivities.map(type => {
+                if (!expandedActivities.has(type)) return null;
+                const typeExercises = allExercises.filter(ex => ex.type === type);
+                return (
+                  <div key={`exp-${type}`} className="mt-2 ml-4 border-l-2 border-blue-200 pl-3">
+                    <p className="text-xs text-blue-600 mb-1">Cours disponibles pour {type}:</p>
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                      {typeExercises.map(ex => {
+                        const isCourseSelected = selectedCourses.includes(ex.id);
+                        return (
+                          <button
+                            key={ex.id}
+                            onClick={() => toggleCourse(ex.id)}
+                            className={`w-full text-left px-2 py-1 text-xs flex items-center justify-between rounded ${
+                              isCourseSelected ? "bg-emerald-50 text-emerald-700" : "text-slate-600 hover:bg-slate-50"
+                            }`}
+                          >
+                            <span>{ex.name} ({ex.day} · {ex.start_time})</span>
+                            <div className={`w-3 h-3 border flex items-center justify-center ${
+                              isCourseSelected ? "bg-emerald-500 border-emerald-500" : "border-slate-300"
+                            }`}>
+                              {isCourseSelected && <Check size={8} className="text-white" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+              {selectedActivities.length > 0 && (
+                <p className="text-xs text-blue-600 mt-1">{selectedActivities.length} type(s) d'activité sélectionné(s)</p>
               )}
             </div>
-            {selectedExercises.length > 0 && (
-              <p className="text-xs text-emerald-600 mt-2">{selectedExercises.length} activité(s) sélectionnée(s)</p>
-            )}
+
+            {/* Step 3b: Select Groups (filtered by selected activities) */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase mb-2">b) Groupes</p>
+              {selectedActivities.length === 0 ? (
+                <p className="text-xs text-slate-400 italic">Sélectionnez d'abord des types d'activités</p>
+              ) : (
+                <>
+                  <div className="relative mb-2">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      className={`${inputCls} pl-8`}
+                      placeholder="Filtrer les groupes..."
+                      value={groupSearch}
+                      onChange={e => setGroupSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="max-h-32 overflow-y-auto border border-slate-200 divide-y divide-slate-100">
+                    {groupsByActivity.length === 0 ? (
+                      <div className="px-3 py-3 text-xs text-slate-400 text-center">Aucun groupe trouvé pour les activités sélectionnées</div>
+                    ) : (
+                      groupsByActivity
+                        .filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase()))
+                        .map(group => {
+                          const isSelected = selectedGroups.includes(group.id);
+                          const groupCourses = allExercises.filter(ex => ex.group_id === group.id);
+                          return (
+                            <button
+                              key={group.id}
+                              onClick={() => toggleGroup(group.id)}
+                              className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-colors ${
+                                isSelected ? "bg-purple-50 text-purple-800" : "text-slate-700 hover:bg-slate-50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className={`w-4 h-4 border flex items-center justify-center ${
+                                  isSelected ? "bg-purple-500 border-purple-500" : "border-slate-300"
+                                }`}>
+                                  {isSelected && <Check size={10} className="text-white" />}
+                                </div>
+                                <div>
+                                  <span className="font-medium">{group.name}</span>
+                                  <span className="text-xs text-slate-400 ml-2">({groupCourses.length} cours)</span>
+                                  {group.description && (
+                                    <span className="text-xs text-slate-400 ml-1">— {group.description}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })
+                    )}
+                  </div>
+                  {selectedGroups.length > 0 && (
+                    <p className="text-xs text-purple-600 mt-1">{selectedGroups.length} groupe(s) sélectionné(s)</p>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Step 3c: Select Courses (exercises, filtered by selected groups/activities) */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase mb-2">c) Cours</p>
+              {(selectedActivities.length === 0 && selectedGroups.length === 0) ? (
+                <p className="text-xs text-slate-400 italic">Sélectionnez d'abord des activités ou des groupes</p>
+              ) : (
+                <>
+                  <div className="relative mb-2">
+                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      className={`${inputCls} pl-8`}
+                      placeholder="Rechercher un cours..."
+                      value={courseSearch}
+                      onChange={e => setCourseSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200">
+                    {coursesFiltered.length === 0 ? (
+                      <div className="px-3 py-3 text-xs text-slate-400 text-center">Aucun cours trouvé</div>
+                    ) : (
+                      coursesFiltered.map(ex => {
+                        const isSelected = selectedCourses.includes(ex.id);
+                        const groupName = groups.find(g => g.id === ex.group_id)?.name;
+                        return (
+                          <button
+                            key={ex.id}
+                            onClick={() => toggleCourse(ex.id)}
+                            className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-colors ${
+                              isSelected ? "bg-emerald-50 text-emerald-800" : "text-slate-700 hover:bg-slate-50"
+                            }`}
+                          >
+                            <div>
+                              <span className="font-medium">{ex.name}</span>
+                              <span className="text-xs text-slate-400 ml-2">{ex.day} · {ex.start_time}–{ex.end_time}</span>
+                              {groupName && <span className="text-xs text-slate-400 ml-1">[{groupName}]</span>}
+                              {ex.trainers?.name && <span className="text-xs text-slate-400 ml-1">({ex.trainers.name})</span>}
+                            </div>
+                            <div className={`w-4 h-4 border flex items-center justify-center ${
+                              isSelected ? "bg-emerald-500 border-emerald-500" : "border-slate-300"
+                            }`}>
+                              {isSelected && <Check size={10} className="text-white" />}
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                  {selectedCourses.length > 0 && (
+                    <p className="text-xs text-emerald-600 mt-1">{selectedCourses.length} cours sélectionné(s)</p>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -484,11 +868,25 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
           </div>
         </div>
 
-        {/* ── Section 5 : Paiement ── */}
+        {/* ── Section 5 : Date d'abonnement ── */}
         <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">5. Moyen de paiement</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">5. Date d'abonnement</p>
+          <div className="border border-slate-200 p-4">
+            <Field label="Date d'abonnement">
+              <input
+                type="date"
+                className={inputCls}
+                value={subscriptionDate}
+                onChange={e => setSubscriptionDate(e.target.value)}
+              />
+            </Field>
+          </div>
+        </div>
+
+        {/* ── Section 6 : Paiement ── */}
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">6. Moyen de paiement</p>
           <div className="border border-slate-200 p-4 space-y-4">
-            {/* Payment method selection */}
             <div className="flex gap-2 flex-wrap">
               {(["espece", "virement", "cheque"] as PaymentMethod[]).map(m => {
                 const Icon = METHOD_ICONS[m];
@@ -511,44 +909,28 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
               })}
             </div>
 
-            {/* Espèce amount */}
             {paymentMethods.includes("espece") && (
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Montant en Espèce (Dhs)">
-                  <input
-                    type="number"
-                    className={inputCls}
-                    value={especeAmount}
-                    onChange={e => setEspeceAmount(Math.max(0, Number(e.target.value)))}
-                    placeholder="0"
-                  />
+                  <input type="number" className={inputCls} value={especeAmount} onChange={e => setEspeceAmount(Math.max(0, Number(e.target.value)))} placeholder="0" />
                 </Field>
               </div>
             )}
 
-            {/* Virement amount */}
             {paymentMethods.includes("virement") && (
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Montant Virement (Dhs)">
-                  <input
-                    type="number"
-                    className={inputCls}
-                    value={virementAmount}
-                    onChange={e => setVirementAmount(Math.max(0, Number(e.target.value)))}
-                    placeholder="0"
-                  />
+                  <input type="number" className={inputCls} value={virementAmount} onChange={e => setVirementAmount(Math.max(0, Number(e.target.value)))} placeholder="0" />
                 </Field>
               </div>
             )}
 
-            {/* Chèque selection */}
             {paymentMethods.includes("cheque") && (
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs font-semibold text-slate-500 uppercase">Chèques</p>
                 </div>
 
-                {/* ── Compact: Add new check ── */}
                 <div className="mb-3 border border-dashed border-slate-300">
                   <button
                     onClick={() => setShowNewCheckForm(!showNewCheckForm)}
@@ -572,21 +954,18 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                           {savingCheck ? "..." : <><Plus size={11} /> Créer</>}
                         </Btn>
                         {newCheckCreated && (
-                          <span className="text-xs text-emerald-600 flex items-center gap-1">
-                            <Check size={10} /> Créé !
-                          </span>
+                          <span className="text-xs text-emerald-600 flex items-center gap-1"><Check size={10} /> Créé !</span>
                         )}
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Search checks */}
                 <div className="relative mb-3" ref={checkSearchRef}>
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     className={`${inputCls} pl-8`}
-                    placeholder="Rechercher un chèque par numéro, banque..."
+                    placeholder="Rechercher un chèque..."
                     value={checkSearch}
                     onChange={e => { setCheckSearch(e.target.value); setShowCheckSuggestions(true); }}
                     onFocus={() => setShowCheckSuggestions(true)}
@@ -620,7 +999,6 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                   )}
                 </div>
 
-                {/* Selected checks */}
                 {selectedChecks.length > 0 && (
                   <div className="space-y-2">
                     {selectedChecks.map(sc => {
@@ -634,21 +1012,10 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                           </div>
                           <div className="w-32">
                             <Field label="Montant">
-                              <input
-                                type="number"
-                                className={`${inputCls} text-sm`}
-                                value={sc.amount}
-                                onChange={e => updateCheckAmount(sc.check.id, Number(e.target.value))}
-                                max={rest}
-                              />
+                              <input type="number" className={`${inputCls} text-sm`} value={sc.amount} onChange={e => updateCheckAmount(sc.check.id, Number(e.target.value))} max={rest} />
                             </Field>
                           </div>
-                          <button
-                            onClick={() => removeSelectedCheck(sc.check.id)}
-                            className="p-1 text-slate-400 hover:text-red-500 transition-colors"
-                          >
-                            <X size={14} />
-                          </button>
+                          <button onClick={() => removeSelectedCheck(sc.check.id)} className="p-1 text-slate-400 hover:text-red-500 transition-colors"><X size={14} /></button>
                         </div>
                       );
                     })}
@@ -657,37 +1024,23 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
               </div>
             )}
 
-            {/* Payment summary */}
             <div className="border-t border-slate-200 pt-3 space-y-1 text-sm">
               <div className="flex justify-between text-slate-600">
                 <span>Total à payer</span>
                 <span className="font-semibold">{total.toLocaleString()} Dhs</span>
               </div>
               {paymentMethods.includes("espece") && especeAmount > 0 && (
-                <div className="flex justify-between text-emerald-600">
-                  <span>Espèce</span>
-                  <span>{especeAmount.toLocaleString()} Dhs</span>
-                </div>
+                <div className="flex justify-between text-emerald-600"><span>Espèce</span><span>{especeAmount.toLocaleString()} Dhs</span></div>
               )}
               {paymentMethods.includes("virement") && virementAmount > 0 && (
-                <div className="flex justify-between text-blue-600">
-                  <span>Virement</span>
-                  <span>{virementAmount.toLocaleString()} Dhs</span>
-                </div>
+                <div className="flex justify-between text-blue-600"><span>Virement</span><span>{virementAmount.toLocaleString()} Dhs</span></div>
               )}
               {paymentMethods.includes("cheque") && totalChecksAmount > 0 && (
-                <div className="flex justify-between text-purple-600">
-                  <span>Chèque(s) ({selectedChecks.length})</span>
-                  <span>{totalChecksAmount.toLocaleString()} Dhs</span>
-                </div>
+                <div className="flex justify-between text-purple-600"><span>Chèque(s) ({selectedChecks.length})</span><span>{totalChecksAmount.toLocaleString()} Dhs</span></div>
               )}
               <div className="flex justify-between font-semibold pt-1 border-t border-slate-100">
-                <span className={remaining === 0 ? "text-emerald-600" : "text-red-500"}>
-                  {remaining === 0 ? "Payé" : "Reste à payer"}
-                </span>
-                <span className={remaining === 0 ? "text-emerald-600" : "text-red-500"}>
-                  {Math.abs(remaining).toLocaleString()} Dhs
-                </span>
+                <span className={remaining === 0 ? "text-emerald-600" : "text-red-500"}>{remaining === 0 ? "Payé" : "Reste à payer"}</span>
+                <span className={remaining === 0 ? "text-emerald-600" : "text-red-500"}>{Math.abs(remaining).toLocaleString()} Dhs</span>
               </div>
             </div>
           </div>

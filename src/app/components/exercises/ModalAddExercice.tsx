@@ -88,13 +88,13 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
     <Modal title="Créer une Activité" onClose={onClose} wide>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Groupe" required>
+          <Field label="Activité" required>
             <select className={selectCls} value={groupId} onChange={e => { setGroupId(e.target.value); setName(""); }}>
               <option value="">Sélectionner un groupe...</option>
               {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
           </Field>
-          <Field label="Nom de l'activité" required>
+          <Field label="Groupe" required>
             {groupId && groupItems.length > 0 ? (
               <select className={selectCls} value={name} onChange={e => setName(e.target.value)}>
                 <option value="">Sélectionner...</option>

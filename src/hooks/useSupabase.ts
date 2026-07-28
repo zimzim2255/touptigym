@@ -1,5 +1,5 @@
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 const FUNCTIONS_URL = `${SUPABASE_URL}/functions/v1`
 
 async function request<T = any>(
@@ -68,6 +68,10 @@ export function useApi() {
         request(`/subscriptions/${id}/confirm`, { method: 'POST', body: JSON.stringify({ confirmed_by: confirmedBy }) }),
       reject: (id: string) => request(`/subscriptions/${id}/reject`, { method: 'POST' }),
       pay: (id: string, data: any) => request(`/subscriptions/${id}/pay`, { method: 'POST', body: JSON.stringify(data) }),
+      // New: get activities/groups/courses for a subscription
+      getActivities: (id: string) => request(`/subscriptions/${id}/activities`),
+      getGroups: (id: string) => request(`/subscriptions/${id}/groups`),
+      getCourses: (id: string) => request(`/subscriptions/${id}/courses`),
     },
 
     // ─── Exercises ───────────────────────────────

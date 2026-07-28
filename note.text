@@ -1,0 +1,148 @@
+# Development Tasks & Required Changes
+
+✅ ## 1. Activities / Groups Page
+
+* Rename the **"Ajouter un groupe"** button to **"Créer une activité / groupe"**.
+
+✅ ## 2. Activities / Groups Page
+
+* Rename the purple **"Ajouter une activité"** button to **"Créer un groupe"**.
+
+✅ ## 3. Create Activity Interface
+
+* Swap the labels **"Groupe"** and **"Activité"**.
+* Only swap the text labels; do not change the functionality.
+
+✅ ## 4. Exercise / Group List
+
+* Remove the **"Prix"** column from the table.
+
+## 5. Groups Interface
+
+* Add a **"+"** button with a dropdown menu.
+* When clicked:
+
+  * Display the list of **Activities**.
+  * Expand each activity to show its **Groups**.
+  * When a group is selected, display all **Courses (Cours)** belonging to that group.
+  * Display all members enrolled in the selected course.
+  * Show the **total number of members** enrolled in the course.
+
+✅ ## 6. List Interface
+
+Reorganize the table columns in the following order:
+
+1. Activité
+2. Groupe
+3. Jour
+4. Horaire
+5. Coach
+
+✅ ## 7. Subscription (Abonnement) Page
+
+* Added date range filters (Date de début → Date de fin) in one horizontal line.
+* Added quick date dropdown filter (Début/Fin) showing available dates from subscriptions.
+* Smart "Expiration proche" filter button.
+* Highlight rows approaching end date (within 30 days) with amber background.
+* Sorted by start date.
+
+ ✅ ## 8. Subscription Creation
+
+* Add a new field:
+
+  * **Date d'abonnement**
+* Display this field:
+
+  * In the subscriptions list.
+  * In the subscription details page.
+
+ ✅ ## 9. Subscription Creation (Major Backend Change)
+
+In **Step 3** of the subscription creation process, update the selection flow as follows:
+
+1. Select one or more **Activities**.
+2. Select one or more **Groups** belonging to the selected activities.
+3. Select one or more **Courses** belonging to the selected groups.
+
+This is a major feature and requires updates to:
+
+* Backend (database structure)
+* API
+* Subscription creation logic
+* Subscription edit page
+* Subscription details page
+* Display components
+* Data relationships
+
+The system must support:
+
+* Multiple Activities
+* Multiple Groups
+* Multiple Courses per subscription
+
+✅ ## 10. Child Details Page
+
+Currently, the child details page displays **all parents**.
+
+It should only display the **actual parent(s)** linked to that specific child.
+
+  ✅ ## 11. Subscription Type & Payment Logic
+
+Add a dropdown called **Type d'abonnement** with two options:
+
+* **Nouvel abonnement**
+* **Réabonnement**
+
+The selected type controls how the fees are calculated.
+
+### Nouvel abonnement
+
+Include:
+
+* Assurance
+* Droit d'entrée
+
+### Réabonnement
+
+Include:
+
+* Assurance only
+* Automatically set **Droit d'entrée = 0 DH**
+
+### Remise (Discount) Logic
+
+Update the discount calculation:
+
+* The **Remise** must only be applied to the **Montant de base**.
+* The **Assurance** and **Droit d'entrée** must **not** be affected by the discount.
+* Currently, the Remise is applied to the **total amount**, which is incorrect.
+
+## ✅ 12. Parent Selection During Subscription Creation
+
+After selecting a child:
+
+* Add a selector (checkbox or radio buttons) to choose:
+
+  * Father
+  * Mother
+* Display the selected parent's information automatically.
+* Add a **"Créer un nouveau parent"** button to create a new parent directly from this page.
+
+ ✅ ## 13. Welcome Email
+
+After a subscription is successfully created:
+
+* Automatically send a welcome email to the selected parent's email address.
+
+## 14. Birthday Emails
+
+Implement an automatic birthday notification system.
+
+When a child reaches their birthday:
+
+* Automatically send a **Happy Birthday** email.
+
+This should also work if:
+
+* The child's birthday is the same day their account is created.
+* The system should still send the birthday email on that day.
