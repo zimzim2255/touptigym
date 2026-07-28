@@ -777,7 +777,7 @@ function Sidebar({ role, items, active, onChange, onLogout }: {
         }}
       >
         <img
-          src="/logo.png"
+          src="https://lpjdpcguplkpdfgxomps.supabase.co/storage/v1/object/public/logo/logo.png"
           alt="TouptiGym"
           className="h-60 w-auto object-contain"
         />
@@ -913,7 +913,7 @@ function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-10">
-          <img src="/logo.png" alt="TouptiGym" className="h-28 w-auto mx-auto mb-2" />
+          <img src="https://lpjdpcguplkpdfgxomps.supabase.co/storage/v1/object/public/logo/logo.png" alt="TouptiGym" className="h-28 w-auto mx-auto mb-2" />
           <p className="text-sm text-slate-400 mt-2">Sélectionnez votre profil</p>
         </div>
 

@@ -116,8 +116,9 @@ const handler = async (req: Request): Promise<Response> => {
   <style>
     body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f9f9f9; }
     .container { max-width: 600px; margin: 20px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    .header { background: #e91e63; padding: 30px; text-align: center; }
-    .header h1 { color: #fff; margin: 0; font-size: 24px; }
+    .header { background: #fffcfd; padding: 30px; text-align: center; }
+    .header img { max-height: 200px; width: auto; }
+    .header h1 { color: #fff; margin: 0; font-size: 24px; margin-top: 10px; }
     .body { padding: 30px; text-align: center; }
     .body h2 { color: #333; }
     .body p { color: #555; line-height: 1.6; font-size: 16px; }
@@ -127,7 +128,8 @@ const handler = async (req: Request): Promise<Response> => {
 <body>
   <div class="container">
     <div class="header">
-      <h1> Joyeux Anniversaire !</h1>
+      <img src="https://lpjdpcguplkpdfgxomps.supabase.co/storage/v1/object/public/logo/logo.png" alt="Toupti Gym" />
+      <h1>🎂 Joyeux Anniversaire !</h1>
     </div>
     <div class="body">
       <h2>Cher ${parent.name || 'Parent'},</h2>

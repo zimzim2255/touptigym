@@ -355,6 +355,38 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
     <Modal title="Créer un Abonnement" onClose={onClose} wide>
       <div className="space-y-5 max-h-[80vh] overflow-y-auto pr-1">
 
+        {/* ── Section 0 : Type de souscription (Nouvel / Réabonnement) at the TOP ── */}
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Type de souscription</p>
+          <div className="border border-slate-200 p-4">
+            <div className="flex gap-2">
+              {["Nouvel abonnement", "Réabonnement"].map(t => (
+                <button
+                  key={t}
+                  onClick={() => {
+                    setSubscriptionTypeOption(t);
+                    if (t === "Réabonnement") {
+                      setEntryFee(0);
+                    } else {
+                      setEntryFee(700);
+                    }
+                  }}
+                  className={`px-4 py-2 text-sm border font-medium transition-colors flex-1 ${
+                    subscriptionTypeOption === t
+                      ? "border-pink-500 bg-pink-500 text-white"
+                      : "border-slate-300 text-slate-600 hover:border-slate-400"
+                  }`}
+                >{t}</button>
+              ))}
+            </div>
+            {subscriptionTypeOption === "Réabonnement" && (
+              <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                <Check size={11} /> Droit d'entrée automatiquement défini à 0 DH
+              </p>
+            )}
+          </div>
+        </div>
+
         {/* ── Section 1 : Enfant with search ── */}
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">1. Enfant</p>
@@ -533,34 +565,6 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
               </div>
             </div>
 
-          </div>
-        </div>
-
-        {/* ── Section 2.5 : Type d'abonnement (Nouvel / Réabonnement) ── */}
-        <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Type d'abonnement</p>
-          <div className="border border-slate-200 p-4">
-            <select
-              className={selectCls}
-              value={subscriptionTypeOption}
-              onChange={e => {
-                const val = e.target.value;
-                setSubscriptionTypeOption(val);
-                if (val === "Réabonnement") {
-                  setEntryFee(0);
-                } else {
-                  setEntryFee(700);
-                }
-              }}
-            >
-              <option value="Nouvel abonnement">Nouvel abonnement</option>
-              <option value="Réabonnement">Réabonnement</option>
-            </select>
-            {subscriptionTypeOption === "Réabonnement" && (
-              <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-                <Check size={11} /> Droit d'entrée automatiquement défini à 0 DH
-              </p>
-            )}
           </div>
         </div>
 
