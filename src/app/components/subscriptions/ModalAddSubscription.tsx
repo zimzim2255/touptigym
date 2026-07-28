@@ -63,6 +63,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const [groupSearch, setGroupSearch] = useState("");
   const [courseSearch, setCourseSearch] = useState("");
+  const [filterDay, setFilterDay] = useState("");
 
   // Expanded sections for the hierarchical view
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());

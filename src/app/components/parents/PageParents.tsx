@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Search, Plus, Filter, Eye, Edit2, Trash2 } from "lucide-react";
-import { PageWrap, Btn, Tag, inputCls } from "../shared/Primitives";
+import { Search, Plus, Filter, Eye, Edit2, Trash2, X } from "lucide-react";
+import { PageWrap, Btn, Tag, inputCls, selectCls } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ModalType, Parent, Child } from "../../types";
 
@@ -18,6 +18,11 @@ export function PageParents({ canEdit, openModal, setSelectedParent, onRefresh }
   const [childrenMap, setChildrenMap] = useState<Record<string, Child[]>>({});
   const [loading, setLoading] = useState(true);
   const [count, setCount] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Filter states
+  const [filterGender, setFilterGender] = useState("");
+  const [filterHasEmail, setFilterHasEmail] = useState("");
 
   const loadChildrenForParents = useCallback(async (parentsData: Parent[]) => {
     try {
@@ -56,12 +61,40 @@ export function PageParents({ canEdit, openModal, setSelectedParent, onRefresh }
   useEffect(() => { refresh(); }, [refresh, onRefresh]);
 
   const list = useMemo(() => {
-    if (!q) return parents;
-    return parents.filter(p => 
-      p.name.toLowerCase().includes(q.toLowerCase()) || 
-      p.phone.includes(q)
-    );
-  }, [parents, q]);
+    let filtered = parents;
+
+    // Text search
+    if (q) {
+      const lq = q.toLowerCase();
+      filtered = filtered.filter(p => 
+        p.name.toLowerCase().includes(lq) || 
+        p.phone.includes(q) ||
+        (p.email && p.email.toLowerCase().includes(lq)) ||
+        (p.id_card && p.id_card.toLowerCase().includes(lq))
+      );
+    }
+
+    // Gender filter
+    if (filterGender) {
+      filtered = filtered.filter(p => p.gender === filterGender);
+    }
+
+    // Has email filter
+    if (filterHasEmail === "yes") {
+      filtered = filtered.filter(p => p.email && p.email.trim() !== "");
+    } else if (filterHasEmail === "no") {
+      filtered = filtered.filter(p => !p.email || p.email.trim() === "");
+    }
+
+    return filtered;
+  }, [parents, q, filterGender, filterHasEmail]);
+
+  function clearFilters() {
+    setFilterGender("");
+    setFilterHasEmail("");
+  }
+
+  const hasActiveFilters = filterGender || filterHasEmail;
 
   return (
     <PageWrap
@@ -75,8 +108,41 @@ export function PageParents({ canEdit, openModal, setSelectedParent, onRefresh }
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher par nom, téléphone..." className={`${inputCls} pl-8`} />
           </div>
-          <Btn size="sm" variant="ghost"><Filter size={12} /> Filtrer</Btn>
+          <Btn size="sm" variant="ghost" onClick={() => setShowFilters(!showFilters)}>
+            <Filter size={12} /> Filtrer {hasActiveFilters && <span className="ml-1 w-2 h-2 bg-pink-500 rounded-full inline-block" />}
+          </Btn>
+          {hasActiveFilters && (
+            <Btn size="sm" variant="ghost" onClick={clearFilters}>
+              <X size={12} /> Effacer
+            </Btn>
+          )}
         </div>
+
+        {/* Filter panel */}
+        {showFilters && (
+          <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
+            <div className="flex flex-wrap gap-3 items-end">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 mb-1">Genre</p>
+                <select className={selectCls} value={filterGender} onChange={e => setFilterGender(e.target.value)}>
+                  <option value="">Tous</option>
+                  <option value="Père">Père</option>
+                  <option value="Mère">Mère</option>
+                  <option value="Tuteur">Tuteur</option>
+                </select>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-500 mb-1">Email</p>
+                <select className={selectCls} value={filterHasEmail} onChange={e => setFilterHasEmail(e.target.value)}>
+                  <option value="">Tous</option>
+                  <option value="yes">A un email</option>
+                  <option value="no">Pas d'email</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="p-6 text-sm text-slate-500 text-center">Chargement...</div>
         ) : list.length === 0 ? (
