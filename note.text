@@ -38,17 +38,13 @@ Reorganize the table columns in the following order:
 4. Horaire
 5. Coach
 
-## 7. Subscription (Abonnement) Page
+✅ ## 7. Subscription (Abonnement) Page
 
-* Add filters for:
-
-  * Start Date (Date de début)
-  * End Date (Date de fin)
-* Implement a smart filtering system:
-
-  * Sort subscriptions by their start date.
-  * Highlight or organize subscriptions that are approaching their end date.
-* Keep the manual date range filters available.
+* Added date range filters (Date de début → Date de fin) in one horizontal line.
+* Added quick date dropdown filter (Début/Fin) showing available dates from subscriptions.
+* Smart "Expiration proche" filter button.
+* Highlight rows approaching end date (within 30 days) with amber background.
+* Sorted by start date.
 
 ## 8. Subscription Creation
 
