@@ -100,9 +100,7 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
     [filteredExercises, DAY_ORDER]
   );
 
-  const headers = canViewPrice
-    ? ["Activité", "Jour", "Horaire", "Groupe", "Coach", "Prix", ""]
-    : ["Activité", "Jour", "Horaire", "Groupe", "Coach", ""];
+  const headers = ["Activité", "Jour", "Horaire", "Groupe", "Coach", ""];
 
   return (
     <PageWrap
@@ -113,10 +111,10 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
           {canCreate && (
             <>
               <Btn variant="outline" onClick={() => openModal("add-group" as any)}>
-                <FolderPlus size={13} /> Ajouter un groupe
+                <FolderPlus size={13} /> Créer une activité / groupe
               </Btn>
               <Btn onClick={() => openModal("add-exercice")}>
-                <Plus size={13} /> Créer une activité
+                <Plus size={13} /> Créer un groupe
               </Btn>
             </>
           )}
@@ -219,9 +217,6 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
                     <td className="px-4 py-3 font-mono text-xs text-slate-600">{ex.start_time}–{ex.end_time}</td>
                     <td className="px-4 py-3 text-slate-500">{ex.name}</td>
                     <td className="px-4 py-3 text-slate-500">{ex.trainers?.name || "—"}</td>
-                    {canViewPrice && (
-                      <td className="px-4 py-3 text-slate-500">{ex.price || 0} Dhs</td>
-                    )}
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
                         <button onClick={() => { setSelectedExercise({ id: ex.id, name: ex.name }); openModal("exercice-detail"); }}
