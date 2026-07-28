@@ -100,7 +100,7 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
     [filteredExercises, DAY_ORDER]
   );
 
-  const headers = ["Activité", "Jour", "Horaire", "Groupe", "Coach", ""];
+  const headers = ["Activité", "Groupe", "Jour", "Horaire", "Coach", ""];
 
   return (
     <PageWrap
@@ -213,9 +213,9 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
                 {sorted.map(ex => (
                   <tr key={ex.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-slate-900">{ex.groups?.name || ex.name}</td>
+                    <td className="px-4 py-3 text-slate-500">{ex.name}</td>
                     <td className="px-4 py-3 text-slate-500">{ex.day}</td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-600">{ex.start_time}–{ex.end_time}</td>
-                    <td className="px-4 py-3 text-slate-500">{ex.name}</td>
                     <td className="px-4 py-3 text-slate-500">{ex.trainers?.name || "—"}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
