@@ -56,6 +56,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [entryFee, setEntryFee] = useState(700);
   const [subType, setSubType] = useState("");
   const [subscriptionDate, setSubscriptionDate] = useState(new Date().toISOString().split("T")[0]);
+  const [subscriptionTypeOption, setSubscriptionTypeOption] = useState("Nouvel abonnement");
 
   // Step 3 selections: activities → groups → courses
   const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
@@ -318,6 +319,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         discount: effectiveDiscount,
         insurance: insurance,
         entry_fee: entryFee,
+        subscription_type_option: subscriptionTypeOption,
         exercises: selectedCourses, // keep backward compat
         activity_ids: selectedActivities.length > 0 
           ? allExercises.filter(ex => selectedActivities.includes(ex.type)).map(ex => ex.id)
@@ -463,19 +465,34 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
               </div>
             </div>
 
-            <div className="border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs font-semibold text-slate-500 mb-2">Tarifs {subscriptionType}</p>
-              <div className="grid grid-cols-2 gap-1 text-xs text-slate-700">
-                {Object.entries(PRICE_TABLE).map(([act, prices]) => (
-                  <div key={act} className="flex justify-between px-1">
-                    <span>{["1 activité/semaine", "2 activités/semaine", "3 activités/semaine", "4 activités/semaine"][Number(act) - 1]}</span>
-                    <span className={`font-semibold ${activities === act ? "text-pink-600" : ""}`}>
-                      {prices[subscriptionType]?.toLocaleString()} Dhs
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          </div>
+        </div>
+
+        {/* ── Section 2.5 : Type d'abonnement (Nouvel / Réabonnement) ── */}
+        <div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Type d'abonnement</p>
+          <div className="border border-slate-200 p-4">
+            <select
+              className={selectCls}
+              value={subscriptionTypeOption}
+              onChange={e => {
+                const val = e.target.value;
+                setSubscriptionTypeOption(val);
+                if (val === "Réabonnement") {
+                  setEntryFee(0);
+                } else {
+                  setEntryFee(700);
+                }
+              }}
+            >
+              <option value="Nouvel abonnement">Nouvel abonnement</option>
+              <option value="Réabonnement">Réabonnement</option>
+            </select>
+            {subscriptionTypeOption === "Réabonnement" && (
+              <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                <Check size={11} /> Droit d'entrée automatiquement défini à 0 DH
+              </p>
+            )}
           </div>
         </div>
 

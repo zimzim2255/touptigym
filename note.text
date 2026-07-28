@@ -56,7 +56,7 @@ Reorganize the table columns in the following order:
   * In the subscriptions list.
   * In the subscription details page.
 
-## 9. Subscription Creation (Major Backend Change)
+ ✅ ## 9. Subscription Creation (Major Backend Change)
 
 In **Step 3** of the subscription creation process, update the selection flow as follows:
 
@@ -80,13 +80,13 @@ The system must support:
 * Multiple Groups
 * Multiple Courses per subscription
 
-## 10. Child Details Page
+✅ ## 10. Child Details Page
 
 Currently, the child details page displays **all parents**.
 
 It should only display the **actual parent(s)** linked to that specific child.
 
-## 11. Subscription Type & Payment Logic
+ ## 11. Subscription Type & Payment Logic
 
 Add a dropdown called **Type d'abonnement** with two options:
 

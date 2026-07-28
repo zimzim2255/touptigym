@@ -18,6 +18,7 @@ interface SubscriptionData {
   start_date: string;
   end_date: string;
   subscription_date?: string;
+  subscription_type_option?: string;
   created_at: string;
   created_by?: string;
   confirmed_by?: string;
@@ -827,6 +828,10 @@ export function ModalSubscriptionDetail({ subscriptionId, onClose, onUpdated }: 
               <div className="flex items-center justify-between px-4 py-2.5 text-sm">
                 <span className="text-slate-500">Forfait</span>
                 <span className="text-slate-900">{sub.sub_type || "—"}</span>
+              </div>
+              <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                <span className="text-slate-500">Type</span>
+                <span className="font-medium text-slate-900">{sub.subscription_type_option || "Nouvel abonnement"}</span>
               </div>
               <div className="flex items-center justify-between px-4 py-2.5 text-sm">
                 <span className="text-slate-500">Date d'abonnement</span>
