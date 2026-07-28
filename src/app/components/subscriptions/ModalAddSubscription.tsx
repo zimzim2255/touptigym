@@ -32,11 +32,6 @@ const METHOD_ICONS: Record<PaymentMethod, React.ElementType> = {
   cheque: FileText,
 };
 
-type Step3Selection = {
-  type: "activity" | "group" | "course";
-  ids: string[];
-};
-
 export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const api = useApi();
   const [loading, setLoading] = useState(false);
@@ -58,15 +53,13 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [subscriptionDate, setSubscriptionDate] = useState(new Date().toISOString().split("T")[0]);
   const [subscriptionTypeOption, setSubscriptionTypeOption] = useState("Nouvel abonnement");
 
-  // Step 3 selections: groups → courses
-  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
-  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
-  const [groupSearch, setGroupSearch] = useState("");
+  // Step 3 selections
+  const [selectedActivities, setSelectedActivities] = useState<string[]>([]); // group ids
+  const [selectedGroupItems, setSelectedGroupItems] = useState<string[]>([]); // group item names
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]); // exercise ids
+  const [activitySearch, setActivitySearch] = useState("");
+  const [groupItemSearch, setGroupItemSearch] = useState("");
   const [courseSearch, setCourseSearch] = useState("");
-  const [filterDay, setFilterDay] = useState("");
-
-  // Expanded sections for the hierarchical view
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // Parent selection state
   const [childParents, setChildParents] = useState<Parent[]>([]);
@@ -91,27 +84,48 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [showNewCheckForm, setShowNewCheckForm] = useState(false);
   const checkSearchRef = useRef<HTMLDivElement>(null);
 
-  // Courses (exercises) filtered by selected groups
-  const coursesByGroup = useMemo(() => {
-    if (selectedGroups.length === 0) return [];
-    return allExercises.filter(ex => 
-      ex.group_id && selectedGroups.includes(ex.group_id)
-    );
-  }, [selectedGroups, allExercises]);
-
-  // All available courses from selected groups (for display when no groups selected)
-  const coursesFiltered = useMemo(() => {
-    let filtered = allExercises;
-    if (selectedGroups.length > 0) {
-      filtered = filtered.filter(ex => ex.group_id && selectedGroups.includes(ex.group_id));
+  // All unique group item names from selected activities (groups)
+  const availableGroupItems = useMemo(() => {
+    if (selectedActivities.length === 0) return [];
+    const items = new Set<string>();
+    for (const g of groups) {
+      if (selectedActivities.includes(g.id)) {
+        try {
+          if (g.description) {
+            const parsed = JSON.parse(g.description);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((item: string) => items.add(item));
+            }
+          }
+        } catch { /* ignore */ }
+      }
     }
+    return Array.from(items).sort();
+  }, [selectedActivities, groups]);
+
+  // Courses filtered by selected group items
+  const coursesFiltered = useMemo(() => {
+    if (selectedGroupItems.length === 0) return [];
+    // Get groups that contain the selected group items
+    const matchingGroupIds = groups
+      .filter(g => {
+        try {
+          if (g.description) {
+            const parsed = JSON.parse(g.description);
+            return Array.isArray(parsed) && parsed.some((item: string) => selectedGroupItems.includes(item));
+          }
+        } catch { /* ignore */ }
+        return false;
+      })
+      .map(g => g.id);
+    let filtered = allExercises.filter(ex => ex.group_id && matchingGroupIds.includes(ex.group_id));
     if (courseSearch) {
       filtered = filtered.filter(ex =>
         ex.name.toLowerCase().includes(courseSearch.toLowerCase())
       );
     }
     return filtered;
-  }, [allExercises, selectedGroups, courseSearch]);
+  }, [allExercises, selectedGroupItems, groups, courseSearch]);
 
   useEffect(() => {
     api.children.getAll().then(setChildren).catch(console.error);
@@ -161,42 +175,46 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
     setShowSuggestions(false);
     setSelectedParentId(null);
     setChildParents([]);
-    // Fetch parents linked to this child
     setLoadingParents(true);
     api.parents.getAll(child.id).then(parents => {
       setChildParents(parents);
-      // Auto-select if only one parent found
       if (parents.length === 1) {
         setSelectedParentId(parents[0].id);
       }
     }).catch(console.error).finally(() => setLoadingParents(false));
   }
 
-  function toggleGroup(groupId: string) {
-    setSelectedGroups(prev => {
+  function toggleActivity(groupId: string) {
+    setSelectedActivities(prev => {
       if (prev.includes(groupId)) {
-        // Remove this group and its courses
+        // Remove this activity and its group items + courses
+        const group = groups.find(g => g.id === groupId);
+        let groupItemNames: string[] = [];
+        try {
+          if (group?.description) {
+            const parsed = JSON.parse(group.description);
+            if (Array.isArray(parsed)) groupItemNames = parsed;
+          }
+        } catch { /* ignore */ }
+        setSelectedGroupItems(prevItems => prevItems.filter(item => !groupItemNames.includes(item)));
         const groupExerciseIds = allExercises.filter(ex => ex.group_id === groupId).map(ex => ex.id);
         setSelectedCourses(prevCourses => prevCourses.filter(cid => !groupExerciseIds.includes(cid)));
-        return prev.filter(g => g !== groupId);
+        return prev.filter(a => a !== groupId);
       }
       return [...prev, groupId];
     });
+  }
+
+  function toggleGroupItem(item: string) {
+    setSelectedGroupItems(prev =>
+      prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]
+    );
   }
 
   function toggleCourse(exerciseId: string) {
     setSelectedCourses(prev =>
       prev.includes(exerciseId) ? prev.filter(id => id !== exerciseId) : [...prev, exerciseId]
     );
-  }
-
-  function toggleGroupExpand(groupId: string) {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(groupId)) next.delete(groupId);
-      else next.add(groupId);
-      return next;
-    });
   }
 
   function togglePaymentMethod(method: PaymentMethod) {
@@ -277,7 +295,6 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         endDate.setMonth(endDate.getMonth() + 6);
       }
 
-      // 1. Create subscription
       const sub = await api.subscriptions.create({
         child_id: selectedChild.id,
         parent_id: selectedParentId || undefined,
@@ -288,9 +305,9 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         insurance: insurance,
         entry_fee: entryFee,
         subscription_type_option: subscriptionTypeOption,
-        exercises: selectedCourses, // keep backward compat
-        activity_ids: [],
-        group_ids: selectedGroups,
+        exercises: selectedCourses,
+        activity_ids: selectedActivities,
+        group_ids: [],
         course_ids: selectedCourses,
         status: "actif",
         paid_amount: totalPaid > 0 ? totalPaid : 0,
@@ -299,7 +316,6 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         end_date: endDate.toISOString().split("T")[0],
       });
 
-      // 2. Create payment (only if there's a payment)
       if (totalPaid > 0) {
         const checkIds = selectedChecks.map(s => s.check.id);
         const payment = await api.payments.create({
@@ -308,14 +324,11 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
           method: paymentMethods,
           check_ids: checkIds,
         });
-
-        // 3. Update checks montant_used
         for (const sc of selectedChecks) {
           await api.checks.useCheck(sc.check.id, sc.amount, payment.id);
         }
       }
 
-      // 4. Send welcome email to parent if email is available
       if (selectedParentId) {
         const parent = childParents.find(p => p.id === selectedParentId);
         if (parent?.email) {
@@ -355,76 +368,40 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
     <Modal title="Créer un Abonnement" onClose={onClose} wide>
       <div className="space-y-5 max-h-[80vh] overflow-y-auto pr-1">
 
-        {/* ── Section 0 : Type de souscription (Nouvel / Réabonnement) at the TOP ── */}
+        {/* Section 0: Type de souscription */}
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Type de souscription</p>
           <div className="border border-slate-200 p-4">
             <div className="flex gap-2">
               {["Nouvel abonnement", "Réabonnement"].map(t => (
-                <button
-                  key={t}
-                  onClick={() => {
-                    setSubscriptionTypeOption(t);
-                    if (t === "Réabonnement") {
-                      setEntryFee(0);
-                    } else {
-                      setEntryFee(700);
-                    }
-                  }}
-                  className={`px-4 py-2 text-sm border font-medium transition-colors flex-1 ${
-                    subscriptionTypeOption === t
-                      ? "border-pink-500 bg-pink-500 text-white"
-                      : "border-slate-300 text-slate-600 hover:border-slate-400"
-                  }`}
-                >{t}</button>
+                <button key={t} onClick={() => { setSubscriptionTypeOption(t); if (t === "Réabonnement") setEntryFee(0); else setEntryFee(700); }}
+                  className={`px-4 py-2 text-sm border font-medium transition-colors flex-1 ${subscriptionTypeOption === t ? "border-pink-500 bg-pink-500 text-white" : "border-slate-300 text-slate-600 hover:border-slate-400"}`}>{t}</button>
               ))}
             </div>
             {subscriptionTypeOption === "Réabonnement" && (
-              <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
-                <Check size={11} /> Droit d'entrée automatiquement défini à 0 DH
-              </p>
+              <p className="text-xs text-amber-600 mt-2 flex items-center gap-1"><Check size={11} /> Droit d'entrée automatiquement défini à 0 DH</p>
             )}
           </div>
         </div>
 
-        {/* ── Section 1 : Enfant with search ── */}
+        {/* Section 1: Enfant */}
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">1. Enfant</p>
           <div className="border border-slate-200 p-4">
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-slate-500 uppercase">Sélectionner un enfant</p>
-              {openModal && (
-                <Btn size="sm" variant="ghost" onClick={() => openModal("add-child")}>
-                  <X size={12} /> Créer
-                </Btn>
-              )}
+              {openModal && (<Btn size="sm" variant="ghost" onClick={() => openModal("add-child")}><X size={12} /> Créer</Btn>)}
             </div>
             <div className="relative mb-3">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                className={`${inputCls} pl-8`}
-                placeholder="Rechercher un enfant..."
-                value={childSearch}
-                onChange={e => {
-                  setChildSearch(e.target.value);
-                  setSelectedChild(null);
-                  setShowSuggestions(true);
-                }}
-                onFocus={() => setShowSuggestions(true)}
-              />
+              <input className={`${inputCls} pl-8`} placeholder="Rechercher un enfant..." value={childSearch}
+                onChange={e => { setChildSearch(e.target.value); setSelectedChild(null); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)} />
               {showSuggestions && childSearch && (
                 <div className="absolute z-10 top-full left-0 right-0 bg-white border border-slate-200 shadow-lg max-h-48 overflow-y-auto">
-                  {filteredChildren.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-slate-400">Aucun enfant trouvé</div>
-                  ) : (
+                  {filteredChildren.length === 0 ? (<div className="px-3 py-2 text-xs text-slate-400">Aucun enfant trouvé</div>) : (
                     filteredChildren.map(c => (
-                      <button
-                        key={c.id}
-                        onClick={() => handleSelectChild(c)}
-                        className={`w-full text-left px-3 py-2 text-sm hover:bg-pink-50 transition-colors flex items-center justify-between ${
-                          selectedChild?.id === c.id ? "bg-pink-50 text-pink-700" : "text-slate-700"
-                        }`}
-                      >
+                      <button key={c.id} onClick={() => handleSelectChild(c)}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-pink-50 transition-colors flex items-center justify-between ${selectedChild?.id === c.id ? "bg-pink-50 text-pink-700" : "text-slate-700"}`}>
                         <span>{c.name} ({c.age} ans)</span>
                         {selectedChild?.id === c.id && <Check size={13} className="text-pink-500" />}
                       </button>
@@ -433,29 +410,19 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                 </div>
               )}
             </div>
-            {selectedChild && (
-              <p className="text-xs text-emerald-600 flex items-center gap-1">
-                <Check size={11} /> Sélectionné : {selectedChild.name}
-              </p>
-            )}
+            {selectedChild && (<p className="text-xs text-emerald-600 flex items-center gap-1"><Check size={11} /> Sélectionné : {selectedChild.name}</p>)}
           </div>
         </div>
 
-        {/* ── Section 1.5 : Parent selection ── */}
+        {/* Section 1.5: Parent */}
         {selectedChild && (
           <div>
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Parent / Tuteur</p>
             <div className="border border-slate-200 p-4">
-              {loadingParents ? (
-                <p className="text-xs text-slate-400">Chargement des parents...</p>
-              ) : childParents.length === 0 ? (
+              {loadingParents ? (<p className="text-xs text-slate-400">Chargement des parents...</p>) : childParents.length === 0 ? (
                 <div className="text-center">
                   <p className="text-xs text-slate-400 mb-2">Aucun parent lié à cet enfant</p>
-                  {openModal && (
-                    <Btn size="sm" onClick={() => openModal("add-parent")}>
-                      <Plus size={11} /> Créer un nouveau parent
-                    </Btn>
-                  )}
+                  {openModal && (<Btn size="sm" onClick={() => openModal("add-parent")}><Plus size={11} /> Créer un nouveau parent</Btn>)}
                 </div>
               ) : (
                 <>
@@ -465,253 +432,190 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                       const isSelected = selectedParentId === p.id;
                       const genderLabel = p.gender === "Père" ? "Père" : p.gender === "Mère" ? "Mère" : "Tuteur";
                       return (
-                        <button
-                          key={p.id}
-                          onClick={() => setSelectedParentId(p.id)}
-                          className={`w-full text-left px-3 py-2.5 text-sm flex items-center justify-between border transition-colors ${
-                            isSelected
-                              ? "border-pink-500 bg-pink-50 text-pink-800"
-                              : "border-slate-200 text-slate-700 hover:border-slate-400"
-                          }`}
-                        >
+                        <button key={p.id} onClick={() => setSelectedParentId(p.id)}
+                          className={`w-full text-left px-3 py-2.5 text-sm flex items-center justify-between border transition-colors ${isSelected ? "border-pink-500 bg-pink-50 text-pink-800" : "border-slate-200 text-slate-700 hover:border-slate-400"}`}>
                           <div className="flex items-center gap-3">
-                            <div className={`w-4 h-4 border-2 flex items-center justify-center rounded-full ${
-                              isSelected ? "border-pink-500" : "border-slate-300"
-                            }`}>
+                            <div className={`w-4 h-4 border-2 flex items-center justify-center rounded-full ${isSelected ? "border-pink-500" : "border-slate-300"}`}>
                               {isSelected && <div className="w-2 h-2 bg-pink-500 rounded-full" />}
                             </div>
                             <div>
                               <span className="font-medium">{p.name}</span>
-                              {p.gender && (
-                                <span className={`text-xs ml-2 px-1.5 py-0.5 ${
-                                  p.gender === "Père" ? "bg-blue-50 text-blue-700" : "bg-pink-50 text-pink-700"
-                                }`}>
-                                  {genderLabel}
-                                </span>
-                              )}
+                              {p.gender && (<span className={`text-xs ml-2 px-1.5 py-0.5 ${p.gender === "Père" ? "bg-blue-50 text-blue-700" : "bg-pink-50 text-pink-700"}`}>{genderLabel}</span>)}
                             </div>
                           </div>
-                          <div className="text-xs text-slate-400">
-                            {p.phone && <span>{p.phone}</span>}
-                          </div>
+                          <div className="text-xs text-slate-400">{p.phone && <span>{p.phone}</span>}</div>
                         </button>
                       );
                     })}
                   </div>
-                  <div className="mt-2">
-                    {openModal && (
-                      <Btn size="sm" variant="ghost" onClick={() => openModal("add-parent")}>
-                        <Plus size={11} /> Créer un nouveau parent
-                      </Btn>
-                    )}
-                  </div>
+                  <div className="mt-2">{openModal && (<Btn size="sm" variant="ghost" onClick={() => openModal("add-parent")}><Plus size={11} /> Créer un nouveau parent</Btn>)}</div>
                 </>
               )}
-              {selectedParentId && (
-                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                  <Check size={11} /> Parent sélectionné
-                </p>
-              )}
+              {selectedParentId && (<p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check size={11} /> Parent sélectionné</p>)}
             </div>
           </div>
         )}
 
-        {/* ── Section 2 : Type & Activités (Price Plan) ── */}
+        {/* Section 2: Type d'abonnement & Forfait */}
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">2. Type d'abonnement</p>
           <div className="border border-slate-200 p-4 space-y-3">
             <div className="flex gap-2">
               {["Session", "Annuel"].map(t => (
-                <button
-                  key={t}
-                  onClick={() => {
-                    setSubscriptionType(t);
-                    setSubType(`${activities} activités/semaine`);
-                  }}
-                  className={`px-4 py-2 text-sm border font-medium transition-colors ${
-                    subscriptionType === t
-                      ? "border-pink-500 bg-pink-500 text-white"
-                      : "border-slate-300 text-slate-600 hover:border-slate-400"
-                  }`}
-                >{t}</button>
+                <button key={t} onClick={() => { setSubscriptionType(t); setSubType(`${activities} activités/semaine`); }}
+                  className={`px-4 py-2 text-sm border font-medium transition-colors ${subscriptionType === t ? "border-pink-500 bg-pink-500 text-white" : "border-slate-300 text-slate-600 hover:border-slate-400"}`}>{t}</button>
               ))}
             </div>
-
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Forfait (activités/semaine)</p>
               <div className="grid grid-cols-2 gap-2">
-                {Object.entries({
-                  "1": "1 activité/semaine",
-                  "2": "2 activités/semaine",
-                  "3": "3 activités/semaine",
-                  "4": "4 activités/semaine",
-                }).map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      setActivities(key);
-                      setSubType(`${key} activités/semaine`);
-                    }}
-                    className={`px-3 py-2 text-xs border font-medium transition-colors text-left ${
-                      activities === key
-                        ? "border-pink-500 bg-pink-50 text-pink-700"
-                        : "border-slate-200 text-slate-600 hover:border-slate-400"
-                    }`}
-                  >
+                {Object.entries({ "1": "1 activité/semaine", "2": "2 activités/semaine", "3": "3 activités/semaine", "4": "4 activités/semaine" }).map(([key, label]) => (
+                  <button key={key} onClick={() => { setActivities(key); setSubType(`${key} activités/semaine`); }}
+                    className={`px-3 py-2 text-xs border font-medium transition-colors text-left ${activities === key ? "border-pink-500 bg-pink-50 text-pink-700" : "border-slate-200 text-slate-600 hover:border-slate-400"}`}>
                     <div>{label}</div>
                     <div className="text-pink-600 mt-0.5">{PRICE_TABLE[key][subscriptionType].toLocaleString()} Dhs</div>
                   </button>
                 ))}
               </div>
             </div>
-
           </div>
         </div>
 
-        {/* ── Section 3 : Groupes & Cours (same structure as Activités page) ── */}
+        {/* Section 3: Activités → Groupes → Cours (side by side grid) */}
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Activités, Groupes & Cours</p>
           <div className="border border-slate-200 p-4">
-            <div className="relative mb-2">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                className={`${inputCls} pl-8`}
-                placeholder="Rechercher un groupe..."
-                value={groupSearch}
-                onChange={e => setGroupSearch(e.target.value)}
-              />
-            </div>
-            <div className="border border-slate-200 divide-y divide-slate-200">
-              {groups.length === 0 ? (
-                <div className="p-4 text-sm text-slate-500 text-center">Aucun groupe trouvé.</div>
-              ) : (
-                groups
-                  .filter(g => g.name.toLowerCase().includes(groupSearch.toLowerCase()))
-                  .map(group => {
-                    const isExpanded = expandedGroups.has(group.id);
-                    const isSelected = selectedGroups.includes(group.id);
-                    const groupCourses = allExercises.filter(ex => ex.group_id === group.id);
-                    let items: string[] = [];
-                    try {
-                      if (group.description) items = JSON.parse(group.description);
-                    } catch { items = []; }
+            <div className="grid grid-cols-3 gap-4">
 
-                    return (
-                      <div key={group.id}>
-                        {/* Group row - clickable to expand */}
-                        <div
-                          onClick={() => toggleGroupExpand(group.id)}
-                          className="flex items-center justify-between px-3 py-3 hover:bg-slate-50 transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center gap-3 flex-1">
-                            {isExpanded ? <ChevronDown size={14} className="text-slate-400 shrink-0" /> : <ChevronRight size={14} className="text-slate-400 shrink-0" />}
-                            <div className={`w-4 h-4 border flex items-center justify-center shrink-0 ${
-                              isSelected ? "bg-blue-500 border-blue-500" : "border-slate-300"
-                            }`}
-                              onClick={(e) => { e.stopPropagation(); toggleGroup(group.id); }}
-                            >
-                              {isSelected && <Check size={10} className="text-white" />}
+              {/* Step a: Activités = groups from groups table (search to show) */}
+              <div className="border border-slate-200 p-3">
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-2">a) Activités</p>
+                <div className="relative mb-2">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input className={`${inputCls} pl-8 text-xs`} placeholder="Rechercher..." value={activitySearch} onChange={e => setActivitySearch(e.target.value)} />
+                </div>
+                <div className="max-h-48 overflow-y-auto border border-slate-200 divide-y divide-slate-100">
+                  {!activitySearch ? (
+                    <div className="px-3 py-3 text-xs text-slate-400 text-center">Tapez pour rechercher</div>
+                  ) : groups.filter(g => g.name.toLowerCase().includes(activitySearch.toLowerCase())).length === 0 ? (
+                    <div className="px-3 py-3 text-xs text-slate-400 text-center">Aucune activité trouvée</div>
+                  ) : (
+                    groups.filter(g => g.name.toLowerCase().includes(activitySearch.toLowerCase())).map(group => {
+                      const isSelected = selectedActivities.includes(group.id);
+                      const groupCourses = allExercises.filter(ex => ex.group_id === group.id);
+                      return (
+                        <button key={group.id} onClick={() => toggleActivity(group.id)}
+                          className={`w-full text-left px-2 py-2 text-xs flex items-center justify-between transition-colors ${isSelected ? "bg-pink-50 text-pink-800" : "text-slate-700 hover:bg-slate-50"}`}>
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-3.5 h-3.5 border flex items-center justify-center shrink-0 ${isSelected ? "bg-pink-500 border-pink-500" : "border-slate-300"}`}>
+                              {isSelected && <Check size={8} className="text-white" />}
                             </div>
-                            <span className="text-sm font-semibold text-slate-900">{group.name}</span>
-                            <span className="text-xs text-slate-400">({groupCourses.length} cours)</span>
-                            {items.length > 0 && (
-                              <span className="text-xs text-slate-400 ml-1">{items.join(" · ")}</span>
-                            )}
+                            <span className="font-medium truncate">{group.name}</span>
                           </div>
-                        </div>
+                          <span className="text-[10px] text-slate-400 ml-1 shrink-0">({groupCourses.length})</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+                {selectedActivities.length > 0 && (<p className="text-xs text-pink-600 mt-1">{selectedActivities.length} sélectionnée(s)</p>)}
+              </div>
 
-                        {/* Expanded courses under this group (like Activités page) */}
-                        {isExpanded && (
-                          <div className="bg-slate-50 border-t border-slate-100">
-                            {groupCourses.length === 0 ? (
-                              <div className="px-12 py-3 text-xs text-slate-400 italic">Aucun cours dans ce groupe</div>
-                            ) : (
-                              groupCourses.map(course => {
-                                const isCourseSelected = selectedCourses.includes(course.id);
-                                return (
-                                  <div key={course.id}>
-                                    {/* Course row */}
-                                    <div
-                                      onClick={() => toggleCourse(course.id)}
-                                      className="flex items-center justify-between px-12 py-2.5 text-sm hover:bg-white transition-colors cursor-pointer border-b border-slate-100"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <div className={`w-4 h-4 border flex items-center justify-center shrink-0 ${
-                                          isCourseSelected ? "bg-emerald-500 border-emerald-500" : "border-slate-300"
-                                        }`}>
-                                          {isCourseSelected && <Check size={10} className="text-white" />}
-                                        </div>
-                                        <span className="font-medium text-slate-800">{course.name}</span>
-                                        <span className="text-xs text-slate-400">{course.day} · {course.start_time}–{course.end_time}</span>
-                                        {course.trainers?.name && (
-                                          <span className="text-xs text-slate-400">({course.trainers.name})</span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-              )}
+              {/* Step b: Groupes = items from selected groups' descriptions */}
+              <div className="border border-slate-200 p-3">
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-2">b) Groupes</p>
+                {selectedActivities.length === 0 ? (<p className="text-xs text-slate-400 italic">Sélectionnez d'abord des activités</p>) : (
+                  <>
+                    <div className="relative mb-2">
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input className={`${inputCls} pl-8 text-xs`} placeholder="Filtrer..." value={groupItemSearch} onChange={e => setGroupItemSearch(e.target.value)} />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto border border-slate-200 divide-y divide-slate-100">
+                      {availableGroupItems.length === 0 ? (<div className="px-3 py-3 text-xs text-slate-400 text-center">Aucun groupe</div>) : (
+                        availableGroupItems.filter(item => item.toLowerCase().includes(groupItemSearch.toLowerCase())).map(item => {
+                          const isSelected = selectedGroupItems.includes(item);
+                          return (
+                            <button key={item} onClick={() => toggleGroupItem(item)}
+                              className={`w-full text-left px-2 py-2 text-xs flex items-center justify-between transition-colors ${isSelected ? "bg-blue-50 text-blue-800" : "text-slate-700 hover:bg-slate-50"}`}>
+                              <div className="flex items-center gap-1.5">
+                                <div className={`w-3.5 h-3.5 border flex items-center justify-center shrink-0 ${isSelected ? "bg-blue-500 border-blue-500" : "border-slate-300"}`}>
+                                  {isSelected && <Check size={8} className="text-white" />}
+                                </div>
+                                <span className="truncate">{item}</span>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                    {selectedGroupItems.length > 0 && (<p className="text-xs text-blue-600 mt-1">{selectedGroupItems.length} sélectionné(s)</p>)}
+                  </>
+                )}
+              </div>
+
+              {/* Step c: Cours = exercises filtered by selected group items */}
+              <div className="border border-slate-200 p-3">
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-2">c) Cours</p>
+                {selectedGroupItems.length === 0 ? (<p className="text-xs text-slate-400 italic">Sélectionnez d'abord des groupes</p>) : (
+                  <>
+                    <div className="relative mb-2">
+                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input className={`${inputCls} pl-8 text-xs`} placeholder="Rechercher..." value={courseSearch} onChange={e => setCourseSearch(e.target.value)} />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 border border-slate-200">
+                      {coursesFiltered.length === 0 ? (<div className="px-3 py-3 text-xs text-slate-400 text-center">Aucun cours</div>) : (
+                        coursesFiltered.map(ex => {
+                          const isSelected = selectedCourses.includes(ex.id);
+                          const groupName = groups.find(g => g.id === ex.group_id)?.name;
+                          return (
+                            <button key={ex.id} onClick={() => toggleCourse(ex.id)}
+                              className={`w-full text-left px-2 py-2 text-xs flex items-center justify-between transition-colors ${isSelected ? "bg-emerald-50 text-emerald-800" : "text-slate-700 hover:bg-slate-50"}`}>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <div className={`w-3.5 h-3.5 border flex items-center justify-center shrink-0 ${isSelected ? "bg-emerald-500 border-emerald-500" : "border-slate-300"}`}>
+                                  {isSelected && <Check size={8} className="text-white" />}
+                                </div>
+                                <div className="truncate">
+                                  <span className="font-medium">{ex.name}</span>
+                                  <span className="text-[10px] text-slate-400 ml-1">{ex.day} {ex.start_time}</span>
+                                </div>
+                              </div>
+                              {groupName && <span className="text-[10px] text-slate-400 ml-1 shrink-0">[{groupName}]</span>}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                    {selectedCourses.length > 0 && (<p className="text-xs text-emerald-600 mt-1">{selectedCourses.length} sélectionné(s)</p>)}
+                  </>
+                )}
+              </div>
+
             </div>
-            {selectedGroups.length > 0 && (
-              <p className="text-xs text-blue-600 mt-2">{selectedGroups.length} groupe(s) sélectionné(s)</p>
-            )}
-            {selectedCourses.length > 0 && (
-              <p className="text-xs text-emerald-600 mt-1">{selectedCourses.length} cours sélectionné(s)</p>
-            )}
           </div>
         </div>
 
-        {/* ── Section 4 : Financial details ── */}
+        {/* Sections 4-6: Financial, Date, Payment */}
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">4. Détails financiers</p>
           <div className="border border-slate-200 p-4">
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Montant de base (Dhs)">
-                <div className={`${inputCls} bg-slate-100 text-slate-600`}>{baseAmount.toLocaleString()} Dhs</div>
-              </Field>
+              <Field label="Montant de base (Dhs)"><div className={`${inputCls} bg-slate-100 text-slate-600`}>{baseAmount.toLocaleString()} Dhs</div></Field>
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <div className="flex-1">
                     <p className="text-xs font-semibold text-slate-500 mb-1">Remise</p>
                     {discountType === "percent" ? (
-                      <div className="relative">
-                        <input type="number" className={`${inputCls} pr-8`} value={discountPercent} onChange={e => setDiscountPercent(Number(e.target.value))} placeholder="0" min="0" max="100" />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span>
-                      </div>
-                    ) : (
-                      <input type="number" className={inputCls} value={discount} onChange={e => setDiscount(Number(e.target.value))} placeholder="0" />
-                    )}
+                      <div className="relative"><input type="number" className={`${inputCls} pr-8`} value={discountPercent} onChange={e => setDiscountPercent(Number(e.target.value))} placeholder="0" min="0" max="100" /><span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">%</span></div>
+                    ) : (<input type="number" className={inputCls} value={discount} onChange={e => setDiscount(Number(e.target.value))} placeholder="0" />)}
                   </div>
                   <div className="flex gap-1 pt-5">
-                    <button
-                      type="button"
-                      onClick={() => { setDiscountType("fixed"); setDiscountPercent(0); }}
-                      className={`px-2 py-1 text-xs border font-medium transition-colors ${discountType === "fixed" ? "border-pink-500 bg-pink-50 text-pink-700" : "border-slate-200 text-slate-500 hover:border-slate-400"}`}
-                    >Dhs</button>
-                    <button
-                      type="button"
-                      onClick={() => { setDiscountType("percent"); setDiscount(0); }}
-                      className={`px-2 py-1 text-xs border font-medium transition-colors ${discountType === "percent" ? "border-pink-500 bg-pink-50 text-pink-700" : "border-slate-200 text-slate-500 hover:border-slate-400"}`}
-                    >%</button>
+                    <button type="button" onClick={() => { setDiscountType("fixed"); setDiscountPercent(0); }} className={`px-2 py-1 text-xs border font-medium transition-colors ${discountType === "fixed" ? "border-pink-500 bg-pink-50 text-pink-700" : "border-slate-200 text-slate-500 hover:border-slate-400"}`}>Dhs</button>
+                    <button type="button" onClick={() => { setDiscountType("percent"); setDiscount(0); }} className={`px-2 py-1 text-xs border font-medium transition-colors ${discountType === "percent" ? "border-pink-500 bg-pink-50 text-pink-700" : "border-slate-200 text-slate-500 hover:border-slate-400"}`}>%</button>
                   </div>
                 </div>
-                {discountType === "percent" && discountPercent > 0 && (
-                  <p className="text-xs text-slate-500 -mt-2 mb-2">{discountPercent}% = {Math.round(baseAmount * discountPercent / 100).toLocaleString()} Dhs de remise</p>
-                )}
               </div>
-              <Field label="Assurance (Dhs)">
-                <input type="number" className={inputCls} value={insurance} onChange={e => setInsurance(Number(e.target.value))} />
-              </Field>
-              <Field label="Droit d'entrée (Dhs)">
-                <input type="number" className={inputCls} value={entryFee} onChange={e => setEntryFee(Number(e.target.value))} />
-              </Field>
+              <Field label="Assurance (Dhs)"><input type="number" className={inputCls} value={insurance} onChange={e => setInsurance(Number(e.target.value))} /></Field>
+              <Field label="Droit d'entrée (Dhs)"><input type="number" className={inputCls} value={entryFee} onChange={e => setEntryFee(Number(e.target.value))} /></Field>
             </div>
             <div className="mt-3 border-t border-slate-200 pt-3 flex justify-between items-center">
               <span className="text-sm font-semibold text-slate-700">Total à payer</span>
@@ -720,76 +624,29 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
           </div>
         </div>
 
-        {/* ── Section 5 : Date d'abonnement ── */}
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">5. Date d'abonnement</p>
           <div className="border border-slate-200 p-4">
-            <Field label="Date d'abonnement">
-              <input
-                type="date"
-                className={inputCls}
-                value={subscriptionDate}
-                onChange={e => setSubscriptionDate(e.target.value)}
-              />
-            </Field>
+            <Field label="Date d'abonnement"><input type="date" className={inputCls} value={subscriptionDate} onChange={e => setSubscriptionDate(e.target.value)} /></Field>
           </div>
         </div>
 
-        {/* ── Section 6 : Paiement ── */}
         <div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">6. Moyen de paiement</p>
           <div className="border border-slate-200 p-4 space-y-4">
             <div className="flex gap-2 flex-wrap">
               {(["espece", "virement", "cheque"] as PaymentMethod[]).map(m => {
-                const Icon = METHOD_ICONS[m];
-                const isSelected = paymentMethods.includes(m);
-                return (
-                  <button
-                    key={m}
-                    onClick={() => togglePaymentMethod(m)}
-                    className={`flex items-center gap-2 px-4 py-2.5 text-sm border font-medium transition-colors ${
-                      isSelected
-                        ? "border-pink-500 bg-pink-50 text-pink-700"
-                        : "border-slate-300 text-slate-600 hover:border-slate-400"
-                    }`}
-                  >
-                    <Icon size={14} />
-                    {METHOD_LABELS[m]}
-                    {isSelected && <Check size={12} className="text-pink-500" />}
-                  </button>
-                );
+                const Icon = METHOD_ICONS[m]; const isSelected = paymentMethods.includes(m);
+                return (<button key={m} onClick={() => togglePaymentMethod(m)} className={`flex items-center gap-2 px-4 py-2.5 text-sm border font-medium transition-colors ${isSelected ? "border-pink-500 bg-pink-50 text-pink-700" : "border-slate-300 text-slate-600 hover:border-slate-400"}`}><Icon size={14} /> {METHOD_LABELS[m]} {isSelected && <Check size={12} className="text-pink-500" />}</button>);
               })}
             </div>
-
-            {paymentMethods.includes("espece") && (
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Montant en Espèce (Dhs)">
-                  <input type="number" className={inputCls} value={especeAmount} onChange={e => setEspeceAmount(Math.max(0, Number(e.target.value)))} placeholder="0" />
-                </Field>
-              </div>
-            )}
-
-            {paymentMethods.includes("virement") && (
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Montant Virement (Dhs)">
-                  <input type="number" className={inputCls} value={virementAmount} onChange={e => setVirementAmount(Math.max(0, Number(e.target.value)))} placeholder="0" />
-                </Field>
-              </div>
-            )}
-
+            {paymentMethods.includes("espece") && (<div className="grid grid-cols-2 gap-4"><Field label="Montant en Espèce (Dhs)"><input type="number" className={inputCls} value={especeAmount} onChange={e => setEspeceAmount(Math.max(0, Number(e.target.value)))} placeholder="0" /></Field></div>)}
+            {paymentMethods.includes("virement") && (<div className="grid grid-cols-2 gap-4"><Field label="Montant Virement (Dhs)"><input type="number" className={inputCls} value={virementAmount} onChange={e => setVirementAmount(Math.max(0, Number(e.target.value)))} placeholder="0" /></Field></div>)}
             {paymentMethods.includes("cheque") && (
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-slate-500 uppercase">Chèques</p>
-                </div>
-
                 <div className="mb-3 border border-dashed border-slate-300">
-                  <button
-                    onClick={() => setShowNewCheckForm(!showNewCheckForm)}
-                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-500 uppercase hover:bg-slate-50 transition-colors"
-                  >
-                    <span><Plus size={11} className="inline mr-1" />Nouveau chèque</span>
-                    <span className={showNewCheckForm ? "rotate-45" : ""}><Plus size={12} /></span>
+                  <button onClick={() => setShowNewCheckForm(!showNewCheckForm)} className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-500 uppercase hover:bg-slate-50 transition-colors">
+                    <span><Plus size={11} className="inline mr-1" />Nouveau chèque</span><span className={showNewCheckForm ? "rotate-45" : ""}><Plus size={12} /></span>
                   </button>
                   {showNewCheckForm && (
                     <div className="px-3 pb-3 space-y-2">
@@ -802,130 +659,57 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                         <input type="date" className={`${inputCls} text-xs`} value={newCheckDateExecution} onChange={e => setNewCheckDateExecution(e.target.value)} />
                       </div>
                       <div className="flex items-center gap-2">
-                        <Btn size="sm" onClick={handleCreateCheckInline} disabled={savingCheck}>
-                          {savingCheck ? "..." : <><Plus size={11} /> Créer</>}
-                        </Btn>
-                        {newCheckCreated && (
-                          <span className="text-xs text-emerald-600 flex items-center gap-1"><Check size={10} /> Créé !</span>
-                        )}
+                        <Btn size="sm" onClick={handleCreateCheckInline} disabled={savingCheck}>{savingCheck ? "..." : <><Plus size={11} /> Créer</>}</Btn>
+                        {newCheckCreated && <span className="text-xs text-emerald-600 flex items-center gap-1"><Check size={10} /> Créé !</span>}
                       </div>
                     </div>
                   )}
                 </div>
-
                 <div className="relative mb-3" ref={checkSearchRef}>
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    className={`${inputCls} pl-8`}
-                    placeholder="Rechercher un chèque..."
-                    value={checkSearch}
-                    onChange={e => { setCheckSearch(e.target.value); setShowCheckSuggestions(true); }}
-                    onFocus={() => setShowCheckSuggestions(true)}
-                  />
+                  <input className={`${inputCls} pl-8`} placeholder="Rechercher un chèque..." value={checkSearch} onChange={e => { setCheckSearch(e.target.value); setShowCheckSuggestions(true); }} onFocus={() => setShowCheckSuggestions(true)} />
                   {showCheckSuggestions && checkSearch && (
                     <div className="absolute z-10 top-full left-0 right-0 bg-white border border-slate-200 shadow-lg max-h-48 overflow-y-auto">
-                      {filteredChecks.length === 0 ? (
-                        <div className="px-3 py-2 text-xs text-slate-400">Aucun chèque disponible</div>
-                      ) : (
-                        filteredChecks.map(c => {
-                          const rest = c.amount - c.montant_used;
-                          return (
-                            <button
-                              key={c.id}
-                              onClick={() => handleSelectCheck(c)}
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-pink-50 transition-colors flex items-center justify-between text-slate-700"
-                            >
-                              <div>
-                                <span className="font-mono font-semibold">#{c.number}</span>
-                                <span className="text-xs text-slate-400 ml-2">{c.bank || "—"}</span>
-                              </div>
-                              <div className="text-xs">
-                                <span className="text-slate-500">{rest.toLocaleString()} Dhs</span>
-                                <span className="text-slate-300 ml-1">disponible</span>
-                              </div>
-                            </button>
-                          );
-                        })
+                      {filteredChecks.length === 0 ? <div className="px-3 py-2 text-xs text-slate-400">Aucun chèque disponible</div> : (
+                        filteredChecks.map(c => { const rest = c.amount - c.montant_used; return (
+                          <button key={c.id} onClick={() => handleSelectCheck(c)} className="w-full text-left px-3 py-2 text-sm hover:bg-pink-50 transition-colors flex items-center justify-between text-slate-700">
+                            <div><span className="font-mono font-semibold">#{c.number}</span><span className="text-xs text-slate-400 ml-2">{c.bank || "—"}</span></div>
+                            <div className="text-xs"><span className="text-slate-500">{rest.toLocaleString()} Dhs</span><span className="text-slate-300 ml-1">disponible</span></div>
+                          </button>
+                        );})
                       )}
                     </div>
                   )}
                 </div>
-
-                {/* Selected checks list */}
-                {selectedChecks.length > 0 && (
-                  <div className="space-y-1">
-                    {selectedChecks.map(sc => (
-                      <div key={sc.check.id} className="flex items-center justify-between bg-slate-50 px-3 py-2 text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-semibold text-slate-700">#{sc.check.number}</span>
-                          <span className="text-xs text-slate-400">{sc.check.bank}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            className="w-24 text-xs border border-slate-200 px-2 py-1 text-right"
-                            value={sc.amount}
-                            onChange={e => updateCheckAmount(sc.check.id, Number(e.target.value))}
-                            min={0}
-                            max={sc.check.amount - sc.check.montant_used}
-                          />
-                          <span className="text-xs text-slate-400">/ {(sc.check.amount - sc.check.montant_used).toLocaleString()} Dhs</span>
-                          <button onClick={() => removeSelectedCheck(sc.check.id)} className="p-1 text-slate-400 hover:text-red-500 transition-colors">
-                            <X size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                {selectedChecks.length > 0 && (<div className="space-y-1">{selectedChecks.map(sc => (
+                  <div key={sc.check.id} className="flex items-center justify-between bg-slate-50 px-3 py-2 text-sm">
+                    <div className="flex items-center gap-2"><span className="font-mono font-semibold text-slate-700">#{sc.check.number}</span><span className="text-xs text-slate-400">{sc.check.bank}</span></div>
+                    <div className="flex items-center gap-2">
+                      <input type="number" className="w-24 text-xs border border-slate-200 px-2 py-1 text-right" value={sc.amount} onChange={e => updateCheckAmount(sc.check.id, Number(e.target.value))} min={0} max={sc.check.amount - sc.check.montant_used} />
+                      <span className="text-xs text-slate-400">/ {(sc.check.amount - sc.check.montant_used).toLocaleString()} Dhs</span>
+                      <button onClick={() => removeSelectedCheck(sc.check.id)} className="p-1 text-slate-400 hover:text-red-500 transition-colors"><X size={12} /></button>
+                    </div>
                   </div>
-                )}
+                ))}</div>)}
               </div>
             )}
-
-            {/* Payment summary */}
             {paymentMethods.length > 0 && (
               <div className="border-t border-slate-200 pt-3 space-y-1 text-sm">
-                <div className="flex justify-between text-slate-600">
-                  <span>Total à payer</span>
-                  <span className="font-semibold">{total.toLocaleString()} Dhs</span>
-                </div>
-                {especeAmount > 0 && (
-                  <div className="flex justify-between text-slate-500 text-xs">
-                    <span>Espèce</span>
-                    <span>{especeAmount.toLocaleString()} Dhs</span>
-                  </div>
-                )}
-                {virementAmount > 0 && (
-                  <div className="flex justify-between text-slate-500 text-xs">
-                    <span>Virement</span>
-                    <span>{virementAmount.toLocaleString()} Dhs</span>
-                  </div>
-                )}
-                {totalChecksAmount > 0 && (
-                  <div className="flex justify-between text-slate-500 text-xs">
-                    <span>Chèques</span>
-                    <span>{totalChecksAmount.toLocaleString()} Dhs</span>
-                  </div>
-                )}
+                <div className="flex justify-between text-slate-600"><span>Total à payer</span><span className="font-semibold">{total.toLocaleString()} Dhs</span></div>
+                {especeAmount > 0 && <div className="flex justify-between text-slate-500 text-xs"><span>Espèce</span><span>{especeAmount.toLocaleString()} Dhs</span></div>}
+                {virementAmount > 0 && <div className="flex justify-between text-slate-500 text-xs"><span>Virement</span><span>{virementAmount.toLocaleString()} Dhs</span></div>}
+                {totalChecksAmount > 0 && <div className="flex justify-between text-slate-500 text-xs"><span>Chèques</span><span>{totalChecksAmount.toLocaleString()} Dhs</span></div>}
                 <div className="flex justify-between font-semibold border-t border-slate-200 pt-1">
-                  <span>Payé</span>
-                  <span className={totalPaid >= total ? "text-emerald-600" : "text-amber-600"}>
-                    {totalPaid.toLocaleString()} Dhs
-                    {totalPaid < total && (
-                      <span className="text-xs text-slate-400 ml-1">(reste {remaining.toLocaleString()} Dhs)</span>
-                    )}
-                  </span>
+                  <span>Payé</span><span className={totalPaid >= total ? "text-emerald-600" : "text-amber-600"}>{totalPaid.toLocaleString()} Dhs{totalPaid < total && <span className="text-xs text-slate-400 ml-1">(reste {remaining.toLocaleString()} Dhs)</span>}</span>
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* ── Submit ── */}
         <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
           <Btn variant="outline" onClick={onClose}>Annuler</Btn>
-          <Btn onClick={handleSubmit} disabled={loading || !selectedChild}>
-            {loading ? "Création..." : "Créer l'abonnement"}
-          </Btn>
+          <Btn onClick={handleSubmit} disabled={loading || !selectedChild}>{loading ? "Création..." : "Créer l'abonnement"}</Btn>
         </div>
       </div>
     </Modal>
