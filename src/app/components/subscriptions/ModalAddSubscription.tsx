@@ -625,9 +625,9 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         </div>
 
         <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">5. Date d'abonnement</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">5. Date d'opérations</p>
           <div className="border border-slate-200 p-4">
-            <Field label="Date d'abonnement"><input type="date" className={inputCls} value={subscriptionDate} onChange={e => setSubscriptionDate(e.target.value)} /></Field>
+            <Field label="Date d'opérations"><input type="date" className={inputCls} value={subscriptionDate} onChange={e => setSubscriptionDate(e.target.value)} /></Field>
           </div>
         </div>
 

@@ -855,7 +855,7 @@ export function ModalSubscriptionDetail({ subscriptionId, onClose, onUpdated }: 
                 <span className="font-medium text-slate-900">{sub.subscription_type_option || "Nouvel abonnement"}</span>
               </div>
               <div className="flex items-center justify-between px-4 py-2.5 text-sm">
-                <span className="text-slate-500">Date d'abonnement</span>
+                <span className="text-slate-500">Date d'opérations</span>
                 <span className="text-slate-400 text-xs">{sub.subscription_date || "—"}</span>
               </div>
               <div className="flex items-center justify-between px-4 py-2.5 text-sm">

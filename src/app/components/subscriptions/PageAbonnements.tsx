@@ -208,21 +208,26 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
             ))}
           </div>
           <div className="flex items-center gap-1">
-            <select value={dateQuickType} onChange={e => setDateQuickType(e.target.value as "start" | "end")} className={`${inputCls} text-xs w-16`}>
+            <select value={dateQuickType} onChange={e => { setDateQuickType(e.target.value as "start" | "end"); setDateFilterStart(""); setDateFilterEnd(""); }} className={`${inputCls} text-xs w-16`}>
               <option value="start">Début</option>
               <option value="end">Fin</option>
             </select>
-            <select value={dateQuickFilter} onChange={e => { setDateQuickFilter(e.target.value); if (e.target.value) { const d = e.target.value; if (dateQuickType === "start") { setDateFilterStart(d); setDateFilterEnd(""); } else { setDateFilterEnd(d); setDateFilterStart(""); } } else { setDateFilterStart(""); setDateFilterEnd(""); } }} className={`${inputCls} text-xs w-32`}>
-              <option value="">Dates...</option>
-              {subscriptions
-                .map(s => dateQuickType === "start" ? s.start_date : s.end_date)
-                .filter((v, i, a) => a.indexOf(v) === i)
-                .sort()
-                .slice(0, 10)
-                .map(d => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-            </select>
+            <input
+              type="date"
+              value={dateQuickType === "start" ? dateFilterStart : dateFilterEnd}
+              onChange={e => {
+                const d = e.target.value;
+                if (dateQuickType === "start") {
+                  setDateFilterStart(d);
+                  setDateFilterEnd("");
+                } else {
+                  setDateFilterEnd(d);
+                  setDateFilterStart("");
+                }
+              }}
+              className={`${inputCls} text-xs w-32`}
+              title={dateQuickType === "start" ? "Date de début" : "Date de fin"}
+            />
           </div>
           <input type="date" value={dateFilterStart} onChange={e => setDateFilterStart(e.target.value)} className={`${inputCls} text-xs w-32`} title="Date de début" />
           <span className="text-xs text-slate-400">→</span>
@@ -237,7 +242,7 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                {["Enfant", "Type", "Total", "Payé", "Reste", "Date d'abonnement", "Validité", "Statut", "Paiement", "Actions"].map(h => (
+                {["Enfant", "Type", "Total", "Payé", "Reste", "Date d'opérations", "Validité", "Statut", "Paiement", "Actions"].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
