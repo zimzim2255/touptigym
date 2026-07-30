@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { Search, Plus, Filter, Eye, Edit2, Trash2, FolderPlus, Users, ChevronDown, ChevronRight } from "lucide-react";
+import { Search, Plus, Filter, Eye, Edit2, Trash2, FolderPlus, Users, ArrowUpDown } from "lucide-react";
 import { PageWrap, Btn, Tag, inputCls } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ModalType, Group, Exercise, Child as ChildType } from "../../types";
@@ -14,30 +14,49 @@ interface Props {
   onRefresh?: number;
 }
 
+interface Trainer {
+  id: string;
+  name: string;
+}
+
+type SortField = "name" | "group" | "day" | "start_time" | "trainer";
+type SortDir = "asc" | "desc";
+
 export function PageExercices({ canCreate, canEdit, canViewPrice = true, openModal, setSelectedExercise, setSelectedGroup, onRefresh }: Props) {
   const api = useApi();
   const [q, setQ] = useState("");
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"groupes" | "liste">("groupes");
 
-  // Expanded state for the hierarchical view in Groupes mode
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
-  // Members per course (lazy loaded)
-  const [courseMembers, setCourseMembers] = useState<Record<string, ChildType[]>>({});
-  const [loadingMembers, setLoadingMembers] = useState<Set<string>>(new Set());
+  // Groupes view filters
+  const [filterActivite, setFilterActivite] = useState("");
+  const [filterGroupe, setFilterGroupe] = useState("");
+  const [filterInstructeur, setFilterInstructeur] = useState("");
+  const [filterJour, setFilterJour] = useState("");
+
+  // Sort
+  const [sortField, setSortField] = useState<SortField>("day");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  // Selection
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, groupsData] = await Promise.all([
+      const [data, groupsData, trainersData] = await Promise.all([
         api.exercises.getAll(),
         api.groups.getAll(),
+        api.trainers?.getAll() || Promise.resolve([]),
       ]);
       setExercises(data);
       setGroups(groupsData);
+      if (trainersData) setTrainers(trainersData);
     } catch (err: any) {
       console.error("Failed to load:", err);
     } finally {
@@ -57,11 +76,65 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
     );
   }, [exercises, q]);
 
-  const filteredGroups = useMemo(() => {
-    if (!q) return groups;
-    const lq = q.toLowerCase();
-    return groups.filter(g => g.name.toLowerCase().includes(lq));
-  }, [groups, q]);
+  // All unique group items from groups' descriptions (for the "Groupe" filter)
+  const allGroupItems = useMemo(() => {
+    const items = new Set<string>();
+    for (const g of groups) {
+      try {
+        if (g.description) {
+          const parsed = JSON.parse(g.description);
+          if (Array.isArray(parsed)) parsed.forEach((item: string) => items.add(item));
+        }
+      } catch { /* ignore */ }
+    }
+    return Array.from(items).sort();
+  }, [groups]);
+
+  // Filtered and sorted list for the Groupes view table
+  const tableData = useMemo(() => {
+    let list = [...exercises];
+    if (filterActivite) list = list.filter(ex => ex.group_id === filterActivite);
+    if (filterGroupe) {
+      // Filter by group item name (exercise name matches the group item)
+      list = list.filter(ex => ex.name === filterGroupe);
+    }
+    if (filterInstructeur) list = list.filter(ex => ex.trainers?.name === filterInstructeur);
+    if (filterJour) list = list.filter(ex => ex.day === filterJour);
+
+    list.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === "name") cmp = a.name.localeCompare(b.name);
+      else if (sortField === "group") cmp = (a.groups?.name || "").localeCompare(b.groups?.name || "");
+      else if (sortField === "day") cmp = DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
+      else if (sortField === "start_time") cmp = a.start_time.localeCompare(b.start_time);
+      else if (sortField === "trainer") cmp = (a.trainers?.name || "").localeCompare(b.trainers?.name || "");
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [exercises, filterActivite, filterGroupe, filterInstructeur, filterJour, sortField, sortDir]);
+
+  function toggleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDir(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  }
+
+  function SortHeader({ field, label }: { field: SortField; label: string }) {
+    return (
+      <th
+        onClick={() => toggleSort(field)}
+        className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide cursor-pointer hover:text-slate-800 transition-colors select-none"
+      >
+        <div className="flex items-center gap-1">
+          {label}
+          <ArrowUpDown size={11} className={`text-slate-300 ${sortField === field ? "text-pink-500" : ""}`} />
+        </div>
+      </th>
+    );
+  }
 
   async function handleDeleteExercise(id: string) {
     if (!confirm("Supprimer cette activité ?")) return;
@@ -80,64 +153,6 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
       refresh();
     } catch (err: any) {
       alert(err.message);
-    }
-  }
-
-  // Get courses for a group
-  function getCoursesForGroup(groupId: string): Exercise[] {
-    return exercises.filter(ex => ex.group_id === groupId);
-  }
-
-  // Toggle group expand
-  function toggleGroupExpand(groupId: string) {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(groupId)) {
-        next.delete(groupId);
-        // Collapse all courses under this group
-        const courseIds = getCoursesForGroup(groupId).map(c => c.id);
-        setExpandedCourses(prevCourses => {
-          const cNext = new Set(prevCourses);
-          courseIds.forEach(cid => cNext.delete(cid));
-          return cNext;
-        });
-      } else {
-        next.add(groupId);
-      }
-      return next;
-    });
-  }
-
-  // Toggle course expand and load members
-  async function toggleCourseExpand(courseId: string) {
-    setExpandedCourses(prev => {
-      const next = new Set(prev);
-      if (next.has(courseId)) {
-        next.delete(courseId);
-      } else {
-        next.add(courseId);
-        if (!courseMembers[courseId]) {
-          loadCourseMembers(courseId);
-        }
-      }
-      return next;
-    });
-  }
-
-  async function loadCourseMembers(courseId: string) {
-    setLoadingMembers(prev => new Set(prev).add(courseId));
-    try {
-      const children: ChildType[] = await api.attendance.getExerciseChildren(courseId);
-      setCourseMembers(prev => ({ ...prev, [courseId]: children }));
-    } catch (err: any) {
-      console.error("Failed to load members:", err);
-      setCourseMembers(prev => ({ ...prev, [courseId]: [] }));
-    } finally {
-      setLoadingMembers(prev => {
-        const next = new Set(prev);
-        next.delete(courseId);
-        return next;
-      });
     }
   }
 
@@ -198,126 +213,90 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
       {loading ? (
         <div className="p-6 text-sm text-slate-500 text-center">Chargement...</div>
       ) : viewMode === "groupes" ? (
-        <div className="bg-white border border-slate-200 divide-y divide-slate-200">
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200">
-            <div className="relative flex-1 max-w-xs">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher..." className={`${inputCls} pl-8`} />
-            </div>
+        <div className="bg-white border border-slate-200">
+          {/* Schedule Filters */}
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 flex-wrap">
+            <select value={filterActivite} onChange={e => setFilterActivite(e.target.value)} className={`${inputCls} text-xs w-36`}>
+              <option value="">Activité</option>
+              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+            <select value={filterGroupe} onChange={e => setFilterGroupe(e.target.value)} className={`${inputCls} text-xs w-36`}>
+              <option value="">Groupe</option>
+              {allGroupItems.map(item => <option key={item} value={item}>{item}</option>)}
+            </select>
+            <select value={filterInstructeur} onChange={e => setFilterInstructeur(e.target.value)} className={`${inputCls} text-xs w-36`}>
+              <option value="">Instructeur</option>
+              {trainers.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+            </select>
+            <select value={filterJour} onChange={e => setFilterJour(e.target.value)} className={`${inputCls} text-xs w-32`}>
+              <option value="">Jour</option>
+              {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+            {(filterActivite || filterGroupe || filterInstructeur || filterJour) && (
+              <button onClick={() => { setFilterActivite(""); setFilterGroupe(""); setFilterInstructeur(""); setFilterJour(""); }}
+                className="text-xs text-pink-600 hover:text-pink-800 font-medium">Réinitialiser</button>
+            )}
           </div>
 
-          {filteredGroups.length === 0 ? (
-            <div className="p-6 text-sm text-slate-500 text-center">Aucun groupe trouvé.</div>
-          ) : (
-            filteredGroups.map(group => {
-              const isExpanded = expandedGroups.has(group.id);
-              const groupCourses = getCoursesForGroup(group.id);
-              let items: string[] = [];
-              try {
-                if (group.description) items = JSON.parse(group.description);
-              } catch { items = []; }
-
-              return (
-                <div key={group.id}>
-                  {/* Group row - clickable to expand */}
-                  <div
-                    onClick={() => toggleGroupExpand(group.id)}
-                    className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      {isExpanded ? <ChevronDown size={14} className="text-slate-400 shrink-0" /> : <ChevronRight size={14} className="text-slate-400 shrink-0" />}
-                      <FolderPlus size={14} className="text-slate-400 shrink-0" />
-                      <span className="text-sm font-semibold text-slate-900">{group.name}</span>
-                      <span className="text-xs text-slate-400">({groupCourses.length} cours)</span>
-                      {items.length > 0 && (
-                        <span className="text-xs text-slate-400 ml-1">{items.join(" · ")}</span>
-                      )}
-                    </div>
-                    <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                      <button onClick={() => { setSelectedGroup?.(group); openModal("edit-group" as any); }}
-                        className="p-1 text-slate-400 hover:text-pink-500 transition-colors" title="Modifier">
-                        <Edit2 size={13} />
-                      </button>
-                      <button onClick={() => handleDeleteGroup(group.id)}
-                        className="p-1 text-slate-400 hover:text-red-500 transition-colors" title="Supprimer">
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Expanded courses under this group */}
-                  {isExpanded && (
-                    <div className="bg-slate-50 border-t border-slate-100">
-                      {groupCourses.length === 0 ? (
-                        <div className="px-12 py-3 text-xs text-slate-400 italic">Aucun cours dans ce groupe</div>
-                      ) : (
-                        groupCourses.map(course => {
-                          const isCourseExpanded = expandedCourses.has(course.id);
-                          const members = courseMembers[course.id];
-                          const isLoading = loadingMembers.has(course.id);
-
-                          return (
-                            <div key={course.id}>
-                              {/* Course row */}
-                              <div
-                                onClick={() => toggleCourseExpand(course.id)}
-                                className="flex items-center justify-between px-12 py-2.5 text-sm hover:bg-white transition-colors cursor-pointer border-b border-slate-100"
-                              >
-                                <div className="flex items-center gap-2">
-                                  {isCourseExpanded ? <ChevronDown size={12} className="text-slate-400" /> : <ChevronRight size={12} className="text-slate-400" />}
-                                  <span className="font-medium text-slate-800">{course.name}</span>
-                                  <span className="text-xs text-slate-400">{course.day} · {course.start_time}–{course.end_time}</span>
-                                  {course.trainers?.name && (
-                                    <span className="text-xs text-slate-400">({course.trainers.name})</span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {members && (
-                                    <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
-                                      <Users size={11} /> {members.length}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Expanded members under this course */}
-                              {isCourseExpanded && (
-                                <div className="px-16 py-2 bg-white border-b border-slate-50">
-                                  {isLoading ? (
-                                    <p className="text-xs text-slate-400">Chargement des membres...</p>
-                                  ) : !members || members.length === 0 ? (
-                                    <p className="text-xs text-slate-400 italic">Aucun membre inscrit</p>
-                                  ) : (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-semibold text-slate-500 mb-1">
-                                        Membres ({members.length})
-                                      </p>
-                                      {members.map(child => (
-                                        <div key={child.id} className="flex items-center gap-2 text-xs text-slate-700">
-                                          <div className="w-5 h-5 bg-pink-100 flex items-center justify-center text-pink-700 text-[10px] font-bold rounded-full">
-                                            {child.name.charAt(0).toUpperCase()}
-                                          </div>
-                                          <span>{child.name}</span>
-                                          <span className="text-slate-400">{child.age} ans</span>
-                                          {child.client_type === "VIP" && (
-                                            <span className="text-[10px] px-1 py-0.5 bg-amber-100 text-amber-700 font-medium">VIP</span>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
+          {/* Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide w-12">#</th>
+                  <SortHeader field="name" label="Activité" />
+                  <SortHeader field="group" label="Groupe" />
+                  <SortHeader field="day" label="Jour" />
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Horaire prévue</th>
+                  <SortHeader field="trainer" label="Instructeur" />
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide w-24">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {tableData.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-6 text-sm text-slate-500 text-center">Aucune activité trouvée.</td>
+                  </tr>
+                ) : (
+                  tableData.map((ex, i) => {
+                    const isSelected = selectedId === ex.id;
+                    return (
+                      <tr
+                        key={ex.id}
+                        onClick={() => setSelectedId(prev => prev === ex.id ? null : ex.id)}
+                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${
+                          isSelected ? "bg-pink-50 border-l-2 border-l-pink-500" : ""
+                        }`}
+                      >
+                        <td className="px-4 py-3 text-xs text-slate-400 font-mono">{i + 1}</td>
+                        <td className="px-4 py-3 font-medium text-slate-900">{ex.groups?.name || "—"}</td>
+                        <td className="px-4 py-3 text-slate-600">{ex.name}</td>
+                        <td className="px-4 py-3 text-slate-600">{ex.day}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                          <span className="text-slate-700 font-medium">{ex.start_time}</span>
+                          <span className="text-slate-300 mx-1">→</span>
+                          <span className="text-slate-700 font-medium">{ex.end_time}</span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600">{ex.trainers?.name || "—"}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                            <button onClick={() => { setSelectedExercise({ id: ex.id, name: ex.name }); openModal("exercice-detail"); }}
+                              className="p-1 text-slate-400 hover:text-pink-500 transition-colors" title="Voir"><Eye size={13} /></button>
+                            {canEdit && <>
+                              <button onClick={() => { setSelectedExercise({ id: ex.id, name: ex.name }); openModal("exercice-detail"); }}
+                                className="p-1 text-slate-400 hover:text-slate-700 transition-colors" title="Modifier"><Edit2 size={13} /></button>
+                              <button onClick={() => handleDeleteExercise(ex.id)}
+                                className="p-1 text-slate-400 hover:text-red-500 transition-colors" title="Supprimer"><Trash2 size={13} /></button>
+                            </>}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="bg-white border border-slate-200">
