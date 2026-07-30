@@ -43,6 +43,9 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
 
   // Selection
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedExercise_2, setSelectedExercise_2] = useState<Exercise | null>(null);
+  const [members, setMembers] = useState<ChildType[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
 
   const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
@@ -76,7 +79,6 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
     );
   }, [exercises, q]);
 
-  // All unique group items from groups' descriptions (for the "Groupe" filter)
   const allGroupItems = useMemo(() => {
     const items = new Set<string>();
     for (const g of groups) {
@@ -90,21 +92,17 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
     return Array.from(items).sort();
   }, [groups]);
 
-  // Filtered and sorted list for the Groupes view table
   const tableData = useMemo(() => {
     let list = [...exercises];
     if (filterActivite) list = list.filter(ex => ex.group_id === filterActivite);
-    if (filterGroupe) {
-      // Filter by group item name (exercise name matches the group item)
-      list = list.filter(ex => ex.name === filterGroupe);
-    }
+    if (filterGroupe) list = list.filter(ex => ex.name === filterGroupe);
     if (filterInstructeur) list = list.filter(ex => ex.trainers?.name === filterInstructeur);
     if (filterJour) list = list.filter(ex => ex.day === filterJour);
 
     list.sort((a, b) => {
       let cmp = 0;
-      if (sortField === "name") cmp = a.name.localeCompare(b.name);
-      else if (sortField === "group") cmp = (a.groups?.name || "").localeCompare(b.groups?.name || "");
+      if (sortField === "name") cmp = (a.groups?.name || "").localeCompare(b.groups?.name || "");
+      else if (sortField === "group") cmp = a.name.localeCompare(b.name);
       else if (sortField === "day") cmp = DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
       else if (sortField === "start_time") cmp = a.start_time.localeCompare(b.start_time);
       else if (sortField === "trainer") cmp = (a.trainers?.name || "").localeCompare(b.trainers?.name || "");
@@ -134,6 +132,29 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
         </div>
       </th>
     );
+  }
+
+  function selectRow(ex: Exercise) {
+    if (selectedId === ex.id) {
+      setSelectedId(null);
+      setSelectedExercise_2(null);
+      setMembers([]);
+      return;
+    }
+    setSelectedId(ex.id);
+    setSelectedExercise_2(ex);
+    setLoadingMembers(true);
+    api.attendance.getExerciseChildren(ex.id)
+      .then((children: ChildType[]) => {
+        setMembers(children);
+      })
+      .catch((err: any) => {
+        console.error("Failed to load members:", err);
+        setMembers([]);
+      })
+      .finally(() => {
+        setLoadingMembers(false);
+      });
   }
 
   async function handleDeleteExercise(id: string) {
@@ -238,64 +259,116 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
             )}
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide w-12">#</th>
-                  <SortHeader field="name" label="Activité" />
-                  <SortHeader field="group" label="Groupe" />
-                  <SortHeader field="day" label="Jour" />
-                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Horaire prévue</th>
-                  <SortHeader field="trainer" label="Instructeur" />
-                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide w-24">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {tableData.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-6 text-sm text-slate-500 text-center">Aucune activité trouvée.</td>
+          {/* Master-Detail Layout */}
+          <div className="flex">
+            {/* Left: Training Sessions Table */}
+            <div className="flex-1 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide w-12">#</th>
+                    <SortHeader field="name" label="Activité" />
+                    <SortHeader field="group" label="Groupe" />
+                    <SortHeader field="day" label="Jour" />
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Horaire prévue</th>
+                    <SortHeader field="trainer" label="Instructeur" />
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide w-24">Actions</th>
                   </tr>
-                ) : (
-                  tableData.map((ex, i) => {
-                    const isSelected = selectedId === ex.id;
-                    return (
-                      <tr
-                        key={ex.id}
-                        onClick={() => setSelectedId(prev => prev === ex.id ? null : ex.id)}
-                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${
-                          isSelected ? "bg-pink-50 border-l-2 border-l-pink-500" : ""
-                        }`}
-                      >
-                        <td className="px-4 py-3 text-xs text-slate-400 font-mono">{i + 1}</td>
-                        <td className="px-4 py-3 font-medium text-slate-900">{ex.groups?.name || "—"}</td>
-                        <td className="px-4 py-3 text-slate-600">{ex.name}</td>
-                        <td className="px-4 py-3 text-slate-600">{ex.day}</td>
-                        <td className="px-4 py-3 font-mono text-xs text-slate-600">
-                          <span className="text-slate-700 font-medium">{ex.start_time}</span>
-                          <span className="text-slate-300 mx-1">→</span>
-                          <span className="text-slate-700 font-medium">{ex.end_time}</span>
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">{ex.trainers?.name || "—"}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                            <button onClick={() => { setSelectedExercise({ id: ex.id, name: ex.name }); openModal("exercice-detail"); }}
-                              className="p-1 text-slate-400 hover:text-pink-500 transition-colors" title="Voir"><Eye size={13} /></button>
-                            {canEdit && <>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {tableData.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-6 text-sm text-slate-500 text-center">Aucune activité trouvée.</td>
+                    </tr>
+                  ) : (
+                    tableData.map((ex, i) => {
+                      const isSelected = selectedId === ex.id;
+                      return (
+                        <tr
+                          key={ex.id}
+                          onClick={() => selectRow(ex)}
+                          className={`hover:bg-slate-50 transition-colors cursor-pointer ${
+                            isSelected ? "bg-pink-50" : ""
+                          }`}
+                        >
+                          <td className="px-4 py-3 text-xs text-slate-400 font-mono">{i + 1}</td>
+                          <td className="px-4 py-3 font-medium text-slate-900">{ex.groups?.name || "—"}</td>
+                          <td className="px-4 py-3 text-slate-600">{ex.name}</td>
+                          <td className="px-4 py-3 text-slate-600">{ex.day}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                            <span className="text-slate-700 font-medium">{ex.start_time}</span>
+                            <span className="text-slate-300 mx-1">→</span>
+                            <span className="text-slate-700 font-medium">{ex.end_time}</span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">{ex.trainers?.name || "—"}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-1" onClick={e => e.stopPropagation()}>
                               <button onClick={() => { setSelectedExercise({ id: ex.id, name: ex.name }); openModal("exercice-detail"); }}
-                                className="p-1 text-slate-400 hover:text-slate-700 transition-colors" title="Modifier"><Edit2 size={13} /></button>
-                              <button onClick={() => handleDeleteExercise(ex.id)}
-                                className="p-1 text-slate-400 hover:text-red-500 transition-colors" title="Supprimer"><Trash2 size={13} /></button>
-                            </>}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
+                                className="p-1 text-slate-400 hover:text-pink-500 transition-colors" title="Voir"><Eye size={13} /></button>
+                              {canEdit && <>
+                                <button onClick={() => { setSelectedExercise({ id: ex.id, name: ex.name }); openModal("exercice-detail"); }}
+                                  className="p-1 text-slate-400 hover:text-slate-700 transition-colors" title="Modifier"><Edit2 size={13} /></button>
+                                <button onClick={() => handleDeleteExercise(ex.id)}
+                                  className="p-1 text-slate-400 hover:text-red-500 transition-colors" title="Supprimer"><Trash2 size={13} /></button>
+                              </>}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Right: Assigned Members Table */}
+            <div className={`w-80 shrink-0 border-l border-slate-200 overflow-x-auto ${selectedId ? "" : "hidden"}`}>
+              <div className="p-3 border-b border-slate-200 bg-slate-50">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                  Membres inscrits <span className="text-pink-500 font-bold">{loadingMembers ? "..." : `(${members.length})`}</span>
+                </p>
+                {selectedExercise_2 && (
+                  <p className="text-[10px] text-slate-400 mt-0.5">{selectedExercise_2.groups?.name} — {selectedExercise_2.name}</p>
                 )}
-              </tbody>
-            </table>
+              </div>
+              {loadingMembers ? (
+                <div className="p-6 text-xs text-slate-400 text-center">Chargement...</div>
+              ) : members.length === 0 ? (
+                <div className="p-6 text-xs text-slate-400 text-center italic">Aucun membre inscrit</div>
+              ) : (
+                <div className="max-h-[400px] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50/50">
+                        <th className="text-left px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase">Prénom</th>
+                        <th className="text-left px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase">Nom</th>
+                        <th className="text-left px-3 py-2 text-[10px] font-semibold text-slate-500 uppercase">Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {members.map((child: ChildType) => {
+                        const nameParts = child.name.split(" ");
+                        const first = nameParts[0] || "";
+                        const last = nameParts.slice(1).join(" ") || "—";
+                        return (
+                          <tr key={child.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-3 py-2 text-xs text-slate-700 font-medium">{first}</td>
+                            <td className="px-3 py-2 text-xs text-slate-700">{last}</td>
+                            <td className="px-3 py-2">
+                              {child.client_type === "VIP" ? (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 font-medium">VIP</span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400">Standard</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ) : (
