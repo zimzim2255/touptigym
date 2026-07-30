@@ -52,6 +52,12 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [subType, setSubType] = useState("");
   const [subscriptionDate, setSubscriptionDate] = useState(new Date().toISOString().split("T")[0]);
   const [subscriptionTypeOption, setSubscriptionTypeOption] = useState("Nouvel abonnement");
+  const [validityStart, setValidityStart] = useState(new Date().toISOString().split("T")[0]);
+  const [validityEnd, setValidityEnd] = useState(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    return d.toISOString().split("T")[0];
+  });
 
   // Step 3 selections
   const [selectedActivities, setSelectedActivities] = useState<string[]>([]); // group ids
@@ -322,14 +328,6 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
 
     setLoading(true);
     try {
-      const startDate = new Date();
-      const endDate = new Date();
-      if (subscriptionType === "Annuel") {
-        endDate.setFullYear(endDate.getFullYear() + 1);
-      } else {
-        endDate.setMonth(endDate.getMonth() + 6);
-      }
-
       // Merge all saved combinations
       const allActivityIds = [...new Set(combinations.flatMap(c => c.activities))];
       const allCourseIds = [...new Set(combinations.flatMap(c => c.courses))];
@@ -352,8 +350,8 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         status: "actif",
         paid_amount: totalPaid > 0 ? totalPaid : 0,
         subscription_date: subscriptionDate,
-        start_date: startDate.toISOString().split("T")[0],
-        end_date: endDate.toISOString().split("T")[0],
+        start_date: validityStart,
+        end_date: validityEnd,
       });
 
       if (totalPaid > 0) {
@@ -385,8 +383,8 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                 parentName: parent.name,
                 childName: selectedChild.name,
                 subscriptionType: `${subscriptionType} - ${subType || `${activities} activités/semaine`}`,
-                startDate: startDate.toISOString().split('T')[0],
-                endDate: endDate.toISOString().split('T')[0],
+                startDate: validityStart,
+                endDate: validityEnd,
               }),
             });
           } catch (emailErr) {
@@ -502,7 +500,15 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
           <div className="border border-slate-200 p-4 space-y-3">
             <div className="flex gap-2">
               {["Session", "Annuel"].map(t => (
-                <button key={t} onClick={() => { setSubscriptionType(t); setSubType(`${activities} activités/semaine`); }}
+                <button key={t} onClick={() => { 
+                  setSubscriptionType(t); 
+                  setSubType(`${activities} activités/semaine`);
+                  setValidityStart(new Date().toISOString().split("T")[0]);
+                  const d = new Date();
+                  if (t === "Annuel") d.setFullYear(d.getFullYear() + 1);
+                  else d.setMonth(d.getMonth() + 6);
+                  setValidityEnd(d.toISOString().split("T")[0]);
+                }}
                   className={`px-4 py-2 text-sm border font-medium transition-colors ${subscriptionType === t ? "border-pink-500 bg-pink-500 text-white" : "border-slate-300 text-slate-600 hover:border-slate-400"}`}>{t}</button>
               ))}
             </div>
@@ -708,6 +714,14 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
             <div className="mt-3 border-t border-slate-200 pt-3 flex justify-between items-center">
               <span className="text-sm font-semibold text-slate-700">Total à payer</span>
               <span className="text-lg font-bold text-pink-600">{total.toLocaleString()} Dhs</span>
+            </div>
+            <div className="mt-3 border-t border-slate-200 pt-3 grid grid-cols-2 gap-4">
+              <Field label="Date de début (Validité)">
+                <input type="date" className={inputCls} value={validityStart} onChange={e => setValidityStart(e.target.value)} />
+              </Field>
+              <Field label="Date de fin (Validité)">
+                <input type="date" className={inputCls} value={validityEnd} onChange={e => setValidityEnd(e.target.value)} />
+              </Field>
             </div>
           </div>
         </div>
