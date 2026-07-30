@@ -312,38 +312,36 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
       ) : viewMode === "groupes" ? (
         <div className="bg-white border border-slate-200">
           {/* Schedule Filters */}
-          <div className="px-4 py-3 border-b border-slate-200 space-y-2">
+          <div className="px-4 py-3 border-b border-slate-200 flex flex-col gap-1.5">
+            <SearchableSelect
+              options={groups.map(g => ({ value: g.id, label: g.name }))}
+              value={filterActivite}
+              onChange={v => setFilterActivite(v)}
+              placeholder="Activité"
+              className="w-full"
+            />
+            <SearchableSelect
+              options={allGroupItems.map(item => ({ value: item, label: item }))}
+              value={filterGroupe}
+              onChange={v => setFilterGroupe(v)}
+              placeholder="Groupe"
+              className="w-full"
+            />
+            <SearchableSelect
+              options={trainers.map(t => ({ value: t.name, label: t.name }))}
+              value={filterInstructeur}
+              onChange={v => setFilterInstructeur(v)}
+              placeholder="Instructeur"
+              className="w-full"
+            />
             <div className="flex gap-2">
-              <SearchableSelect
-                options={groups.map(g => ({ value: g.id, label: g.name }))}
-                value={filterActivite}
-                onChange={v => setFilterActivite(v)}
-                placeholder="Activité"
-                className="flex-1"
-              />
-              <SearchableSelect
-                options={allGroupItems.map(item => ({ value: item, label: item }))}
-                value={filterGroupe}
-                onChange={v => setFilterGroupe(v)}
-                placeholder="Groupe"
-                className="flex-1"
-              />
-            </div>
-            <div className="flex gap-2">
-              <SearchableSelect
-                options={trainers.map(t => ({ value: t.name, label: t.name }))}
-                value={filterInstructeur}
-                onChange={v => setFilterInstructeur(v)}
-                placeholder="Instructeur"
-                className="flex-1"
-              />
               <select value={filterJour} onChange={e => setFilterJour(e.target.value)} className={`${inputCls} text-xs flex-1`}>
                 <option value="">Jour</option>
                 {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
               {(filterActivite || filterGroupe || filterInstructeur || filterJour) && (
                 <button onClick={() => { setFilterActivite(""); setFilterGroupe(""); setFilterInstructeur(""); setFilterJour(""); }}
-                  className="text-xs text-pink-600 hover:text-pink-800 font-medium shrink-0">Réinitialiser</button>
+                  className="text-xs text-pink-600 hover:text-pink-800 font-medium shrink-0 px-3">Réinitialiser</button>
               )}
             </div>
           </div>
