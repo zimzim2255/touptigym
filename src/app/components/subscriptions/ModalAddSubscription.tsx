@@ -52,6 +52,12 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [subType, setSubType] = useState("");
   const [subscriptionDate, setSubscriptionDate] = useState(new Date().toISOString().split("T")[0]);
   const [subscriptionTypeOption, setSubscriptionTypeOption] = useState("Nouvel abonnement");
+  const [validityStart, setValidityStart] = useState(new Date().toISOString().split("T")[0]);
+  const [validityEnd, setValidityEnd] = useState(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    return d.toISOString().split("T")[0];
+  });
 
   // Step 3 selections
   const [selectedActivities, setSelectedActivities] = useState<string[]>([]); // group ids
@@ -60,6 +66,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [activitySearch, setActivitySearch] = useState("");
   const [groupItemSearch, setGroupItemSearch] = useState("");
   const [courseSearch, setCourseSearch] = useState("");
+  const [combinations, setCombinations] = useState<{ activities: string[]; groupItems: string[]; courses: string[] }[]>([]);
 
   // Parent selection state
   const [childParents, setChildParents] = useState<Parent[]>([]);
@@ -184,6 +191,15 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
     }).catch(console.error).finally(() => setLoadingParents(false));
   }
 
+  // Course limit from Forfait selection
+  const courseLimit = parseInt(activities);
+  // Total unique courses already saved in combinations
+  const savedCourseCount = new Set(combinations.flatMap(c => c.courses)).size;
+  // New unique courses being added in current selection (not already saved)
+  const newCourseCount = selectedCourses.filter(id => !combinations.flatMap(c => c.courses).includes(id)).length;
+  const totalCourseCount = savedCourseCount + newCourseCount;
+  const canSelectMore = totalCourseCount < courseLimit;
+
   function toggleActivity(groupId: string) {
     setSelectedActivities(prev => {
       if (prev.includes(groupId)) {
@@ -212,9 +228,34 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   }
 
   function toggleCourse(exerciseId: string) {
+    // Check if selecting this course would exceed the limit
+    if (!selectedCourses.includes(exerciseId)) {
+      const alreadySaved = combinations.flatMap(c => c.courses);
+      const isNew = !alreadySaved.includes(exerciseId);
+      if (isNew && totalCourseCount >= courseLimit) {
+        return alert(`Limite atteinte : vous ne pouvez sélectionner que ${courseLimit} cours d'après votre forfait "${activities} activité(s)/semaine".`);
+      }
+    }
     setSelectedCourses(prev =>
       prev.includes(exerciseId) ? prev.filter(id => id !== exerciseId) : [...prev, exerciseId]
     );
+  }
+
+  function saveCombination() {
+    if (selectedActivities.length === 0 && selectedGroupItems.length === 0 && selectedCourses.length === 0) {
+      return alert("Veuillez sélectionner au moins une activité, un groupe ou un cours");
+    }
+    setCombinations(prev => [...prev, { activities: selectedActivities, groupItems: selectedGroupItems, courses: selectedCourses }]);
+    setSelectedActivities([]);
+    setSelectedGroupItems([]);
+    setSelectedCourses([]);
+    setActivitySearch("");
+    setGroupItemSearch("");
+    setCourseSearch("");
+  }
+
+  function removeCombination(index: number) {
+    setCombinations(prev => prev.filter((_, i) => i !== index));
   }
 
   function togglePaymentMethod(method: PaymentMethod) {
@@ -287,13 +328,10 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
 
     setLoading(true);
     try {
-      const startDate = new Date();
-      const endDate = new Date();
-      if (subscriptionType === "Annuel") {
-        endDate.setFullYear(endDate.getFullYear() + 1);
-      } else {
-        endDate.setMonth(endDate.getMonth() + 6);
-      }
+      // Merge all saved combinations
+      const allActivityIds = [...new Set(combinations.flatMap(c => c.activities))];
+      const allCourseIds = [...new Set(combinations.flatMap(c => c.courses))];
+      const allGroupItems = [...new Set(combinations.flatMap(c => c.groupItems))];
 
       const sub = await api.subscriptions.create({
         child_id: selectedChild.id,
@@ -305,15 +343,15 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
         insurance: insurance,
         entry_fee: entryFee,
         subscription_type_option: subscriptionTypeOption,
-        exercises: selectedCourses,
-        activity_ids: selectedActivities,
-        group_ids: [],
-        course_ids: selectedCourses,
+        exercises: allCourseIds,
+        activity_ids: allActivityIds,
+        group_ids: allGroupItems,
+        course_ids: allCourseIds,
         status: "actif",
         paid_amount: totalPaid > 0 ? totalPaid : 0,
         subscription_date: subscriptionDate,
-        start_date: startDate.toISOString().split("T")[0],
-        end_date: endDate.toISOString().split("T")[0],
+        start_date: validityStart,
+        end_date: validityEnd,
       });
 
       if (totalPaid > 0) {
@@ -345,8 +383,8 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                 parentName: parent.name,
                 childName: selectedChild.name,
                 subscriptionType: `${subscriptionType} - ${subType || `${activities} activités/semaine`}`,
-                startDate: startDate.toISOString().split('T')[0],
-                endDate: endDate.toISOString().split('T')[0],
+                startDate: validityStart,
+                endDate: validityEnd,
               }),
             });
           } catch (emailErr) {
@@ -462,7 +500,15 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
           <div className="border border-slate-200 p-4 space-y-3">
             <div className="flex gap-2">
               {["Session", "Annuel"].map(t => (
-                <button key={t} onClick={() => { setSubscriptionType(t); setSubType(`${activities} activités/semaine`); }}
+                <button key={t} onClick={() => { 
+                  setSubscriptionType(t); 
+                  setSubType(`${activities} activités/semaine`);
+                  setValidityStart(new Date().toISOString().split("T")[0]);
+                  const d = new Date();
+                  if (t === "Annuel") d.setFullYear(d.getFullYear() + 1);
+                  else d.setMonth(d.getMonth() + 6);
+                  setValidityEnd(d.toISOString().split("T")[0]);
+                }}
                   className={`px-4 py-2 text-sm border font-medium transition-colors ${subscriptionType === t ? "border-pink-500 bg-pink-500 text-white" : "border-slate-300 text-slate-600 hover:border-slate-400"}`}>{t}</button>
               ))}
             </div>
@@ -481,98 +527,125 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
           </div>
         </div>
 
-        {/* Section 3: Activités → Groupes → Cours (side by side grid) */}
+        {/* Section 3: Activités → Groupes → Cours (combination builder) */}
         <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Activités, Groupes & Cours</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Activités, Groupes & Cours <span className="text-pink-500">(max {courseLimit} cours/semaine)</span></p>
           <div className="border border-slate-200 p-4">
-            <div className="grid grid-cols-3 gap-4">
+            {/* Saved combinations display */}
+            {combinations.length > 0 && (
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {combinations.map((combo, i) => {
+                  const actNames = combo.activities.map(id => groups.find(g => g.id === id)?.name || id).join(", ");
+                  const grpNames = combo.groupItems.join(", ");
+                  const courseNames = combo.courses.map(id => allExercises.find(e => e.id === id)?.name || id).join(", ");
+                  const label = [actNames, grpNames, courseNames].filter(Boolean).join(" | ");
+                  return (
+                    <span key={i} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] bg-pink-50 text-pink-700 border border-pink-200 rounded-sm">
+                      <span className="max-w-[200px] truncate">{label}</span>
+                      <button onClick={() => removeCombination(i)} className="text-pink-400 hover:text-pink-700 ml-0.5"><X size={10} /></button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
 
-              {/* Step a: Activités = groups from groups table (search to show) */}
-              <div className="border border-slate-200 p-3">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-2">a) Activités</p>
-                <div className="relative mb-2">
-                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input className={`${inputCls} pl-8 text-xs`} placeholder="Rechercher..." value={activitySearch} onChange={e => setActivitySearch(e.target.value)} />
+            <div className="grid grid-cols-3 gap-4">
+              {/* Step a: Activités */}
+              <div className="border border-slate-200 p-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">a) Activités</p>
+                <div className="relative mb-1">
+                  <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input className={`${inputCls} pl-6 text-[11px] py-1`} placeholder="Rechercher..." value={activitySearch} onChange={e => setActivitySearch(e.target.value)} />
                 </div>
-                <div className="max-h-48 overflow-y-auto border border-slate-200 divide-y divide-slate-100">
-                  {!activitySearch ? (
-                    <div className="px-3 py-3 text-xs text-slate-400 text-center">Tapez pour rechercher</div>
-                  ) : groups.filter(g => g.name.toLowerCase().includes(activitySearch.toLowerCase())).length === 0 ? (
-                    <div className="px-3 py-3 text-xs text-slate-400 text-center">Aucune activité trouvée</div>
-                  ) : (
-                    groups.filter(g => g.name.toLowerCase().includes(activitySearch.toLowerCase())).map(group => {
+                <div className="max-h-40 overflow-y-auto border border-slate-200 divide-y divide-slate-100">
+                  {(() => {
+                    let filtered = groups;
+                    const sq = activitySearch.toLowerCase();
+                    if (sq) filtered = filtered.filter(g => g.name.toLowerCase().includes(sq));
+                    if (filtered.length === 0) return <div className="px-2 py-2 text-[11px] text-slate-400 text-center">Aucune activité</div>;
+                    return filtered.slice(0, 30).map(group => {
                       const isSelected = selectedActivities.includes(group.id);
                       const groupCourses = allExercises.filter(ex => ex.group_id === group.id);
                       return (
                         <button key={group.id} onClick={() => toggleActivity(group.id)}
-                          className={`w-full text-left px-2 py-2 text-xs flex items-center justify-between transition-colors ${isSelected ? "bg-pink-50 text-pink-800" : "text-slate-700 hover:bg-slate-50"}`}>
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-3.5 h-3.5 border flex items-center justify-center shrink-0 ${isSelected ? "bg-pink-500 border-pink-500" : "border-slate-300"}`}>
-                              {isSelected && <Check size={8} className="text-white" />}
+                          className={`w-full text-left px-2 py-1.5 text-[11px] flex items-center justify-between transition-colors ${isSelected ? "bg-pink-50 text-pink-800" : "text-slate-700 hover:bg-slate-50"}`}>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className={`w-3 h-3 border flex items-center justify-center shrink-0 ${isSelected ? "bg-pink-500 border-pink-500" : "border-slate-300"}`}>
+                              {isSelected && <Check size={7} className="text-white" />}
                             </div>
                             <span className="font-medium truncate">{group.name}</span>
                           </div>
                           <span className="text-[10px] text-slate-400 ml-1 shrink-0">({groupCourses.length})</span>
                         </button>
                       );
-                    })
-                  )}
+                    });
+                  })()}
+                  {groups.length > 30 && !activitySearch && <div className="px-2 py-1.5 text-[10px] text-slate-400 text-center">+ {groups.length - 30} autres (utilisez la recherche)</div>}
                 </div>
-                {selectedActivities.length > 0 && (<p className="text-xs text-pink-600 mt-1">{selectedActivities.length} sélectionnée(s)</p>)}
+                {selectedActivities.length > 0 && <p className="text-[10px] text-pink-600 mt-0.5">{selectedActivities.length} sélectionnée(s)</p>}
               </div>
 
-              {/* Step b: Groupes = items from selected groups' descriptions */}
-              <div className="border border-slate-200 p-3">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-2">b) Groupes</p>
-                {selectedActivities.length === 0 ? (<p className="text-xs text-slate-400 italic">Sélectionnez d'abord des activités</p>) : (
+              {/* Step b: Groupes */}
+              <div className="border border-slate-200 p-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">b) Groupes</p>
+                {selectedActivities.length === 0 ? (<p className="text-[11px] text-slate-400 italic">Sélectionnez d'abord des activités</p>) : (
                   <>
-                    <div className="relative mb-2">
-                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input className={`${inputCls} pl-8 text-xs`} placeholder="Filtrer..." value={groupItemSearch} onChange={e => setGroupItemSearch(e.target.value)} />
+                    <div className="relative mb-1">
+                      <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input className={`${inputCls} pl-6 text-[11px] py-1`} placeholder="Filtrer..." value={groupItemSearch} onChange={e => setGroupItemSearch(e.target.value)} />
                     </div>
-                    <div className="max-h-48 overflow-y-auto border border-slate-200 divide-y divide-slate-100">
-                      {availableGroupItems.length === 0 ? (<div className="px-3 py-3 text-xs text-slate-400 text-center">Aucun groupe</div>) : (
-                        availableGroupItems.filter(item => item.toLowerCase().includes(groupItemSearch.toLowerCase())).map(item => {
+                    <div className="max-h-40 overflow-y-auto border border-slate-200 divide-y divide-slate-100">
+                      {(() => {
+                        let filtered = availableGroupItems;
+                        const sq = groupItemSearch.toLowerCase();
+                        if (sq) filtered = filtered.filter(item => item.toLowerCase().includes(sq));
+                        if (filtered.length === 0) return <div className="px-2 py-2 text-[11px] text-slate-400 text-center">Aucun groupe</div>;
+                        return filtered.slice(0, 30).map(item => {
                           const isSelected = selectedGroupItems.includes(item);
                           return (
                             <button key={item} onClick={() => toggleGroupItem(item)}
-                              className={`w-full text-left px-2 py-2 text-xs flex items-center justify-between transition-colors ${isSelected ? "bg-blue-50 text-blue-800" : "text-slate-700 hover:bg-slate-50"}`}>
+                              className={`w-full text-left px-2 py-1.5 text-[11px] flex items-center justify-between transition-colors ${isSelected ? "bg-blue-50 text-blue-800" : "text-slate-700 hover:bg-slate-50"}`}>
                               <div className="flex items-center gap-1.5">
-                                <div className={`w-3.5 h-3.5 border flex items-center justify-center shrink-0 ${isSelected ? "bg-blue-500 border-blue-500" : "border-slate-300"}`}>
-                                  {isSelected && <Check size={8} className="text-white" />}
+                                <div className={`w-3 h-3 border flex items-center justify-center shrink-0 ${isSelected ? "bg-blue-500 border-blue-500" : "border-slate-300"}`}>
+                                  {isSelected && <Check size={7} className="text-white" />}
                                 </div>
                                 <span className="truncate">{item}</span>
                               </div>
                             </button>
                           );
-                        })
-                      )}
+                        });
+                      })()}
+                      {availableGroupItems.length > 30 && !groupItemSearch && <div className="px-2 py-1.5 text-[10px] text-slate-400 text-center">+ {availableGroupItems.length - 30} autres (utilisez la recherche)</div>}
                     </div>
-                    {selectedGroupItems.length > 0 && (<p className="text-xs text-blue-600 mt-1">{selectedGroupItems.length} sélectionné(s)</p>)}
+                    {selectedGroupItems.length > 0 && <p className="text-[10px] text-blue-600 mt-0.5">{selectedGroupItems.length} sélectionné(s)</p>}
                   </>
                 )}
               </div>
 
-              {/* Step c: Cours = exercises filtered by selected group items */}
-              <div className="border border-slate-200 p-3">
-                <p className="text-xs font-semibold text-slate-500 uppercase mb-2">c) Cours</p>
-                {selectedGroupItems.length === 0 ? (<p className="text-xs text-slate-400 italic">Sélectionnez d'abord des groupes</p>) : (
+              {/* Step c: Cours */}
+              <div className="border border-slate-200 p-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-1">c) Cours</p>
+                {selectedGroupItems.length === 0 ? (<p className="text-[11px] text-slate-400 italic">Sélectionnez d'abord des groupes</p>) : (
                   <>
-                    <div className="relative mb-2">
-                      <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input className={`${inputCls} pl-8 text-xs`} placeholder="Rechercher..." value={courseSearch} onChange={e => setCourseSearch(e.target.value)} />
+                    <div className="relative mb-1">
+                      <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input className={`${inputCls} pl-6 text-[11px] py-1`} placeholder="Rechercher..." value={courseSearch} onChange={e => setCourseSearch(e.target.value)} />
                     </div>
-                    <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 border border-slate-200">
-                      {coursesFiltered.length === 0 ? (<div className="px-3 py-3 text-xs text-slate-400 text-center">Aucun cours</div>) : (
-                        coursesFiltered.map(ex => {
+                    <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200">
+                      {(() => {
+                        let filtered = coursesFiltered;
+                        const sq = courseSearch.toLowerCase();
+                        if (sq) filtered = filtered.filter(ex => ex.name.toLowerCase().includes(sq));
+                        if (filtered.length === 0) return <div className="px-2 py-2 text-[11px] text-slate-400 text-center">Aucun cours</div>;
+                        return filtered.slice(0, 30).map(ex => {
                           const isSelected = selectedCourses.includes(ex.id);
                           const groupName = groups.find(g => g.id === ex.group_id)?.name;
                           return (
                             <button key={ex.id} onClick={() => toggleCourse(ex.id)}
-                              className={`w-full text-left px-2 py-2 text-xs flex items-center justify-between transition-colors ${isSelected ? "bg-emerald-50 text-emerald-800" : "text-slate-700 hover:bg-slate-50"}`}>
+                              className={`w-full text-left px-2 py-1.5 text-[11px] flex items-center justify-between transition-colors ${isSelected ? "bg-emerald-50 text-emerald-800" : "text-slate-700 hover:bg-slate-50"}`}>
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <div className={`w-3.5 h-3.5 border flex items-center justify-center shrink-0 ${isSelected ? "bg-emerald-500 border-emerald-500" : "border-slate-300"}`}>
-                                  {isSelected && <Check size={8} className="text-white" />}
+                                <div className={`w-3 h-3 border flex items-center justify-center shrink-0 ${isSelected ? "bg-emerald-500 border-emerald-500" : "border-slate-300"}`}>
+                                  {isSelected && <Check size={7} className="text-white" />}
                                 </div>
                                 <div className="truncate">
                                   <span className="font-medium">{ex.name}</span>
@@ -582,14 +655,35 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                               {groupName && <span className="text-[10px] text-slate-400 ml-1 shrink-0">[{groupName}]</span>}
                             </button>
                           );
-                        })
-                      )}
+                        });
+                      })()}
+                      {coursesFiltered.length > 30 && !courseSearch && <div className="px-2 py-1.5 text-[10px] text-slate-400 text-center">+ {coursesFiltered.length - 30} autres (utilisez la recherche)</div>}
                     </div>
-                    {selectedCourses.length > 0 && (<p className="text-xs text-emerald-600 mt-1">{selectedCourses.length} sélectionné(s)</p>)}
+                    {selectedCourses.length > 0 && <p className="text-[10px] text-emerald-600 mt-0.5">{selectedCourses.length} sélectionné(s)</p>}
                   </>
                 )}
               </div>
+            </div>
 
+            {/* Save button */}
+            <div className="mt-3 flex items-center justify-between">
+              <div className="text-[11px] text-slate-500">
+                {selectedActivities.length > 0 || selectedGroupItems.length > 0 || selectedCourses.length > 0 ? (
+                  <span>Activités: {selectedActivities.length} | Groupes: {selectedGroupItems.length} | Cours: {selectedCourses.length}</span>
+                ) : (
+                  <span className="italic">Sélectionnez des éléments puis cliquez sur Enregistrer</span>
+                )}
+                {totalCourseCount > 0 && (
+                  <span className="ml-2 text-pink-500 font-medium">{totalCourseCount}/{courseLimit} cours</span>
+                )}
+              </div>
+              <button
+                onClick={saveCombination}
+                disabled={selectedActivities.length === 0 && selectedGroupItems.length === 0 && selectedCourses.length === 0}
+                className="px-4 py-1.5 text-xs font-semibold bg-pink-500 text-white hover:bg-pink-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Plus size={12} className="inline mr-1" />Enregistrer la combinaison
+              </button>
             </div>
           </div>
         </div>
@@ -621,13 +715,21 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
               <span className="text-sm font-semibold text-slate-700">Total à payer</span>
               <span className="text-lg font-bold text-pink-600">{total.toLocaleString()} Dhs</span>
             </div>
+            <div className="mt-3 border-t border-slate-200 pt-3 grid grid-cols-2 gap-4">
+              <Field label="Date de début (Validité)">
+                <input type="date" className={inputCls} value={validityStart} onChange={e => setValidityStart(e.target.value)} />
+              </Field>
+              <Field label="Date de fin (Validité)">
+                <input type="date" className={inputCls} value={validityEnd} onChange={e => setValidityEnd(e.target.value)} />
+              </Field>
+            </div>
           </div>
         </div>
 
         <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">5. Date d'abonnement</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">5. Date d'opérations</p>
           <div className="border border-slate-200 p-4">
-            <Field label="Date d'abonnement"><input type="date" className={inputCls} value={subscriptionDate} onChange={e => setSubscriptionDate(e.target.value)} /></Field>
+            <Field label="Date d'opérations"><input type="date" className={inputCls} value={subscriptionDate} onChange={e => setSubscriptionDate(e.target.value)} /></Field>
           </div>
         </div>
 
