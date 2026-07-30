@@ -185,6 +185,15 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
     }).catch(console.error).finally(() => setLoadingParents(false));
   }
 
+  // Course limit from Forfait selection
+  const courseLimit = parseInt(activities);
+  // Total unique courses already saved in combinations
+  const savedCourseCount = new Set(combinations.flatMap(c => c.courses)).size;
+  // New unique courses being added in current selection (not already saved)
+  const newCourseCount = selectedCourses.filter(id => !combinations.flatMap(c => c.courses).includes(id)).length;
+  const totalCourseCount = savedCourseCount + newCourseCount;
+  const canSelectMore = totalCourseCount < courseLimit;
+
   function toggleActivity(groupId: string) {
     setSelectedActivities(prev => {
       if (prev.includes(groupId)) {
@@ -213,6 +222,14 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   }
 
   function toggleCourse(exerciseId: string) {
+    // Check if selecting this course would exceed the limit
+    if (!selectedCourses.includes(exerciseId)) {
+      const alreadySaved = combinations.flatMap(c => c.courses);
+      const isNew = !alreadySaved.includes(exerciseId);
+      if (isNew && totalCourseCount >= courseLimit) {
+        return alert(`Limite atteinte : vous ne pouvez sélectionner que ${courseLimit} cours d'après votre forfait "${activities} activité(s)/semaine".`);
+      }
+    }
     setSelectedCourses(prev =>
       prev.includes(exerciseId) ? prev.filter(id => id !== exerciseId) : [...prev, exerciseId]
     );
@@ -506,7 +523,7 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
 
         {/* Section 3: Activités → Groupes → Cours (combination builder) */}
         <div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Activités, Groupes & Cours</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">3. Activités, Groupes & Cours <span className="text-pink-500">(max {courseLimit} cours/semaine)</span></p>
           <div className="border border-slate-200 p-4">
             {/* Saved combinations display */}
             {combinations.length > 0 && (
@@ -649,6 +666,9 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                   <span>Activités: {selectedActivities.length} | Groupes: {selectedGroupItems.length} | Cours: {selectedCourses.length}</span>
                 ) : (
                   <span className="italic">Sélectionnez des éléments puis cliquez sur Enregistrer</span>
+                )}
+                {totalCourseCount > 0 && (
+                  <span className="ml-2 text-pink-500 font-medium">{totalCourseCount}/{courseLimit} cours</span>
                 )}
               </div>
               <button

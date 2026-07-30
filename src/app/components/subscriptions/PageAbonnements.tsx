@@ -40,11 +40,9 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
   const [loading, setLoading] = useState(true);
   const [count, setCount] = useState(0);
   const [payFilter, setPayFilter] = useState<PaymentFilter>("all");
-  const [dateFilterStart, setDateFilterStart] = useState("");
-  const [dateFilterEnd, setDateFilterEnd] = useState("");
-  const [smartFilter, setSmartFilter] = useState<"all" | "approaching">("all");
-  const [dateQuickFilter, setDateQuickFilter] = useState("");
-  const [dateQuickType, setDateQuickType] = useState<"start" | "end">("start");
+  const [dateRangeFrom, setDateRangeFrom] = useState("");
+  const [dateRangeTo, setDateRangeTo] = useState("");
+  const [dateQuickType, setDateQuickType] = useState<"start" | "end" | "operation">("start");
 
   const active = subscriptions.filter(s => s.status === "actif").length;
   const expired = subscriptions.filter(s => s.status === "expiré" || s.status === "résilié").length;
@@ -87,27 +85,20 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
         return true;
       });
     }
-    // Date range filters
-    if (dateFilterStart) {
-      filtered = filtered.filter(s => s.start_date >= dateFilterStart);
-    }
-    if (dateFilterEnd) {
-      filtered = filtered.filter(s => s.end_date <= dateFilterEnd);
-    }
-    // Smart filter: approaching end date (within 30 days)
-    if (smartFilter === "approaching") {
-      const now = new Date();
-      const thirtyDays = new Date();
-      thirtyDays.setDate(thirtyDays.getDate() + 30);
-      filtered = filtered.filter(s => {
-        const end = new Date(s.end_date);
-        return end >= now && end <= thirtyDays;
-      });
+    // Date range filter based on selected type
+    if (dateRangeFrom && dateRangeTo) {
+      if (dateQuickType === "start") {
+        filtered = filtered.filter(s => s.start_date >= dateRangeFrom && s.start_date <= dateRangeTo);
+      } else if (dateQuickType === "end") {
+        filtered = filtered.filter(s => s.end_date >= dateRangeFrom && s.end_date <= dateRangeTo);
+      } else if (dateQuickType === "operation") {
+        filtered = filtered.filter(s => s.subscription_date && s.subscription_date >= dateRangeFrom && s.subscription_date <= dateRangeTo);
+      }
     }
     // Sort by start date
     filtered = [...filtered].sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
     return filtered;
-  }, [subscriptions, q, payFilter, dateFilterStart, dateFilterEnd, smartFilter]);
+  }, [subscriptions, q, payFilter, dateRangeFrom, dateRangeTo, dateQuickType]);
 
   function getPayStatus(total: number, paid: number): { label: string; color: string } {
     const rest = total - paid;
@@ -208,30 +199,27 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
             ))}
           </div>
           <div className="flex items-center gap-1">
-            <select value={dateQuickType} onChange={e => { setDateQuickType(e.target.value as "start" | "end"); setDateFilterStart(""); setDateFilterEnd(""); }} className={`${inputCls} text-xs w-16`}>
+            <select value={dateQuickType} onChange={e => { setDateQuickType(e.target.value as "start" | "end" | "operation"); setDateRangeFrom(""); setDateRangeTo(""); }} className={`${inputCls} text-xs w-24`}>
               <option value="start">Début</option>
               <option value="end">Fin</option>
+              <option value="operation">Date d'opération</option>
             </select>
             <input
               type="date"
-              value={dateQuickType === "start" ? dateFilterStart : dateFilterEnd}
-              onChange={e => {
-                const d = e.target.value;
-                if (dateQuickType === "start") {
-                  setDateFilterStart(d);
-                  setDateFilterEnd("");
-                } else {
-                  setDateFilterEnd(d);
-                  setDateFilterStart("");
-                }
-              }}
+              value={dateRangeFrom}
+              onChange={e => setDateRangeFrom(e.target.value)}
               className={`${inputCls} text-xs w-32`}
-              title={dateQuickType === "start" ? "Date de début" : "Date de fin"}
+              title="Du"
+            />
+            <span className="text-xs text-slate-400">→</span>
+            <input
+              type="date"
+              value={dateRangeTo}
+              onChange={e => setDateRangeTo(e.target.value)}
+              className={`${inputCls} text-xs w-32`}
+              title="Au"
             />
           </div>
-          <input type="date" value={dateFilterStart} onChange={e => setDateFilterStart(e.target.value)} className={`${inputCls} text-xs w-32`} title="Date de début" />
-          <span className="text-xs text-slate-400">→</span>
-          <input type="date" value={dateFilterEnd} onChange={e => setDateFilterEnd(e.target.value)} className={`${inputCls} text-xs w-32`} title="Date de fin" />
         </div>
 
         {loading ? (
