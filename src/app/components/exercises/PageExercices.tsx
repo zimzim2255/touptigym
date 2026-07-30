@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
-import { Search, Plus, Filter, Eye, Edit2, Trash2, FolderPlus, Users, ArrowUpDown } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { Search, Plus, Filter, Eye, Edit2, Trash2, FolderPlus, Users, ArrowUpDown, ChevronDown } from "lucide-react";
 import { PageWrap, Btn, Tag, inputCls } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ModalType, Group, Exercise, Child as ChildType } from "../../types";
@@ -21,6 +21,82 @@ interface Trainer {
 
 type SortField = "name" | "group" | "day" | "start_time" | "trainer";
 type SortDir = "asc" | "desc";
+
+function SearchableSelect({ options, value, onChange, placeholder, className }: {
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!search) return options;
+    return options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()));
+  }, [options, search]);
+
+  const selectedLabel = options.find(o => o.value === value)?.label || "";
+
+  return (
+    <div ref={ref} className={`relative ${className || ""}`}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={`${inputCls} flex items-center justify-between gap-1 ${value ? "text-slate-700" : "text-slate-400"}`}
+      >
+        <span className="truncate">{selectedLabel || placeholder}</span>
+        <ChevronDown size={12} className={`text-slate-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute z-20 top-full left-0 right-0 mt-0.5 bg-white border border-slate-200 shadow-lg max-h-56 overflow-hidden">
+          <div className="p-1.5 border-b border-slate-100">
+            <input
+              autoFocus
+              className="w-full px-2 py-1.5 text-xs border border-slate-200 focus:outline-none focus:border-pink-500"
+              placeholder="Rechercher..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="max-h-40 overflow-y-auto">
+            <button
+              onClick={() => { onChange(""); setOpen(false); setSearch(""); }}
+              className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${!value ? "bg-pink-50 text-pink-700 font-medium" : "text-slate-400 hover:bg-slate-50"}`}
+            >
+              {placeholder}
+            </button>
+            {filtered.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => { onChange(opt.value); setOpen(false); setSearch(""); }}
+                className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${value === opt.value ? "bg-pink-50 text-pink-700 font-medium" : "text-slate-700 hover:bg-slate-50"}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <div className="px-3 py-2 text-xs text-slate-400 text-center">Aucun résultat</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function PageExercices({ canCreate, canEdit, canViewPrice = true, openModal, setSelectedExercise, setSelectedGroup, onRefresh }: Props) {
   const api = useApi();
@@ -236,27 +312,40 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
       ) : viewMode === "groupes" ? (
         <div className="bg-white border border-slate-200">
           {/* Schedule Filters */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200 flex-wrap">
-            <select value={filterActivite} onChange={e => setFilterActivite(e.target.value)} className={`${inputCls} text-xs w-36`}>
-              <option value="">Activité</option>
-              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-            </select>
-            <select value={filterGroupe} onChange={e => setFilterGroupe(e.target.value)} className={`${inputCls} text-xs w-36`}>
-              <option value="">Groupe</option>
-              {allGroupItems.map(item => <option key={item} value={item}>{item}</option>)}
-            </select>
-            <select value={filterInstructeur} onChange={e => setFilterInstructeur(e.target.value)} className={`${inputCls} text-xs w-36`}>
-              <option value="">Instructeur</option>
-              {trainers.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-            </select>
-            <select value={filterJour} onChange={e => setFilterJour(e.target.value)} className={`${inputCls} text-xs w-32`}>
-              <option value="">Jour</option>
-              {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
-            {(filterActivite || filterGroupe || filterInstructeur || filterJour) && (
-              <button onClick={() => { setFilterActivite(""); setFilterGroupe(""); setFilterInstructeur(""); setFilterJour(""); }}
-                className="text-xs text-pink-600 hover:text-pink-800 font-medium">Réinitialiser</button>
-            )}
+          <div className="px-4 py-3 border-b border-slate-200 space-y-2">
+            <div className="flex gap-2">
+              <SearchableSelect
+                options={groups.map(g => ({ value: g.id, label: g.name }))}
+                value={filterActivite}
+                onChange={v => setFilterActivite(v)}
+                placeholder="Activité"
+                className="flex-1"
+              />
+              <SearchableSelect
+                options={allGroupItems.map(item => ({ value: item, label: item }))}
+                value={filterGroupe}
+                onChange={v => setFilterGroupe(v)}
+                placeholder="Groupe"
+                className="flex-1"
+              />
+            </div>
+            <div className="flex gap-2">
+              <SearchableSelect
+                options={trainers.map(t => ({ value: t.name, label: t.name }))}
+                value={filterInstructeur}
+                onChange={v => setFilterInstructeur(v)}
+                placeholder="Instructeur"
+                className="flex-1"
+              />
+              <select value={filterJour} onChange={e => setFilterJour(e.target.value)} className={`${inputCls} text-xs flex-1`}>
+                <option value="">Jour</option>
+                {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              {(filterActivite || filterGroupe || filterInstructeur || filterJour) && (
+                <button onClick={() => { setFilterActivite(""); setFilterGroupe(""); setFilterInstructeur(""); setFilterJour(""); }}
+                  className="text-xs text-pink-600 hover:text-pink-800 font-medium shrink-0">Réinitialiser</button>
+              )}
+            </div>
           </div>
 
           {/* Master-Detail Layout */}
