@@ -55,9 +55,20 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
   const [validityStart, setValidityStart] = useState(new Date().toISOString().split("T")[0]);
   const [validityEnd, setValidityEnd] = useState(() => {
     const d = new Date();
-    d.setFullYear(d.getFullYear() + 1);
+    d.setDate(d.getDate() + 336); // 48 weeks = 336 days
     return d.toISOString().split("T")[0];
   });
+
+  // Calculate end date based on start date and subscription type
+  function calculateEndDateFromStart(startDate: string, type: string): string {
+    const d = new Date(startDate);
+    if (type === "Annuel") {
+      d.setDate(d.getDate() + 336); // 48 weeks = 336 days
+    } else {
+      d.setDate(d.getDate() + 168); // 24 weeks = 168 days
+    }
+    return d.toISOString().split("T")[0];
+  }
 
   // Step 3 selections
   const [selectedActivities, setSelectedActivities] = useState<string[]>([]); // group ids
@@ -503,11 +514,9 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
                 <button key={t} onClick={() => { 
                   setSubscriptionType(t); 
                   setSubType(`${activities} activités/semaine`);
-                  setValidityStart(new Date().toISOString().split("T")[0]);
-                  const d = new Date();
-                  if (t === "Annuel") d.setFullYear(d.getFullYear() + 1);
-                  else d.setMonth(d.getMonth() + 6);
-                  setValidityEnd(d.toISOString().split("T")[0]);
+                  const newStart = new Date().toISOString().split("T")[0];
+                  setValidityStart(newStart);
+                  setValidityEnd(calculateEndDateFromStart(newStart, t));
                 }}
                   className={`px-4 py-2 text-sm border font-medium transition-colors ${subscriptionType === t ? "border-pink-500 bg-pink-500 text-white" : "border-slate-300 text-slate-600 hover:border-slate-400"}`}>{t}</button>
               ))}
@@ -717,7 +726,10 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
             </div>
             <div className="mt-3 border-t border-slate-200 pt-3 grid grid-cols-2 gap-4">
               <Field label="Date de début (Validité)">
-                <input type="date" className={inputCls} value={validityStart} onChange={e => setValidityStart(e.target.value)} />
+                <input type="date" className={inputCls} value={validityStart} onChange={e => {
+                  setValidityStart(e.target.value);
+                  setValidityEnd(calculateEndDateFromStart(e.target.value, subscriptionType));
+                }} />
               </Field>
               <Field label="Date de fin (Validité)">
                 <input type="date" className={inputCls} value={validityEnd} onChange={e => setValidityEnd(e.target.value)} />

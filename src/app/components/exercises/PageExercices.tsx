@@ -155,18 +155,28 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
     );
   }, [exercises, q]);
 
-  const allGroupItems = useMemo(() => {
-    const items = new Set<string>();
-    for (const g of groups) {
-      try {
-        if (g.description) {
-          const parsed = JSON.parse(g.description);
-          if (Array.isArray(parsed)) parsed.forEach((item: string) => items.add(item));
-        }
-      } catch { /* ignore */ }
+  // Filtered options for Groupe dropdown (exercise names filtered by selected Activité)
+  const groupeOptions = useMemo(() => {
+    let filtered = exercises;
+    if (filterActivite) {
+      filtered = filtered.filter(ex => ex.group_id === filterActivite);
     }
-    return Array.from(items).sort();
-  }, [groups]);
+    const names = [...new Set(filtered.map(ex => ex.name))].sort();
+    return names.map(n => ({ value: n, label: n }));
+  }, [exercises, filterActivite]);
+
+  // Filtered options for Instructeur dropdown (trainers filtered by selected Activité and Groupe)
+  const instructeurOptions = useMemo(() => {
+    let filtered = exercises;
+    if (filterActivite) {
+      filtered = filtered.filter(ex => ex.group_id === filterActivite);
+    }
+    if (filterGroupe) {
+      filtered = filtered.filter(ex => ex.name === filterGroupe);
+    }
+    const trainerNames = [...new Set(filtered.map(ex => ex.trainers?.name).filter((name): name is string => !!name))].sort();
+    return trainerNames.map(n => ({ value: n, label: n }));
+  }, [exercises, filterActivite, filterGroupe]);
 
   const tableData = useMemo(() => {
     let list = [...exercises];
@@ -321,14 +331,14 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
               className="w-full"
             />
             <SearchableSelect
-              options={allGroupItems.map(item => ({ value: item, label: item }))}
+              options={groupeOptions}
               value={filterGroupe}
               onChange={v => setFilterGroupe(v)}
               placeholder="Groupe"
               className="w-full"
             />
             <SearchableSelect
-              options={trainers.map(t => ({ value: t.name, label: t.name }))}
+              options={instructeurOptions}
               value={filterInstructeur}
               onChange={v => setFilterInstructeur(v)}
               placeholder="Instructeur"
