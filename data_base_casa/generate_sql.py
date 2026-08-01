@@ -82,42 +82,31 @@ clients = read_xlsx(os.path.join(folder, 'BDD clients casa.xlsx'))
 groups_data = read_xlsx(os.path.join(folder, 'BDD groupes casa.xlsx'))
 
 # ============================================================
-# 1. Build ACTIVITIES data
+# 1. Build ACTIVITIES data → goes into `groups` table (Activités)
 # ============================================================
-print("Processing activities...")
+print("Processing activities (→ groups table)...")
 activity_map = {}  # designation -> activity_id
-activity_sql = []
+activity_sql = []  # will be INSERT INTO groups (name)
 for row in activities[1:]:
     if len(row) >= 2 and row[0] and row[1]:
         num = clean_str(row[0])
         designation = clean_str(row[1])
         if designation:
             activity_map[designation] = num
-            # Map activity type
-            act_type = 'Other'
-            act_upper = designation.upper()
-            if 'FOOTBALL' in act_upper:
-                act_type = 'Football'
-            elif 'BASKET' in act_upper:
-                act_type = 'Basketball'
-            elif 'NATATION' in act_upper:
-                act_type = 'Swimming'
-            elif 'GYMNASTIQUE' in act_upper:
-                act_type = 'Gymnastics'
-            activity_sql.append(f"  ('{designation}', 'Monday', '{act_type}', '09:00:00', '10:00:00')")
+            activity_sql.append(f"  ('{designation}')")
 
 # ============================================================
-# 2. Build GROUPS data
+# 2. Build GROUP NAMES from BDD groupes (→ exercises.name)
 # ============================================================
-print("Processing groups...")
+print("Processing group names...")
 group_map = {}  # group_name -> group_id
-group_sql = []
+group_name_sql = []  # will be used as exercises.name values
 for row in groups_data[1:]:
     if len(row) >= 3 and row[2]:
         gname = clean_str(row[2])
         if gname and gname not in group_map:
             group_map[gname] = len(group_map) + 1
-            group_sql.append(f"  ('{gname}')")
+            group_name_sql.append(gname)
 
 # ============================================================
 # 3. Build TRAINERS (monitors) data
@@ -133,9 +122,11 @@ for row in groups_data[1:]:
             trainer_sql.append(f"  ('{tname}')")
 
 # ============================================================
-# 4. Build EXERCISES (schedules from groups/horaires)
+# 4. Build EXERCISES (schedules/horaires from BDD groupes)
+#    exercises.name = group name (groupe column)
+#    exercises.group_id = activity id (activite column → groups table)
 # ============================================================
-print("Processing exercises/schedules...")
+print("Processing exercises/horaires...")
 exercise_sql = []
 exercise_count = 0
 for row in groups_data[1:]:
@@ -147,9 +138,9 @@ for row in groups_data[1:]:
         end_time = clean_str(row[5]) if len(row) > 5 else ''
         monitor = clean_name(row[6]) if len(row) > 6 else ''
         
-        if activity and day:
+        if group_name and day:
             exercise_count += 1
-            # Map activity type
+            # Map activity type (based on activite)
             act_type = 'Other'
             act_upper = activity.upper()
             if 'FOOTBALL' in act_upper:
@@ -173,18 +164,18 @@ for row in groups_data[1:]:
             st = start_time if start_time else '09:00:00'
             et = end_time if end_time else '10:00:00'
             
-            # Get trainer id
+            # Get trainer id (moniteur)
             trainer_ref = 'NULL'
             if monitor and monitor in trainer_map:
                 trainer_ref = f"(SELECT id FROM trainers WHERE name = '{monitor}' LIMIT 1)"
             
-            # Get group id
+            # Get group id = the activité (from groups table)
             group_ref = 'NULL'
-            if group_name and group_name in group_map:
-                group_ref = f"(SELECT id FROM groups WHERE name = '{group_name}' LIMIT 1)"
+            if activity and activity in activity_map:
+                group_ref = f"(SELECT id FROM groups WHERE name = '{activity}' LIMIT 1)"
             
             exercise_sql.append(
-                f"  ('{activity}', '{day_en}', '{act_type}', '{st}', '{et}', {trainer_ref}, {group_ref})"
+                f"  ('{group_name}', '{day_en}', '{act_type}', '{st}', '{et}', {trainer_ref}, {group_ref})"
             )
 
 # ============================================================
@@ -375,23 +366,15 @@ sql = """-- ============================================================
 -- https://supabase.com/dashboard/project/atvdorphwnpzhobvfmtz/sql/new
 
 -- ============================================================
--- 1. INSERT ACTIVITIES (exercises table)
+-- 1. INSERT ACTIVITÉS (→ groups table)
 -- ============================================================
-INSERT INTO exercises (name, day, type, start_time, end_time) VALUES
+INSERT INTO groups (name) VALUES
 """
 
 sql += ",\n".join(activity_sql) + ";\n\n"
 
 sql += """-- ============================================================
--- 2. INSERT GROUPS
--- ============================================================
-INSERT INTO groups (name) VALUES
-"""
-
-sql += ",\n".join(group_sql) + ";\n\n"
-
-sql += """-- ============================================================
--- 3. INSERT TRAINERS (monitors)
+-- 2. INSERT TRAINERS (monitors)
 -- ============================================================
 INSERT INTO trainers (name) VALUES
 """
@@ -399,7 +382,7 @@ INSERT INTO trainers (name) VALUES
 sql += ",\n".join(trainer_sql) + ";\n\n"
 
 sql += """-- ============================================================
--- 4. INSERT EXERCISES (schedules from groups/horaires)
+-- 3. INSERT EXERCISES (horaires: name = groupe, group_id = activité)
 -- ============================================================
 INSERT INTO exercises (name, day, type, start_time, end_time, coach_id, group_id) VALUES
 """
@@ -407,7 +390,7 @@ INSERT INTO exercises (name, day, type, start_time, end_time, coach_id, group_id
 sql += ",\n".join(exercise_sql) + ";\n\n"
 
 sql += """-- ============================================================
--- 5. INSERT CHILDREN
+-- 4. INSERT CHILDREN
 -- ============================================================
 INSERT INTO children (name, gender, birth_date, age, school, school_type, address, postal_code, client_type, zkteco_id) VALUES
 """
@@ -415,7 +398,7 @@ INSERT INTO children (name, gender, birth_date, age, school, school_type, addres
 sql += ",\n".join(child_sql) + ";\n\n"
 
 sql += """-- ============================================================
--- 6. INSERT PARENTS
+-- 5. INSERT PARENTS
 -- ============================================================
 INSERT INTO parents (name, phone, email, id_card, gender) VALUES
 """
@@ -423,7 +406,7 @@ INSERT INTO parents (name, phone, email, id_card, gender) VALUES
 sql += ",\n".join(parent_sql) + ";\n\n"
 
 sql += """-- ============================================================
--- 7. INSERT PARENT-CHILD RELATIONSHIPS
+-- 6. INSERT PARENT-CHILD RELATIONSHIPS
 -- ============================================================
 INSERT INTO parent_children (parent_id, child_id) VALUES
 """
@@ -431,7 +414,7 @@ INSERT INTO parent_children (parent_id, child_id) VALUES
 sql += ",\n".join(parent_child_sql) + ";\n\n"
 
 sql += """-- ============================================================
--- 8. INSERT SUBSCRIPTIONS
+-- 7. INSERT SUBSCRIPTIONS
 -- ============================================================
 INSERT INTO subscriptions (child_id, type, sub_type, amount, discount, insurance, entry_fee, status, exercises, paid_amount, start_date, end_date, created_by, confirmed_by, subscription_date, subscription_type_option, parent_id) VALUES
 """
@@ -449,10 +432,9 @@ with open(output_path, 'w', encoding='utf-8') as f:
     f.write(sql)
 
 print(f"SQL file generated: {output_path}")
-print(f"  Activities: {len(activity_sql)}")
-print(f"  Groups: {len(group_sql)}")
+print(f"  Activités (groups): {len(activity_sql)}")
 print(f"  Trainers: {len(trainer_sql)}")
-print(f"  Exercises (schedules): {len(exercise_sql)}")
+print(f"  Exercises (horaires): {len(exercise_sql)}")
 print(f"  Children: {len(child_sql)}")
 print(f"  Parents: {len(parent_sql)}")
 print(f"  Parent-Child links: {len(parent_child_sql)}")

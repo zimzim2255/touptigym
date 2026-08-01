@@ -11,6 +11,8 @@ interface Props {
   onRefresh?: number; // triggers re-fetch
 }
 
+const MONTHS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+
 export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }: Props) {
   const api = useApi();
   const [q, setQ] = useState("");
@@ -27,6 +29,7 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
   const [filterClientType, setFilterClientType] = useState("");
   const [filterAgeMin, setFilterAgeMin] = useState("");
   const [filterAgeMax, setFilterAgeMax] = useState("");
+  const [filterBirthday, setFilterBirthday] = useState("");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -79,8 +82,29 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
       filtered = filtered.filter(c => c.age <= parseInt(filterAgeMax));
     }
 
+    // Birthday filter (anniversaires)
+    if (filterBirthday) {
+      const today = new Date();
+      const currentMonth = today.getMonth() + 1;
+      filtered = filtered.filter(c => {
+        if (!c.birth_date) return false;
+        const bd = new Date(c.birth_date);
+        const bdMonth = bd.getMonth() + 1;
+        const bdDay = bd.getDate();
+
+        if (filterBirthday === "this_month") return bdMonth === currentMonth;
+        if (filterBirthday === "next_30") {
+          let nextBd = new Date(today.getFullYear(), bdMonth - 1, bdDay);
+          if (nextBd < today) nextBd = new Date(today.getFullYear() + 1, bdMonth - 1, bdDay);
+          const daysUntil = Math.ceil((nextBd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          return daysUntil >= 0 && daysUntil <= 30;
+        }
+        return bdMonth === parseInt(filterBirthday);
+      });
+    }
+
     return filtered;
-  }, [children, q, filterGender, filterSchoolType, filterClientType, filterAgeMin, filterAgeMax]);
+  }, [children, q, filterGender, filterSchoolType, filterClientType, filterAgeMin, filterAgeMax, filterBirthday]);
 
   function formatDate(dateStr: string): string {
     const d = new Date(dateStr);
@@ -93,13 +117,14 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
     setFilterClientType("");
     setFilterAgeMin("");
     setFilterAgeMax("");
+    setFilterBirthday("");
     setPage(1);
   }
 
-  const hasActiveFilters = filterGender || filterSchoolType || filterClientType || filterAgeMin || filterAgeMax;
+  const hasActiveFilters = filterGender || filterSchoolType || filterClientType || filterAgeMin || filterAgeMax || filterBirthday;
 
   // Reset to page 1 when search or filters change
-  useEffect(() => { setPage(1); }, [q, filterGender, filterSchoolType, filterClientType, filterAgeMin, filterAgeMax]);
+  useEffect(() => { setPage(1); }, [q, filterGender, filterSchoolType, filterClientType, filterAgeMin, filterAgeMax, filterBirthday]);
 
   const paginated = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
@@ -109,7 +134,7 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
   return (
     <PageWrap
       title="Gestion des Enfants"
-      sub={`${count} enfants inscrits`}
+      sub={filterBirthday ? `🎂 ${list.length} anniversaire${list.length > 1 ? "s" : ""} trouvé${list.length > 1 ? "s" : ""}` : `${count} enfants inscrits`}
       action={canEdit && <Btn onClick={() => openModal("add-child")}><Plus size={13} /> Ajouter</Btn>}
     >
       <div className="bg-white border border-slate-200">
@@ -164,6 +189,19 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
               <div>
                 <p className="text-xs font-semibold text-slate-500 mb-1">Âge max</p>
                 <input type="number" className={`${inputCls} w-20`} value={filterAgeMax} onChange={e => setFilterAgeMax(e.target.value)} placeholder="99" min="0" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-500 mb-1">🎂 Anniversaire</p>
+                <select className={selectCls} value={filterBirthday} onChange={e => setFilterBirthday(e.target.value)}>
+                  <option value="">Tous</option>
+                  <option value="this_month">🎂 Ce mois-ci</option>
+                  <option value="next_30">📅 30 prochains jours</option>
+                  <optgroup label="Par mois">
+                    {MONTHS.map((m, i) => (
+                      <option key={m} value={String(i + 1).padStart(2, "0")}>{m}</option>
+                    ))}
+                  </optgroup>
+                </select>
               </div>
             </div>
           </div>
