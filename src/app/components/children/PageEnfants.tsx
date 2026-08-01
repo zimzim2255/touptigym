@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Search, Plus, Filter, Eye, Edit2, Trash2, X, Cake } from "lucide-react";
-import { PageWrap, Btn, Tag, inputCls, selectCls } from "../shared/Primitives";
+import { PageWrap, Btn, Tag, inputCls, selectCls, Pagination } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ModalType, Child } from "../../types";
 
@@ -18,6 +18,8 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
   const [loading, setLoading] = useState(true);
   const [count, setCount] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   // Filter states
   const [filterGender, setFilterGender] = useState("");
@@ -91,9 +93,18 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
     setFilterClientType("");
     setFilterAgeMin("");
     setFilterAgeMax("");
+    setPage(1);
   }
 
   const hasActiveFilters = filterGender || filterSchoolType || filterClientType || filterAgeMin || filterAgeMax;
+
+  // Reset to page 1 when search or filters change
+  useEffect(() => { setPage(1); }, [q, filterGender, filterSchoolType, filterClientType, filterAgeMin, filterAgeMax]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return list.slice(start, start + PAGE_SIZE);
+  }, [list, page]);
 
   return (
     <PageWrap
@@ -172,7 +183,7 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {list.map(c => (
+              {paginated.map(c => (
                 <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-slate-900">{c.name}</td>
                   <td className="px-4 py-3 text-slate-500">{c.age} ans</td>
@@ -201,6 +212,9 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
               ))}
             </tbody>
           </table>
+        )}
+        {!loading && list.length > 0 && (
+          <Pagination total={list.length} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} />
         )}
       </div>
     </PageWrap>
