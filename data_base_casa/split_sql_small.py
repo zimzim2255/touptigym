@@ -22,7 +22,7 @@ def extract_insert_section(full_content, marker):
 # ============================================================
 # Helper to split VALUES rows into batches
 # ============================================================
-def split_values(insert_section, rows_per_batch=500):
+def split_values(insert_section, rows_per_batch=2900):
     """
     Take an 'INSERT INTO table (...) VALUES\n  (...),\n  (...);' string
     and split it into multiple complete INSERT statements,
