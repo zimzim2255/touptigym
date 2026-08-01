@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Search, Plus, Filter, Eye, Edit2, Trash2, FolderPlus, Users, ArrowUpDown, ChevronDown } from "lucide-react";
-import { PageWrap, Btn, Tag, inputCls } from "../shared/Primitives";
+import { PageWrap, Btn, Tag, inputCls, Pagination } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ModalType, Group, Exercise, Child as ChildType } from "../../types";
 
@@ -116,6 +116,10 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
   // Sort
   const [sortField, setSortField] = useState<SortField>("day");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   // Selection
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -274,6 +278,19 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
 
   const headers = ["Activité", "Groupe", "Jour", "Horaire", "Coach", ""];
 
+  // Reset to page 1 when filters change
+  useEffect(() => { setPage(1); }, [filterActivite, filterGroupe, filterInstructeur, filterJour, q]);
+
+  const paginatedTableData = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return tableData.slice(start, start + PAGE_SIZE);
+  }, [tableData, page]);
+
+  const paginatedSorted = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return sorted.slice(start, start + PAGE_SIZE);
+  }, [sorted, page]);
+
   return (
     <PageWrap
       title="Activités"
@@ -286,7 +303,7 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
                 <FolderPlus size={13} /> Créer une activité / groupe
               </Btn>
               <Btn onClick={() => openModal("add-exercice")}>
-                <Plus size={13} /> Créer un groupe
+                <Plus size={13} /> Créer un horaires
               </Btn>
             </>
           )}
@@ -378,7 +395,7 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
                       <td colSpan={7} className="px-4 py-6 text-sm text-slate-500 text-center">Aucune activité trouvée.</td>
                     </tr>
                   ) : (
-                    tableData.map((ex, i) => {
+                    paginatedTableData.map((ex, i) => {
                       const isSelected = selectedId === ex.id;
                       return (
                         <tr
@@ -467,6 +484,9 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
               )}
             </div>
           </div>
+          {tableData.length > 0 && (
+            <Pagination total={tableData.length} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} />
+          )}
         </div>
       ) : (
         <div className="bg-white border border-slate-200">
@@ -489,7 +509,7 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {sorted.map(ex => (
+                {paginatedSorted.map(ex => (
                   <tr key={ex.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-slate-900">{ex.groups?.name || ex.name}</td>
                     <td className="px-4 py-3 text-slate-500">{ex.name}</td>
@@ -512,6 +532,9 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
                 ))}
               </tbody>
             </table>
+          )}
+          {sorted.length > 0 && (
+            <Pagination total={sorted.length} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} />
           )}
         </div>
       )}

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Search, Plus, Filter, Eye, Edit2, Trash2, X } from "lucide-react";
-import { PageWrap, Btn, Tag, inputCls, selectCls } from "../shared/Primitives";
+import { PageWrap, Btn, Tag, inputCls, selectCls, Pagination } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ModalType, Parent, Child } from "../../types";
 
@@ -19,6 +19,8 @@ export function PageParents({ canEdit, openModal, setSelectedParent, onRefresh }
   const [loading, setLoading] = useState(true);
   const [count, setCount] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   // Filter states
   const [filterGender, setFilterGender] = useState("");
@@ -92,9 +94,18 @@ export function PageParents({ canEdit, openModal, setSelectedParent, onRefresh }
   function clearFilters() {
     setFilterGender("");
     setFilterHasEmail("");
+    setPage(1);
   }
 
   const hasActiveFilters = filterGender || filterHasEmail;
+
+  // Reset to page 1 when search or filters change
+  useEffect(() => { setPage(1); }, [q, filterGender, filterHasEmail]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return list.slice(start, start + PAGE_SIZE);
+  }, [list, page]);
 
   return (
     <PageWrap
@@ -157,7 +168,7 @@ export function PageParents({ canEdit, openModal, setSelectedParent, onRefresh }
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {list.map(p => {
+              {paginated.map(p => {
                 const pChildren = childrenMap[p.id] || [];
                 return (
                   <tr key={p.id} className="hover:bg-slate-50 transition-colors">
@@ -202,6 +213,9 @@ export function PageParents({ canEdit, openModal, setSelectedParent, onRefresh }
               })}
             </tbody>
           </table>
+        )}
+        {!loading && list.length > 0 && (
+          <Pagination total={list.length} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} />
         )}
       </div>
     </PageWrap>

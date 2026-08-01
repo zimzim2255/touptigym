@@ -128,7 +128,7 @@ const handler = async (req: Request): Promise<Response> => {
 <body>
   <div class="container">
     <div class="header">
-      <img src="https://lpjdpcguplkpdfgxomps.supabase.co/storage/v1/object/public/logo/logo.png" alt="Toupti Gym" />
+      <img src="https://atvdorphwnpzhobvfmtz.supabase.co/storage/v1/object/public/logo/logo.png" alt="Toupti Gym" />
       <h1>🎂 Joyeux Anniversaire !</h1>
     </div>
     <div class="body">

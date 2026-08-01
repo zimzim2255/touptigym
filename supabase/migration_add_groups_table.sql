@@ -1,5 +1,5 @@
 -- Run this in Supabase SQL Editor:
--- https://supabase.com/dashboard/project/lpjdpcguplkpdfgxomps/sql/new
+-- https://supabase.com/dashboard/project/atvdorphwnpzhobvfmtz/sql/new
 
 -- Create groups table (safe to run multiple times)
 CREATE TABLE IF NOT EXISTS groups (

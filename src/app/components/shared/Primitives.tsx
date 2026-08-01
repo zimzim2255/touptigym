@@ -1,4 +1,4 @@
-import { X, Check } from "lucide-react";
+import { X, Check, ChevronLeft, ChevronRight } from "lucide-react";
 
 // ─── Tag ────────────────────────────────────────────────────────────────────
 export function Tag({ children, color = "default" }: { children: React.ReactNode; color?: string }) {
@@ -95,6 +95,68 @@ export function PageWrap({ title, sub, action, children }: {
         {action}
       </div>
       {children}
+    </div>
+  );
+}
+
+// ─── Pagination ──────────────────────────────────────────────────────────────
+export function Pagination({ total, page, pageSize = 50, onPageChange }: {
+  total: number;
+  page: number;
+  pageSize?: number;
+  onPageChange: (p: number) => void;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const current = Math.min(page, totalPages);
+  const start = total === 0 ? 0 : (current - 1) * pageSize + 1;
+  const end = Math.min(current * pageSize, total);
+
+  if (total <= pageSize) return null;
+
+  const pages: number[] = [];
+  const maxVisible = 5;
+  let from = Math.max(1, current - Math.floor(maxVisible / 2));
+  let to = Math.min(totalPages, from + maxVisible - 1);
+  if (to - from + 1 < maxVisible) from = Math.max(1, to - maxVisible + 1);
+
+  for (let i = from; i <= to; i++) pages.push(i);
+
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200">
+      <p className="text-xs text-slate-500">
+        Affichage <span className="font-semibold text-slate-700">{start}–{end}</span> sur <span className="font-semibold text-slate-700">{total}</span>
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onPageChange(current - 1)}
+          disabled={current <= 1}
+          className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          title="Page précédente"
+        >
+          <ChevronLeft size={14} />
+        </button>
+        {pages.map(p => (
+          <button
+            key={p}
+            onClick={() => onPageChange(p)}
+            className={`min-w-[28px] h-7 px-1.5 text-xs font-medium border transition-colors ${
+              p === current
+                ? "bg-pink-500 text-white border-pink-500"
+                : "bg-white text-slate-600 border-slate-200 hover:border-pink-400 hover:text-pink-600"
+            }`}
+          >
+            {p}
+          </button>
+        ))}
+        <button
+          onClick={() => onPageChange(current + 1)}
+          disabled={current >= totalPages}
+          className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          title="Page suivante"
+        >
+          <ChevronRight size={14} />
+        </button>
+      </div>
     </div>
   );
 }
