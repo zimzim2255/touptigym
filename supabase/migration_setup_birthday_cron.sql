@@ -16,7 +16,7 @@ DECLARE
   result text;
 BEGIN
   SELECT content::text INTO result
-  FROM http(('POST', 'https://lpjdpcguplkpdfgxomps.supabase.co/functions/v1/send-birthday-emails', ARRAY[http_header('Content-Type', 'application/json'), http_header('Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwV8Hdp7f7vC5xWw3Wxqo')], '{}', 'application/json')::http_request);
+  FROM http(('POST', 'https://atvdorphwnpzhobvfmtz.supabase.co/functions/v1/send-birthday-emails', ARRAY[http_header('Content-Type', 'application/json'), http_header('Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwV8Hdp7f7vC5xWw3Wxqo')], '{}', 'application/json')::http_request);
   RETURN result;
 END;
 $$;
