@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Search, Plus, Eye, Trash2 } from "lucide-react";
-import { PageWrap, Btn, inputCls } from "../shared/Primitives";
+import { PageWrap, Btn, inputCls, Pagination } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ModalType, Check } from "../../types";
 
@@ -16,6 +16,8 @@ export function PageChecks({ canEdit, openModal, setSelectedCheck, onRefresh }: 
   const [q, setQ] = useState("");
   const [checks, setChecks] = useState<Check[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -39,6 +41,14 @@ export function PageChecks({ canEdit, openModal, setSelectedCheck, onRefresh }: 
       (c.account_holder && c.account_holder.toLowerCase().includes(q.toLowerCase()))
     );
   }, [checks, q]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => { setPage(1); }, [q]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return list.slice(start, start + PAGE_SIZE);
+  }, [list, page]);
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -72,7 +82,7 @@ export function PageChecks({ canEdit, openModal, setSelectedCheck, onRefresh }: 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {list.map(c => {
+              {paginated.map(c => {
                 const emis = c.date_emission ? new Date(c.date_emission).toLocaleDateString("fr-FR") : "—";
                 const exec = c.date_execution ? new Date(c.date_execution).toLocaleDateString("fr-FR") : "—";
                 const rest = c.amount - c.montant_used;
@@ -118,6 +128,9 @@ export function PageChecks({ canEdit, openModal, setSelectedCheck, onRefresh }: 
               })}
             </tbody>
           </table>
+        )}
+        {!loading && list.length > 0 && (
+          <Pagination total={list.length} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} />
         )}
       </div>
     </PageWrap>

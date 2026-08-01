@@ -159,13 +159,15 @@ setup_sql += """-- ============================================================
 """
 write_file('import_casa_01_reference_data.sql', setup_sql)
 
-# --- Children (large batches ~3500 rows each, ~450KB) ---
+BATCH_SIZE = 2900  # ~2900 rows ≈ ~3000 lines per file
+
+# --- Children (batches of ~2900 rows each) ---
 if 'children' in sections:
-    batches = split_values(sections['children'], 3500)
+    batches = split_values(sections['children'], BATCH_SIZE)
     for i, stmt in enumerate(batches):
         file_num += 1
-        rows_start = i * 3500 + 1
-        rows_end = min((i + 1) * 3500, 5998)
+        rows_start = i * BATCH_SIZE + 1
+        rows_end = min((i + 1) * BATCH_SIZE, 5998)
         sql = f"""-- ============================================================
 -- TOUPTI GYM CASA - DATA IMPORT - FILE {file_num} OF 8
 -- CHILDREN - batch {i+1}/{len(batches)} (rows {rows_start}-{rows_end})
@@ -182,9 +184,9 @@ if 'children' in sections:
 """
         write_file(f'import_casa_{file_num:02d}_children.sql', sql)
 
-# --- Parents (large batches ~6000 rows each, ~400KB) ---
+# --- Parents (batches of ~2900 rows each) ---
 if 'parents' in sections:
-    batches = split_values(sections['parents'], 6000)
+    batches = split_values(sections['parents'], BATCH_SIZE)
     for i, stmt in enumerate(batches):
         file_num += 1
         sql = f"""-- ============================================================
@@ -203,9 +205,9 @@ if 'parents' in sections:
 """
         write_file(f'import_casa_{file_num:02d}_parents.sql', sql)
 
-# --- Parent-Child relationships (large batches ~4000 rows, ~550KB) ---
+# --- Parent-Child relationships (batches of ~2900 rows each) ---
 if 'parent_children' in sections:
-    batches = split_values(sections['parent_children'], 4000)
+    batches = split_values(sections['parent_children'], BATCH_SIZE)
     for i, stmt in enumerate(batches):
         file_num += 1
         sql = f"""-- ============================================================
@@ -224,9 +226,9 @@ if 'parent_children' in sections:
 """
         write_file(f'import_casa_{file_num:02d}_parent_children.sql', sql)
 
-# --- Subscriptions (large batches ~2500 rows, ~700KB) ---
+# --- Subscriptions (batches of ~2900 rows each) ---
 if 'subscriptions' in sections:
-    batches = split_values(sections['subscriptions'], 2500)
+    batches = split_values(sections['subscriptions'], BATCH_SIZE)
     for i, stmt in enumerate(batches):
         file_num += 1
         sql = f"""-- ============================================================

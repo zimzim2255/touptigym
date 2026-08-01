@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { CalendarCheck, Clock, HelpCircle } from "lucide-react";
-import { PageWrap, Btn, Tag } from "../shared/Primitives";
+import { PageWrap, Btn, Tag, Pagination } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 
 const DAY_NAMES = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
@@ -26,6 +26,9 @@ export function PageTrainerToday({ openModal, setSelectedEx }: Props) {
   const api = useApi();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
+  const [todayPage, setTodayPage] = useState(1);
+  const [upcomingPage, setUpcomingPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   useEffect(() => {
     (async () => {
@@ -43,6 +46,20 @@ export function PageTrainerToday({ openModal, setSelectedEx }: Props) {
   const todayName = DAY_NAMES[new Date().getDay()];
   const today = useMemo(() => exercises.filter(e => e.day === todayName), [exercises, todayName]);
   const upcoming = useMemo(() => exercises.filter(e => e.day !== todayName), [exercises, todayName]);
+
+  // Reset pages when exercises change
+  useEffect(() => { setTodayPage(1); }, [today.length]);
+  useEffect(() => { setUpcomingPage(1); }, [upcoming.length]);
+
+  const paginatedToday = useMemo(() => {
+    const start = (todayPage - 1) * PAGE_SIZE;
+    return today.slice(start, start + PAGE_SIZE);
+  }, [today, todayPage]);
+
+  const paginatedUpcoming = useMemo(() => {
+    const start = (upcomingPage - 1) * PAGE_SIZE;
+    return upcoming.slice(start, start + PAGE_SIZE);
+  }, [upcoming, upcomingPage]);
 
   const formattedDate = new Date().toLocaleDateString("fr-FR", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
@@ -62,7 +79,7 @@ export function PageTrainerToday({ openModal, setSelectedEx }: Props) {
       ) : (
         <div>
           <div className="space-y-2">
-            {today.map(ex => (
+            {paginatedToday.map(ex => (
               <div key={ex.id} className="bg-white border border-slate-200 px-4 py-3 flex items-center gap-4">
                 <div className="flex items-center gap-2 text-sm min-w-[90px]">
                   <Clock size={14} className="text-slate-400" />
@@ -78,12 +95,15 @@ export function PageTrainerToday({ openModal, setSelectedEx }: Props) {
               </div>
             ))}
           </div>
+          {today.length > 0 && (
+            <Pagination total={today.length} page={todayPage} pageSize={PAGE_SIZE} onPageChange={setTodayPage} />
+          )}
 
           {upcoming.length > 0 && (
             <div className="mt-8">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Autres activités</p>
               <div className="divide-y divide-slate-200 border border-slate-200 bg-white">
-                {upcoming.map(ex => (
+                {paginatedUpcoming.map(ex => (
                   <div key={ex.id} className="px-4 py-2.5 flex items-center gap-3 text-sm">
                     <Tag color="default">{ex.day}</Tag>
                     <span className="font-mono text-xs text-slate-500">{ex.start_time}</span>
@@ -91,6 +111,9 @@ export function PageTrainerToday({ openModal, setSelectedEx }: Props) {
                   </div>
                 ))}
               </div>
+              {upcoming.length > 0 && (
+                <Pagination total={upcoming.length} page={upcomingPage} pageSize={PAGE_SIZE} onPageChange={setUpcomingPage} />
+              )}
             </div>
           )}
         </div>

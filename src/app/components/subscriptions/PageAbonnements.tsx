@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+ import { useState, useMemo, useEffect, useCallback } from "react";
 import { Search, Plus, Filter, Eye, Edit2, Trash2, Check, X, CreditCard } from "lucide-react";
-import { PageWrap, Btn, Tag, inputCls } from "../shared/Primitives";
+import { PageWrap, Btn, Tag, inputCls, Pagination } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ModalType } from "../../types";
 
@@ -43,6 +43,8 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
   const [dateRangeFrom, setDateRangeFrom] = useState("");
   const [dateRangeTo, setDateRangeTo] = useState("");
   const [dateQuickType, setDateQuickType] = useState<"start" | "end" | "operation">("start");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const active = subscriptions.filter(s => s.status === "actif").length;
   const expired = subscriptions.filter(s => s.status === "expiré" || s.status === "résilié").length;
@@ -99,6 +101,14 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
     filtered = [...filtered].sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
     return filtered;
   }, [subscriptions, q, payFilter, dateRangeFrom, dateRangeTo, dateQuickType]);
+
+  // Reset to page 1 when search or filters change
+  useEffect(() => { setPage(1); }, [q, payFilter, dateRangeFrom, dateRangeTo, dateQuickType]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return list.slice(start, start + PAGE_SIZE);
+  }, [list, page]);
 
   function getPayStatus(total: number, paid: number): { label: string; color: string } {
     const rest = total - paid;
@@ -236,7 +246,7 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {list.map(s => {
+              {paginated.map(s => {
                 const status = computeStatus(s);
                 const total = s.amount - s.discount + s.insurance + s.entry_fee;
                 const paid = s.paid_amount || 0;
@@ -287,6 +297,9 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
               })}
             </tbody>
           </table>
+        )}
+        {!loading && list.length > 0 && (
+          <Pagination total={list.length} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} />
         )}
       </div>
     </PageWrap>
