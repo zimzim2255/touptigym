@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Search, Plus, Filter, Eye, Edit2, Trash2, Check, X, CreditCard } from "lucide-react";
-import { PageWrap, Btn, Tag, inputCls } from "../shared/Primitives";
+import { PageWrap, Btn, Tag, inputCls, Pagination } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ModalType } from "../../types";
 
@@ -20,6 +20,8 @@ interface Subscription {
   end_date: string;
   subscription_date?: string;
   created_at: string;
+  confirmation_status?: string;
+  confirmed_at?: string;
   children?: { name: string };
 }
 
@@ -32,6 +34,7 @@ interface Props {
 }
 
 type PaymentFilter = "all" | "paid" | "partial" | "unpaid";
+type ConfirmFilter = "all" | "confirmed" | "pending" | "unconfirmed";
 
 export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedSubscription, onRefresh }: Props) {
   const api = useApi();
@@ -40,9 +43,12 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
   const [loading, setLoading] = useState(true);
   const [count, setCount] = useState(0);
   const [payFilter, setPayFilter] = useState<PaymentFilter>("all");
+  const [confirmFilter, setConfirmFilter] = useState<ConfirmFilter>("all");
   const [dateRangeFrom, setDateRangeFrom] = useState("");
   const [dateRangeTo, setDateRangeTo] = useState("");
   const [dateQuickType, setDateQuickType] = useState<"start" | "end" | "operation">("start");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const active = subscriptions.filter(s => s.status === "actif").length;
   const expired = subscriptions.filter(s => s.status === "expiré" || s.status === "résilié").length;
@@ -85,6 +91,14 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
         return true;
       });
     }
+    if (confirmFilter !== "all") {
+      filtered = filtered.filter(s => {
+        if (confirmFilter === "confirmed") return s.confirmation_status === "confirmed";
+        if (confirmFilter === "unconfirmed") return s.confirmation_status === "unconfirmed";
+        // pending = not yet touched by admin
+        return !s.confirmation_status || s.confirmation_status === "pending";
+      });
+    }
     // Date range filter based on selected type
     if (dateRangeFrom && dateRangeTo) {
       if (dateQuickType === "start") {
@@ -98,7 +112,15 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
     // Sort by start date
     filtered = [...filtered].sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
     return filtered;
-  }, [subscriptions, q, payFilter, dateRangeFrom, dateRangeTo, dateQuickType]);
+  }, [subscriptions, q, payFilter, confirmFilter, dateRangeFrom, dateRangeTo, dateQuickType]);
+
+  // Reset to page 1 when search or filters change
+  useEffect(() => { setPage(1); }, [q, payFilter, confirmFilter, dateRangeFrom, dateRangeTo, dateQuickType]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return list.slice(start, start + PAGE_SIZE);
+  }, [list, page]);
 
   function getPayStatus(total: number, paid: number): { label: string; color: string } {
     const rest = total - paid;
@@ -107,9 +129,25 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
     return { label: "Partiel", color: "amber" };
   }
 
+  function getConfirmStatus(s: Subscription): { label: string; color: "green" | "red" | "amber"; showBox: boolean; showControls: boolean } {
+    if (s.confirmation_status === "confirmed") return { label: "Confirmé", color: "green", showBox: true, showControls: false };
+    if (s.confirmation_status === "unconfirmed") return { label: "Non confirmé", color: "red", showBox: true, showControls: true };
+    return { label: "Pending", color: "amber", showBox: true, showControls: true };
+  }
+
   async function handleConfirm(id: string) {
     try {
       await api.subscriptions.confirm(id, "admin");
+      refresh();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  async function handleUnconfirm(id: string) {
+    if (!confirm("Retirer la confirmation de cet abonnement ?")) return;
+    try {
+      await api.subscriptions.unconfirm(id);
       refresh();
     } catch (err: any) {
       alert(err.message);
@@ -149,6 +187,13 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
     { key: "paid", label: "Payé" },
     { key: "partial", label: "Partiel" },
     { key: "unpaid", label: "Non payé" },
+  ];
+
+  const confirmFilterBtns: { key: ConfirmFilter; label: string }[] = [
+    { key: "all", label: "Tous" },
+    { key: "confirmed", label: "Confirmé" },
+    { key: "pending", label: "Pending" },
+    { key: "unconfirmed", label: "Non confirmé" },
   ];
 
   return (
@@ -198,6 +243,23 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
               </button>
             ))}
           </div>
+          {canConfirm && (
+            <div className="flex gap-1">
+              {confirmFilterBtns.map(btn => (
+                <button
+                  key={btn.key}
+                  onClick={() => setConfirmFilter(btn.key)}
+                  className={`px-3 py-1.5 text-xs font-medium border transition-colors ${
+                    confirmFilter === btn.key
+                      ? "border-pink-500 bg-pink-50 text-pink-700"
+                      : "border-slate-200 text-slate-500 hover:border-slate-400"
+                  }`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="flex items-center gap-1">
             <select value={dateQuickType} onChange={e => { setDateQuickType(e.target.value as "start" | "end" | "operation"); setDateRangeFrom(""); setDateRangeTo(""); }} className={`${inputCls} text-xs w-24`}>
               <option value="start">Début</option>
@@ -230,18 +292,19 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                {["Enfant", "Type", "Total", "Payé", "Reste", "Date d'opérations", "Validité", "Statut", "Paiement", "Actions"].map(h => (
+                {["Enfant", "Type", "Total", "Payé", "Reste", "Date d'opérations", "Validité", "Statut", "Confirmation", "Paiement", "Actions"].map(h => (
                   <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {list.map(s => {
+              {paginated.map(s => {
                 const status = computeStatus(s);
                 const total = s.amount - s.discount + s.insurance + s.entry_fee;
                 const paid = s.paid_amount || 0;
                 const rest = total - paid;
                 const payStatus = getPayStatus(total, paid);
+                const confirmInfo = getConfirmStatus(s);
 
                 const isApproaching = (() => {
                   const now = new Date();
@@ -267,6 +330,41 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
                     <td className="px-4 py-3">
                       <Tag color={status === "actif" ? "green" : status === "expiré" || status === "résilié" ? "red" : "amber"}>{status}</Tag>
                     </td>
+                    {/* Confirmation column with green/red box */}
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1">
+                        {confirmInfo.showBox && (
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold border ${
+                              confirmInfo.color === "green"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                                : confirmInfo.color === "red"
+                                ? "bg-red-50 text-red-700 border-red-300"
+                                : "bg-amber-50 text-amber-700 border-amber-300"
+                            }`}
+                          >
+                            {confirmInfo.color === "green" ? <Check size={10} /> : confirmInfo.color === "red" ? <X size={10} /> : <Filter size={10} />}
+                            {confirmInfo.label}
+                          </span>
+                        )}
+                        {canConfirm && confirmInfo.showControls && (
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleConfirm(s.id)}
+                              className="flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                            >
+                              <Check size={9} /> Confirmer
+                            </button>
+                            <button
+                              onClick={() => handleUnconfirm(s.id)}
+                              className="flex items-center gap-1 px-2 py-0.5 bg-red-50 text-red-700 text-[10px] border border-red-200 hover:bg-red-100 transition-colors"
+                            >
+                              <X size={9} /> Non confirmé
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <Tag color={payStatus.color}>{payStatus.label}</Tag>
                     </td>
@@ -287,6 +385,9 @@ export function PageAbonnements({ canConfirm, canCreate, openModal, setSelectedS
               })}
             </tbody>
           </table>
+        )}
+        {!loading && list.length > 0 && (
+          <Pagination total={list.length} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} />
         )}
       </div>
     </PageWrap>

@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { supabase } from '../_shared/supabaseClient.ts'
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts'
+import { fetchAll } from '../_shared/pagination.ts'
 
 serve(async (req) => {
   const cors = handleCors(req)
@@ -14,9 +15,12 @@ serve(async (req) => {
 
     // GET /functions/v1/requests
     if (method === 'GET' && (!last || last === 'requests')) {
-      const { data, error } = await supabase.from('urgent_requests').select('*, children(name), exercises(name), users(name)').order('created_at', { ascending: false })
-      if (error) return errorResponse(error.message, 500)
-      return jsonResponse(data)
+      try {
+        const data = await fetchAll(supabase.from('urgent_requests').select('*, children(name), exercises(name), users(name)'), 'created_at')
+        return jsonResponse(data)
+      } catch (err: any) {
+        return errorResponse(err.message, 500)
+      }
     }
 
     // POST /functions/v1/requests

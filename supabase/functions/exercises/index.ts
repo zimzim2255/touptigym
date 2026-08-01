@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { supabase } from '../_shared/supabaseClient.ts'
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts'
+import { fetchAll } from '../_shared/pagination.ts'
 
 serve(async (req) => {
   const cors = handleCors(req)
@@ -19,13 +20,16 @@ serve(async (req) => {
       const day = url.searchParams.get('day')
       const coachId = url.searchParams.get('coach_id')
 
-      let query = supabase.from('exercises').select('*, trainers(name), groups(name, description)').order('day')
+      let query = supabase.from('exercises').select('*, trainers(name), groups(name, description)')
       if (day) query = query.eq('day', day)
       if (coachId) query = query.eq('coach_id', coachId)
 
-      const { data, error } = await query
-      if (error) return errorResponse(error.message, 500)
-      return jsonResponse(data)
+      try {
+        const data = await fetchAll(query, 'day')
+        return jsonResponse(data)
+      } catch (err: any) {
+        return errorResponse(err.message, 500)
+      }
     }
 
     // GET /exercises/:id

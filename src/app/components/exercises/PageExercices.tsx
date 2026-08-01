@@ -286,7 +286,7 @@ export function PageExercices({ canCreate, canEdit, canViewPrice = true, openMod
                 <FolderPlus size={13} /> Créer une activité / groupe
               </Btn>
               <Btn onClick={() => openModal("add-exercice")}>
-                <Plus size={13} /> Créer un groupe
+                <Plus size={13} /> Créer un horaires
               </Btn>
             </>
           )}

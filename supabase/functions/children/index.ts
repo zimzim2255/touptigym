@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { supabase } from '../_shared/supabaseClient.ts'
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts'
+import { fetchAll } from '../_shared/pagination.ts'
 
 function calculateAge(birthDate: string): number {
   const birth = new Date(birthDate)
@@ -25,11 +26,14 @@ serve(async (req) => {
     // GET /children or /children?q=search
     if (method === 'GET' && (!id || id === 'children')) {
       const q = url.searchParams.get('q')
-      let query = supabase.from('children').select('*').order('name')
+      let query = supabase.from('children').select('*')
       if (q) query = query.ilike('name', `%${q}%`)
-      const { data, error } = await query
-      if (error) return errorResponse(error.message, 500)
-      return jsonResponse(data)
+      try {
+        const data = await fetchAll(query, 'name')
+        return jsonResponse(data)
+      } catch (err: any) {
+        return errorResponse(err.message, 500)
+      }
     }
 
     // GET /children/:id

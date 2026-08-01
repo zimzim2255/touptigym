@@ -98,3 +98,65 @@ export function PageWrap({ title, sub, action, children }: {
     </div>
   );
 }
+
+// ─── Pagination ──────────────────────────────────────────────────────────────
+export function Pagination({ total, page, pageSize, onPageChange }: {
+  total: number;
+  page: number;
+  pageSize: number;
+  onPageChange: (p: number) => void;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (totalPages <= 1) return null;
+  const pages: number[] = [];
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || Math.abs(i - page) <= 2) pages.push(i);
+  }
+  const items: (number | "...")[] = [];
+  let prev = 0;
+  for (const p of pages) {
+    if (p - prev > 1) items.push("...");
+    items.push(p);
+    prev = p;
+  }
+  return (
+    <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200">
+      <p className="text-xs text-slate-500">
+        {total} élément(s) — page {page}/{totalPages}
+      </p>
+      <div className="flex gap-1">
+        <button
+          onClick={() => onPageChange(Math.max(1, page - 1))}
+          disabled={page <= 1}
+          className="px-2 py-1 text-xs border border-slate-200 text-slate-500 hover:border-slate-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Préc
+        </button>
+        {items.map((it, i) =>
+          it === "..." ? (
+            <span key={`e${i}`} className="px-2 py-1 text-xs text-slate-400">…</span>
+          ) : (
+            <button
+              key={it}
+              onClick={() => onPageChange(it)}
+              className={`px-2 py-1 text-xs border transition-colors ${
+                it === page
+                  ? "border-pink-500 bg-pink-50 text-pink-700 font-semibold"
+                  : "border-slate-200 text-slate-500 hover:border-slate-400"
+              }`}
+            >
+              {it}
+            </button>
+          )
+        )}
+        <button
+          onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+          disabled={page >= totalPages}
+          className="px-2 py-1 text-xs border border-slate-200 text-slate-500 hover:border-slate-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          Suiv
+        </button>
+      </div>
+    </div>
+  );
+}

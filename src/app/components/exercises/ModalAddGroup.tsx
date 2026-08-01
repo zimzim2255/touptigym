@@ -87,7 +87,7 @@ export function ModalAddGroup({ onClose, onCreated }: Props) {
 
         <div className="flex gap-3 pt-2 border-t border-slate-100">
           <Btn onClick={handleSubmit} disabled={loading}>
-            {loading ? "Création..." : <><Check size={13} /> Créer le groupe</>}
+            {loading ? "Création..." : <><Check size={13} /> Créer un horaires</>}
           </Btn>
           <Btn variant="outline" onClick={onClose}>Annuler</Btn>
         </div>

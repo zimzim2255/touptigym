@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Search, TrendingUp, AlertCircle, CreditCard } from "lucide-react";
-import { PageWrap, Btn, Tag, inputCls } from "../shared/Primitives";
+import { PageWrap, Btn, Tag, inputCls, Pagination } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 
 interface Subscription {
@@ -27,6 +27,8 @@ export function PagePaiements({ openPayModal, onRefresh }: Props) {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -49,6 +51,13 @@ export function PagePaiements({ openPayModal, onRefresh }: Props) {
       (s.children?.name || "").toLowerCase().includes(lq)
     );
   }, [subscriptions, q]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return list.slice(start, start + PAGE_SIZE);
+  }, [list, page]);
+
+  useEffect(() => { setPage(1); }, [q]);
 
   const totalReceivable = subscriptions.reduce((sum, s) => {
     const total = s.amount - s.discount + s.insurance + s.entry_fee;
@@ -103,7 +112,7 @@ export function PagePaiements({ openPayModal, onRefresh }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {list.map(s => {
+              {paginated.map(s => {
                 const total = s.amount - s.discount + s.insurance + s.entry_fee;
                 const paid = s.paid_amount || 0;
                 const rest = total - paid;
@@ -135,6 +144,9 @@ export function PagePaiements({ openPayModal, onRefresh }: Props) {
               })}
             </tbody>
           </table>
+        )}
+        {!loading && list.length > 0 && (
+          <Pagination total={list.length} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} />
         )}
       </div>
     </PageWrap>

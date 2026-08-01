@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Filter, Check, X, Search, Download, FileText, FileSpreadsheet } from "lucide-react";
-import { PageWrap, Tag, inputCls, selectCls, Btn, Field, Modal } from "../shared/Primitives";
+import { PageWrap, Tag, inputCls, selectCls, Btn, Field, Modal, Pagination } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 
 interface Absence {
@@ -32,6 +32,8 @@ export function PageAbsences({ openModal, setSelectedAbsence }: Props) {
   const [dateStart, setDateStart] = useState("");
   const [dateEnd, setDateEnd] = useState("");
   const tableRef = useRef<HTMLTableElement>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -77,6 +79,13 @@ export function PageAbsences({ openModal, setSelectedAbsence }: Props) {
 
     return filtered;
   }, [absences, filterType, searchName, filterExercise, dateStart, dateEnd]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return list.slice(start, start + PAGE_SIZE);
+  }, [list, page]);
+
+  useEffect(() => { setPage(1); }, [filterType, searchName, filterExercise, dateStart, dateEnd]);
 
   const totalAbsences = list.filter(a => a.type === "absence").length;
   const totalRetards = list.filter(a => a.type === "retard").length;
@@ -248,7 +257,7 @@ export function PageAbsences({ openModal, setSelectedAbsence }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {list.map(a => (
+              {paginated.map(a => (
                 <tr key={a.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">{a.children?.name || "—"}</td>
                   <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{a.date}</td>
@@ -285,6 +294,9 @@ export function PageAbsences({ openModal, setSelectedAbsence }: Props) {
             </tbody>
           </table>
         </div>
+      )}
+      {!loading && list.length > 0 && (
+        <Pagination total={list.length} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} />
       )}
     </PageWrap>
   );

@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { supabase } from '../_shared/supabaseClient.ts'
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts'
+import { fetchAll } from '../_shared/pagination.ts'
 
 serve(async (req) => {
   const cors = handleCors(req)
@@ -18,13 +19,16 @@ serve(async (req) => {
       const childId = url.searchParams.get('child_id')
       const status = url.searchParams.get('status')
 
-      let query = supabase.from('subscriptions').select('*, children(name), parents!parent_id(name, gender)').order('created_at', { ascending: false })
+      let query = supabase.from('subscriptions').select('*, children(name), parents!parent_id(name, gender)')
       if (childId) query = query.eq('child_id', childId)
       if (status) query = query.eq('status', status)
 
-      const { data, error } = await query
-      if (error) return errorResponse(error.message, 500)
-      return jsonResponse(data || [])
+      try {
+        const data = await fetchAll(query, 'created_at')
+        return jsonResponse(data || [])
+      } catch (err: any) {
+        return errorResponse(err.message, 500)
+      }
     }
 
     // GET /subscriptions/:id
@@ -162,10 +166,25 @@ serve(async (req) => {
       return jsonResponse({ success: true })
     }
 
-    // POST /subscriptions/:id/confirm
+    // POST /subscriptions/:id/confirm — admin confirms the subscription
     if (method === 'POST' && segments.length === 2 && segments[1] === 'confirm') {
       const body = await req.json()
-      const { data, error } = await supabase.from('subscriptions').update({ status: 'actif', confirmed_by: body.confirmed_by }).eq('id', segments[0]).select().single()
+      const { data, error } = await supabase.from('subscriptions').update({
+        status: 'actif',
+        confirmed_by: body.confirmed_by,
+        confirmation_status: 'confirmed',
+        confirmed_at: new Date().toISOString(),
+      }).eq('id', segments[0]).select().single()
+      if (error) return errorResponse(error.message)
+      return jsonResponse(data)
+    }
+
+    // POST /subscriptions/:id/unconfirm — admin unconfirms the subscription
+    if (method === 'POST' && segments.length === 2 && segments[1] === 'unconfirm') {
+      const { data, error } = await supabase.from('subscriptions').update({
+        confirmation_status: 'unconfirmed',
+        confirmed_at: new Date().toISOString(),
+      }).eq('id', segments[0]).select().single()
       if (error) return errorResponse(error.message)
       return jsonResponse(data)
     }

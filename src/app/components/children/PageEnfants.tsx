@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Search, Plus, Filter, Eye, Edit2, Trash2, X, Cake } from "lucide-react";
-import { PageWrap, Btn, Tag, inputCls, selectCls } from "../shared/Primitives";
+import { PageWrap, Btn, Tag, inputCls, selectCls, Pagination } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ModalType, Child } from "../../types";
 
@@ -25,6 +25,9 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
   const [filterClientType, setFilterClientType] = useState("");
   const [filterAgeMin, setFilterAgeMin] = useState("");
   const [filterAgeMax, setFilterAgeMax] = useState("");
+  const [filterBirthdayMonth, setFilterBirthdayMonth] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -77,8 +80,16 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
       filtered = filtered.filter(c => c.age <= parseInt(filterAgeMax));
     }
 
+    // Birthday month filter
+    if (filterBirthdayMonth) {
+      filtered = filtered.filter(c => {
+        const d = new Date(c.birth_date);
+        return (d.getMonth() + 1) === parseInt(filterBirthdayMonth);
+      });
+    }
+
     return filtered;
-  }, [children, q, filterGender, filterSchoolType, filterClientType, filterAgeMin, filterAgeMax]);
+  }, [children, q, filterGender, filterSchoolType, filterClientType, filterAgeMin, filterAgeMax, filterBirthdayMonth]);
 
   function formatDate(dateStr: string): string {
     const d = new Date(dateStr);
@@ -91,9 +102,17 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
     setFilterClientType("");
     setFilterAgeMin("");
     setFilterAgeMax("");
+    setFilterBirthdayMonth("");
   }
 
-  const hasActiveFilters = filterGender || filterSchoolType || filterClientType || filterAgeMin || filterAgeMax;
+  const hasActiveFilters = filterGender || filterSchoolType || filterClientType || filterAgeMin || filterAgeMax || filterBirthdayMonth;
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return list.slice(start, start + PAGE_SIZE);
+  }, [list, page]);
+
+  useEffect(() => { setPage(1); }, [q, filterGender, filterSchoolType, filterClientType, filterAgeMin, filterAgeMax, filterBirthdayMonth]);
 
   return (
     <PageWrap
@@ -154,6 +173,15 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
                 <p className="text-xs font-semibold text-slate-500 mb-1">Âge max</p>
                 <input type="number" className={`${inputCls} w-20`} value={filterAgeMax} onChange={e => setFilterAgeMax(e.target.value)} placeholder="99" min="0" />
               </div>
+              <div>
+                <p className="text-xs font-semibold text-slate-500 mb-1">Mois anniversaire</p>
+                <select className={selectCls} value={filterBirthdayMonth} onChange={e => setFilterBirthdayMonth(e.target.value)}>
+                  <option value="">Tous</option>
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                    <option key={m} value={m}>{new Date(0, m - 1).toLocaleDateString("fr-FR", { month: "long" })}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         )}
@@ -172,7 +200,7 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {list.map(c => (
+              {paginated.map(c => (
                 <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-slate-900">{c.name}</td>
                   <td className="px-4 py-3 text-slate-500">{c.age} ans</td>
@@ -201,6 +229,9 @@ export function PageEnfants({ canEdit, openModal, setSelectedChild, onRefresh }:
               ))}
             </tbody>
           </table>
+        )}
+        {!loading && list.length > 0 && (
+          <Pagination total={list.length} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} />
         )}
       </div>
     </PageWrap>

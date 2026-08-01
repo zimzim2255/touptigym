@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { supabase } from '../_shared/supabaseClient.ts'
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts'
+import { fetchAll } from '../_shared/pagination.ts'
 
 serve(async (req) => {
   const cors = handleCors(req)
@@ -16,9 +17,12 @@ serve(async (req) => {
 
     // ─── Absences ─────────────────────────────────
     if (method === 'GET' && segments.length === 1 && segments[0] === 'absences') {
-      const { data, error } = await supabase.from('absences').select('*, children(name), exercises(name)').order('date', { ascending: false })
-      if (error) return errorResponse(error.message, 500)
-      return jsonResponse(data)
+      try {
+        const data = await fetchAll(supabase.from('absences').select('*, children(name), exercises(name)'), 'date')
+        return jsonResponse(data)
+      } catch (err: any) {
+        return errorResponse(err.message, 500)
+      }
     }
 
     if (method === 'POST' && segments.length === 1 && segments[0] === 'absences') {
@@ -68,16 +72,19 @@ serve(async (req) => {
     if (method === 'GET' && segments.length === 3 && segments[0] === 'exercises' && segments[2] === 'children') {
       const exerciseId = segments[1]
       // Get subscriptions that include this exercise
-      const { data: subs, error: subError } = await supabase
-        .from('subscriptions')
-        .select('child_id')
-        .contains('exercises', [exerciseId])
-        .in('status', ['actif', 'en_attente'])
-      if (subError && !subError.message?.includes('invalid input')) {
-        return errorResponse(subError.message, 500)
+      let subsResult: any[] = []
+      try {
+        subsResult = await fetchAll(
+          supabase.from('subscriptions').select('child_id').contains('exercises', [exerciseId]).in('status', ['actif', 'en_attente']),
+          'created_at'
+        )
+      } catch (err: any) {
+        if (!err.message?.includes('invalid input')) {
+          return errorResponse(err.message, 500)
+        }
       }
 
-      const childIds = subs?.map((s: any) => s.child_id) || []
+      const childIds = subsResult.map((s: any) => s.child_id) || []
       if (childIds.length === 0) return jsonResponse([])
 
       const { data: children, error: childError } = await supabase
@@ -154,7 +161,7 @@ serve(async (req) => {
     }
 
     return errorResponse('Method not allowed', 405)
-  } catch (err) {
+  } catch (err: any) {
     return errorResponse(err.message, 500)
   }
 })

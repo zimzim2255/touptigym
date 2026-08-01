@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { Search, Plus, Filter, Eye, Edit2, Trash2 } from "lucide-react";
-import { PageWrap, Btn, Tag, inputCls } from "../shared/Primitives";
+import { PageWrap, Btn, Tag, inputCls, Pagination } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
 import { ModalType } from "../../types";
 
@@ -27,6 +27,8 @@ export function PageEntraineurs({ canEdit, openModal, setSelectedTrainer, onRefr
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [loading, setLoading] = useState(true);
   const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -52,6 +54,13 @@ export function PageEntraineurs({ canEdit, openModal, setSelectedTrainer, onRefr
       (t.email || "").toLowerCase().includes(lq)
     );
   }, [trainers, q]);
+
+  const paginated = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return list.slice(start, start + PAGE_SIZE);
+  }, [list, page]);
+
+  useEffect(() => { setPage(1); }, [q]);
 
   async function handleDelete(id: string) {
     if (!confirm("Supprimer cet entraîneur ?")) return;
@@ -91,7 +100,7 @@ export function PageEntraineurs({ canEdit, openModal, setSelectedTrainer, onRefr
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {list.map(t => (
+              {paginated.map(t => (
                 <tr key={t.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-slate-900">{t.name}</td>
                   <td className="px-4 py-3 text-slate-500">{t.specialty || "—"}</td>
@@ -113,6 +122,9 @@ export function PageEntraineurs({ canEdit, openModal, setSelectedTrainer, onRefr
               ))}
             </tbody>
           </table>
+        )}
+        {!loading && list.length > 0 && (
+          <Pagination total={list.length} page={page} pageSize={PAGE_SIZE} onPageChange={setPage} />
         )}
       </div>
     </PageWrap>
