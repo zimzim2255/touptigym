@@ -45,6 +45,7 @@ export function useApi() {
     parents: {
       getAll: (childId?: string) => request(`/parents${childId ? `?child_id=${childId}` : ''}`),
       getById: (id: string) => request(`/parents/${id}`),
+      getLinks: () => request('/parents/links'),
       create: (data: any) => request('/parents', { method: 'POST', body: JSON.stringify(data) }),
       update: (id: string, data: any) => request(`/parents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
       remove: (id: string) => request(`/parents/${id}`, { method: 'DELETE' }),

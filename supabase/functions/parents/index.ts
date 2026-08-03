@@ -31,6 +31,12 @@ serve(async (req) => {
       return jsonResponse(data)
     }
 
+    // GET /links (get ALL parent-child links in one call - avoids N+1)
+    if (method === 'GET' && segments.length === 1 && segments[0] === 'links') {
+      const data = await fetchAll(supabase.from('parent_children').select('parent_id, child_id'), 'parent_id')
+      return jsonResponse(data)
+    }
+
     // GET /:id (get one parent with children)
     if (method === 'GET' && segments.length === 1) {
       const { data, error } = await supabase.from('parents').select('*, parent_children(child_id)').eq('id', segments[0]).single()
