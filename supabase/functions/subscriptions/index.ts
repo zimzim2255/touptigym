@@ -165,9 +165,23 @@ serve(async (req) => {
     // POST /subscriptions/:id/confirm — admin confirms the subscription
     if (method === 'POST' && segments.length === 2 && segments[1] === 'confirm') {
       const body = await req.json()
+      let confirmedById = body.confirmed_by || null
+
+      // If confirmed_by is a role name (e.g. "admin") instead of a UUID,
+      // resolve it to the first user with that role.
+      if (confirmedById && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(confirmedById))) {
+        const { data: roleUser } = await supabase
+          .from('users')
+          .select('id')
+          .eq('role', String(confirmedById))
+          .limit(1)
+          .maybeSingle()
+        confirmedById = roleUser?.id || null
+      }
+
       const { data, error } = await supabase.from('subscriptions').update({
         status: 'actif',
-        confirmed_by: body.confirmed_by,
+        confirmed_by: confirmedById,
         confirmation_status: 'confirmed',
         confirmed_at: new Date().toISOString(),
       }).eq('id', segments[0]).select().single()
