@@ -23,6 +23,8 @@ interface SubscriptionData {
   created_at: string;
   created_by?: string;
   confirmed_by?: string;
+  confirmation_status?: string;
+  confirmed_at?: string;
   children?: { name: string };
   parents?: { name: string; gender: string };
 }
@@ -443,6 +445,8 @@ export function ModalSubscriptionDetail({ subscriptionId, onClose, onUpdated }: 
   }
 
   const statusColor = sub.status === "actif" ? "green" : sub.status === "expiré" || sub.status === "résilié" ? "red" : "amber";
+  const confirmColor = sub.confirmation_status === "confirmed" ? "green" : sub.confirmation_status === "unconfirmed" ? "red" : "amber";
+  const confirmLabel = sub.confirmation_status === "confirmed" ? "Confirmé" : sub.confirmation_status === "unconfirmed" ? "Non confirmé" : "—";
   const displayTotal = sub.amount - sub.discount + sub.insurance + sub.entry_fee;
 
   // Get names for display
@@ -815,7 +819,11 @@ export function ModalSubscriptionDetail({ subscriptionId, onClose, onUpdated }: 
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">1. Enfant</p>
             <div className="border border-slate-200 p-3 bg-slate-50 flex items-center justify-between">
               <span className="font-medium text-slate-900">{sub.children?.name || "—"}</span>
-              <Tag color={statusColor}>{sub.status}</Tag>
+              <div className="flex items-center gap-2">
+                {sub.confirmation_status === "confirmed" && <Tag color="green">Confirmé</Tag>}
+                {sub.confirmation_status === "unconfirmed" && <Tag color="red">Non confirmé</Tag>}
+                <Tag color={statusColor}>{sub.status}</Tag>
+              </div>
             </div>
           </div>
 

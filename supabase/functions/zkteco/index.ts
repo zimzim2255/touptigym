@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { supabase } from '../_shared/supabaseClient.ts'
 import { corsHeaders, handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts'
+import { fetchAll } from '../_shared/pagination.ts'
 
 serve(async (req) => {
   const cors = handleCors(req)
@@ -88,8 +89,7 @@ serve(async (req) => {
 
     // GET /zkteco/devices — list all devices
     if (method === 'GET' && segments.length === 1 && segments[0] === 'devices') {
-      const { data, error } = await supabase.from('zkteco_devices').select('*').order('name')
-      if (error) return errorResponse(error.message, 500)
+      const data = await fetchAll(supabase.from('zkteco_devices').select('*'), 'name')
       return jsonResponse(data)
     }
 

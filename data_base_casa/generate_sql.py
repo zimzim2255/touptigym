@@ -152,13 +152,14 @@ for row in groups_data[1:]:
             elif 'GYMNASTIQUE' in act_upper:
                 act_type = 'Gymnastics'
             
-            # Map day to English
-            day_map = {
-                'LUNDI': 'Monday', 'MARDI': 'Tuesday', 'MERCREDI': 'Wednesday',
-                'JEUDI': 'Thursday', 'VENDREDI': 'Friday', 'SAMEDI': 'Saturday',
-                'DIMANCHE': 'Sunday'
+            # Map day to French (keep as is from source - already French uppercase)
+            # Normalize to proper French capitalization: LUNDI → Lundi, etc.
+            day_fr_map = {
+                'LUNDI': 'Lundi', 'MARDI': 'Mardi', 'MERCREDI': 'Mercredi',
+                'JEUDI': 'Jeudi', 'VENDREDI': 'Vendredi', 'SAMEDI': 'Samedi',
+                'DIMANCHE': 'Dimanche'
             }
-            day_en = day_map.get(day.upper(), day)
+            day_fr = day_fr_map.get(day.upper(), day)
             
             # Default times if empty
             st = start_time if start_time else '09:00:00'
@@ -175,7 +176,7 @@ for row in groups_data[1:]:
                 group_ref = f"(SELECT id FROM groups WHERE name = '{activity}' LIMIT 1)"
             
             exercise_sql.append(
-                f"  ('{group_name}', '{day_en}', '{act_type}', '{st}', '{et}', {trainer_ref}, {group_ref})"
+                f"  ('{group_name}', '{day_fr}', '{act_type}', '{st}', '{et}', {trainer_ref}, {group_ref})"
             )
 
 # ============================================================
@@ -188,6 +189,7 @@ child_sql = []
 parent_map = {}  # (parent_name, phone) -> parent_id
 parent_sql = []
 parent_child_sql = []
+parent_child_seen = set()  # deduplicate (parent_id, child_id) pairs
 subscription_sql = []
 
 child_count = 0
@@ -238,10 +240,14 @@ for row in clients[1:]:
             parent_map[papa_key] = parent_count
             parent_sql.append(f"  ('{papa_name}', '{papa_phone if papa_phone else '0000000000'}', '{papa_email}', NULL, 'Père')")
         parent_id = parent_map[papa_key]
-        parent_child_sql.append(
-            f"  ((SELECT id FROM parents WHERE name = '{papa_name}' AND phone = '{papa_phone if papa_phone else '0000000000'}' LIMIT 1), "
-            f"(SELECT id FROM children WHERE name = '{child_name}' LIMIT 1))"
-        )
+        # Deduplicate: only add each (parent, child) pair once
+        pc_key = (parent_id, child_id)
+        if pc_key not in parent_child_seen:
+            parent_child_seen.add(pc_key)
+            parent_child_sql.append(
+                f"  ((SELECT id FROM parents WHERE name = '{papa_name}' AND phone = '{papa_phone if papa_phone else '0000000000'}' LIMIT 1), "
+                f"(SELECT id FROM children WHERE name = '{child_name}' LIMIT 1))"
+            )
     
     # Maman
     if maman_name:
@@ -251,10 +257,14 @@ for row in clients[1:]:
             parent_map[maman_key] = parent_count
             parent_sql.append(f"  ('{maman_name}', '{maman_phone if maman_phone else '0000000000'}', '{maman_email}', NULL, 'Mère')")
         parent_id = parent_map[maman_key]
-        parent_child_sql.append(
-            f"  ((SELECT id FROM parents WHERE name = '{maman_name}' AND phone = '{maman_phone if maman_phone else '0000000000'}' LIMIT 1), "
-            f"(SELECT id FROM children WHERE name = '{child_name}' LIMIT 1))"
-        )
+        # Deduplicate: only add each (parent, child) pair once
+        pc_key = (parent_id, child_id)
+        if pc_key not in parent_child_seen:
+            parent_child_seen.add(pc_key)
+            parent_child_sql.append(
+                f"  ((SELECT id FROM parents WHERE name = '{maman_name}' AND phone = '{maman_phone if maman_phone else '0000000000'}' LIMIT 1), "
+                f"(SELECT id FROM children WHERE name = '{child_name}' LIMIT 1))"
+            )
     
     # --- SUBSCRIPTIONS ---
     if sub_type and start_date:

@@ -58,7 +58,7 @@ const handler = async (req: Request): Promise<Response> => {
 <body>
   <div class="container">
     <div class="header">
-      <img src="https://atvdorphwnpzhobvfmtz.supabase.co/storage/v1/object/public/logo/logo.png" alt="Toupti Gym" />
+      <img src="https://lpjdpcguplkpdfgxomps.supabase.co/storage/v1/object/public/logo/logo.png" alt="Toupti Gym" />
     </div>
     <div class="body">
       <h2>Bienvenue ${parentName || 'chez Toupti Gym'} !</h2>

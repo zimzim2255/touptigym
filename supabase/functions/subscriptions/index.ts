@@ -162,10 +162,25 @@ serve(async (req) => {
       return jsonResponse({ success: true })
     }
 
-    // POST /subscriptions/:id/confirm
+    // POST /subscriptions/:id/confirm — admin confirms the subscription
     if (method === 'POST' && segments.length === 2 && segments[1] === 'confirm') {
       const body = await req.json()
-      const { data, error } = await supabase.from('subscriptions').update({ status: 'actif', confirmed_by: body.confirmed_by }).eq('id', segments[0]).select().single()
+      const { data, error } = await supabase.from('subscriptions').update({
+        status: 'actif',
+        confirmed_by: body.confirmed_by,
+        confirmation_status: 'confirmed',
+        confirmed_at: new Date().toISOString(),
+      }).eq('id', segments[0]).select().single()
+      if (error) return errorResponse(error.message)
+      return jsonResponse(data)
+    }
+
+    // POST /subscriptions/:id/unconfirm — admin unconfirms the subscription
+    if (method === 'POST' && segments.length === 2 && segments[1] === 'unconfirm') {
+      const { data, error } = await supabase.from('subscriptions').update({
+        confirmation_status: 'unconfirmed',
+        confirmed_at: new Date().toISOString(),
+      }).eq('id', segments[0]).select().single()
       if (error) return errorResponse(error.message)
       return jsonResponse(data)
     }
