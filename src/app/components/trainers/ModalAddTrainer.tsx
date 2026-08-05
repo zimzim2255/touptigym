@@ -43,21 +43,16 @@ export function ModalAddTrainer({ onClose, onCreated }: Props) {
     if (!form.name || !form.phone || !form.password) return alert("Nom, téléphone et mot de passe requis");
     setLoading(true);
     try {
-      // Create user account first (trainer role, login by phone + password)
-      const userRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          email: `${form.phone}@trainer.local`,
-          password: form.password,
-          data: { name: form.name, role: 'trainer', phone: form.phone },
-        }),
+      // Email for login: use the provided email, or fallback to phone@trainer.local
+      const loginEmail = (form.email || `${form.phone}@trainer.local`).toLowerCase();
+
+      // Create user account first (trainer role, bcrypt hashed password)
+      const user = await api.users.create({
+        email: loginEmail,
+        name: form.name,
+        role: 'trainer',
+        password: form.password,
       });
-      const userData = await userRes.json();
-      if (!userRes.ok) throw new Error(userData.error_description || userData.msg || "Erreur création compte");
 
       // Create trainer record linked to user
       const trainerData: any = {
@@ -69,10 +64,16 @@ export function ModalAddTrainer({ onClose, onCreated }: Props) {
         specialty: form.specialty || null,
         photo: photoUrl || null,
       };
-      // If we got a user ID, link it
-      if (userData.id) trainerData.user_id = userData.id;
+      // Link the created user account
+      if (user?.id) trainerData.user_id = user.id;
 
-      await api.trainers.create(trainerData);
+      const trainer = await api.trainers.create(trainerData);
+
+      // Link the user account back to the trainer (so the trainer's
+      // "Activités du Jour" only shows their assigned activities)
+      if (user?.id && trainer?.id) {
+        await api.users.update(user.id, { trainer_id: trainer.id });
+      }
 
       onCreated?.();
       onClose();

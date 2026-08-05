@@ -26,19 +26,15 @@ export function PageParents({ canEdit, openModal, setSelectedParent, onRefresh }
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
 
-  const loadChildrenForParents = useCallback(async (parentsData: Parent[]) => {
+  const loadChildrenForParents = useCallback(async (parentsData: any[]) => {
     try {
       const allChildren: Child[] = await api.children.getAll();
       const map: Record<string, Child[]> = {};
       
       for (const p of parentsData) {
-        try {
-          const detail = await api.parents.getById(p.id);
-          const linkedIds = (detail.parent_children || []).map((pc: any) => pc.child_id);
-          map[p.id] = allChildren.filter(c => linkedIds.includes(c.id));
-        } catch {
-          map[p.id] = [];
-        }
+        // Use parent_children already included in the list response
+        const linkedIds = (p.parent_children || []).map((pc: any) => pc.child_id);
+        map[p.id] = allChildren.filter(c => linkedIds.includes(c.id));
       }
       setChildrenMap(map);
     } catch (err) {

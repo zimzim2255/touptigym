@@ -133,7 +133,21 @@ export function useApi() {
         request(`/payments/checks/${id}/use`, { method: 'PUT', body: JSON.stringify({ payment_id: paymentId }) }),
     },
 
-    // ─── Requests ────────────────────────────────
+    // ─── Auth ────────────────────────────────────
+    auth: {
+      login: (email: string, password: string) =>
+        request('/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    },
+
+    // ─── Users (accounts) ────────────────────────
+    users: {
+      getAll: () => request('/users'),
+      getById: (id: string) => request(`/users/${id}`),
+      create: (data: any) => request('/users', { method: 'POST', body: JSON.stringify(data) }),
+      update: (id: string, data: any) => request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      remove: (id: string) => request(`/users/${id}`, { method: 'DELETE' }),
+    },
+
     requests: {
       getAll: () => request('/requests'),
       create: (data: any) => request('/requests', { method: 'POST', body: JSON.stringify(data) }),

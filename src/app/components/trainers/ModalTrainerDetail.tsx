@@ -12,6 +12,7 @@ interface TrainerData {
   email: string | null;
   phone: string | null;
   specialty: string | null;
+  user_id?: string | null;
   created_at: string;
 }
 
@@ -22,7 +23,9 @@ export function ModalTrainerDetail({ trainerId, onClose, onUpdated }: { trainerI
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     name: "", birth_date: "", id_card: "", phone: "", email: "", specialty: "",
+    password: "",
   });
+  const [pwMsg, setPwMsg] = useState("");
 
   useEffect(() => {
     loadData();
@@ -40,7 +43,9 @@ export function ModalTrainerDetail({ trainerId, onClose, onUpdated }: { trainerI
         phone: data.phone || "",
         email: data.email || "",
         specialty: data.specialty || "",
+        password: "",
       });
+      setPwMsg("");
     } catch (err: any) {
       console.error("Failed to load trainer:", err);
     } finally {
@@ -63,6 +68,13 @@ export function ModalTrainerDetail({ trainerId, onClose, onUpdated }: { trainerI
         email: form.email,
         specialty: form.specialty || null,
       });
+
+      // If the admin entered a new password, update the linked user account
+      if (form.password && trainer?.user_id) {
+        await api.users.update(trainer.user_id, { password: form.password });
+        setPwMsg("Mot de passe mis à jour ✓");
+      }
+
       setEditing(false);
       onUpdated?.();
       loadData();
@@ -120,6 +132,16 @@ export function ModalTrainerDetail({ trainerId, onClose, onUpdated }: { trainerI
             </Field>
             <Field label="Spécialité">
               <input className={inputCls} value={form.specialty} onChange={e => set("specialty", e.target.value)} />
+            </Field>
+            <Field label="Nouveau mot de passe (connexion)">
+              <input
+                type="password"
+                className={inputCls}
+                placeholder="Laisser vide pour ne pas changer"
+                value={form.password}
+                onChange={e => set("password", e.target.value)}
+              />
+              {pwMsg && <p className="text-xs text-emerald-600 mt-1">{pwMsg}</p>}
             </Field>
           </div>
           <div className="flex gap-3 pt-2 border-t border-slate-100">

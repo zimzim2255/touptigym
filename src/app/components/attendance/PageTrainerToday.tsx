@@ -18,11 +18,12 @@ interface Exercise {
 }
 
 interface Props {
+  trainerId?: string | null;
   openModal: (m: any) => void;
   setSelectedEx: (e: { id: string; name: string; day: string; start_time: string; end_time: string }) => void;
 }
 
-export function PageTrainerToday({ openModal, setSelectedEx }: Props) {
+export function PageTrainerToday({ trainerId, openModal, setSelectedEx }: Props) {
   const api = useApi();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +31,10 @@ export function PageTrainerToday({ openModal, setSelectedEx }: Props) {
   useEffect(() => {
     (async () => {
       try {
-        const data: Exercise[] = await api.exercises.getAll();
+        // If we know which trainer this account is linked to, only load their activities
+        const data: Exercise[] = await api.exercises.getAll(
+          trainerId ? { coach_id: trainerId } : undefined
+        );
         setExercises(data);
       } catch (err: any) {
         console.error("Failed to load exercises:", err);
@@ -38,7 +42,7 @@ export function PageTrainerToday({ openModal, setSelectedEx }: Props) {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [trainerId]);
 
   const todayName = DAY_NAMES[new Date().getDay()];
   const today = useMemo(() => exercises.filter(e => e.day === todayName), [exercises, todayName]);

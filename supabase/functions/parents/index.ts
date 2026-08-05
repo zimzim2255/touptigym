@@ -28,7 +28,7 @@ serve(async (req) => {
         return jsonResponse(parents)
       }
       try {
-        const data = await fetchAll(supabase.from('parents').select('*'), 'name')
+        const data = await fetchAll(supabase.from('parents').select('*, parent_children(child_id)'), 'name')
         return jsonResponse(data)
       } catch (err: any) {
         return errorResponse(err.message, 500)

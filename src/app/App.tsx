@@ -7,6 +7,7 @@ import { ModalAddTrainer, ModalTrainerDetail, PageEntraineurs } from "./componen
 import { ModalAddCheck, ModalCheckDetail, PageChecks } from "./components/checks";
 import { PagePaiements, ModalPayRest } from "./components/payments";
 import { PageAbsences, PageTrainerToday, ModalMarkAttendance } from "./components/attendance";
+import { PageEmployes } from "./components/users";
 import { Tag, Btn, Field, inputCls, selectCls, Modal, PageWrap } from "./components/shared";
 import { useApi } from "../hooks/useSupabase";
 import type { UrgentRequest, Child as ChildType, Exercise as ExerciseType, Check as CheckType } from "./types";
@@ -15,7 +16,7 @@ import {
   Banknote, Settings, LayoutDashboard, LogOut, Search, Plus, Check,
   X, Clock, Users, Fingerprint, Activity, TrendingUp, UserCheck,
   Bell, Filter, Eye, Edit2, Trash2, CheckCircle, XCircle, RefreshCw,
-  ChevronRight, Menu, ArrowLeft, ChevronLeft,
+  ChevronRight, Menu, ArrowLeft, ChevronLeft, UserCog,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -741,8 +742,11 @@ const ADMIN_NAV: NavItem[] = [
   { id: "checks", label: "Chèques", icon: Banknote },
   { id: "acces", label: "Accès ZKTeco", icon: Fingerprint },
   { id: "demandes", label: "Demandes urgentes", icon: AlertCircle },
+  { id: "employes", label: "Comptes Employés", icon: UserCog },
   { id: "tarifs", label: "Tarifs & Paramètres", icon: Settings },
 ];
+
+const ADMIN_NAV_EXTRA = null;
 
 const WORKER_NAV: NavItem[] = [
   { id: "enfants", label: "Enfants", icon: Baby },
@@ -804,7 +808,7 @@ function Sidebar({ role, items, active, onChange, onLogout }: {
           onClick={onLogout}
           className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-400 hover:text-white hover:bg-white/8 transition-colors mt-3"
         >
-          <LogOut size={14} /> Changer de rôle
+          <LogOut size={14} /> Se déconnecter
         </button>
       </div>
     </aside>
@@ -812,7 +816,8 @@ function Sidebar({ role, items, active, onChange, onLogout }: {
 }
 
 // ─── Dashboard shell ──────────────────────────────────────────────────────────
-function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
+function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
+  const role = user.role;
   const navMap = { admin: ADMIN_NAV, worker: WORKER_NAV, trainer: TRAINER_NAV };
   const nav = navMap[role];
   const [active, setActive] = useState(nav[0].id);
@@ -848,9 +853,10 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       case "checks": return <PageChecks canEdit={role !== "trainer"} openModal={setModal} setSelectedCheck={setSelectedCheck} onRefresh={refreshKey} />;
       case "acces": return <PageAcces />;
       case "paiements": return <PagePaiements openPayModal={setSelectedPaySub} onRefresh={refreshKey} />;
+      case "employes": return <PageEmployes onRefresh={refreshKey} />;
       case "demandes": return <PageDemandes canValidate={role === "admin"} openModal={setModal} onRefresh={refreshKey} />;
       case "tarifs": return <PageTarifs />;
-      case "today": return <PageTrainerToday openModal={setModal} setSelectedEx={setSelectedEx} />;
+      case "today": return <PageTrainerToday trainerId={user.trainer_id} openModal={setModal} setSelectedEx={setSelectedEx} />;
       default: return null;
     }
   }
@@ -867,8 +873,11 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
           <button className="lg:hidden p-1.5 text-slate-500" onClick={() => setSidebarOpen(true)}><Menu size={16} /></button>
           <div className="flex items-center gap-3 ml-auto">
             <button className="text-slate-400 hover:text-slate-700 transition-colors"><Bell size={15} /></button>
-            <div className="w-7 h-7 bg-pink-100 flex items-center justify-center text-pink-700 text-xs font-bold border border-pink-200">
-              {role === "admin" ? "AD" : role === "worker" ? "EM" : "EN"}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 font-medium hidden sm:block">{user.name}</span>
+              <div className="w-7 h-7 bg-pink-100 flex items-center justify-center text-pink-700 text-xs font-bold border border-pink-200">
+                {user.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()}
+              </div>
             </div>
           </div>
         </header>
@@ -900,13 +909,38 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
   );
 }
 
-// ─── Role Selector ────────────────────────────────────────────────────────────
-function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
-  const roles: { id: Role; label: string; sub: string }[] = [
-    { id: "admin", label: "Administrateur", sub: "Gestion complète de l'établissement" },
-    { id: "worker", label: "Employé", sub: "Gestion opérationnelle quotidienne" },
-    { id: "trainer", label: "Entraîneur", sub: "Suivi des activités et des présences" },
-  ];
+// ─── Login ────────────────────────────────────────────────────────────────────
+type AuthUser = { id: string; email: string; name: string; role: Role; active: boolean; trainer_id?: string | null };
+
+function Login({ onLogin }: { onLogin: (user: AuthUser) => void }) {
+  const api = useApi();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || !password) {
+      setError("Veuillez saisir votre email et votre mot de passe.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const user = await api.auth.login(email.trim(), password);
+      if (user.role !== "admin" && user.role !== "worker" && user.role !== "trainer") {
+        setError("Ce compte n'a pas un rôle valide pour cette application.");
+        setLoading(false);
+        return;
+      }
+      onLogin(user as AuthUser);
+    } catch (err: any) {
+      setError(err.message || "Connexion impossible. Vérifiez vos identifiants.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -914,25 +948,40 @@ function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
         {/* Logo */}
         <div className="text-center mb-10">
           <img src="https://lpjdpcguplkpdfgxomps.supabase.co/storage/v1/object/public/logo/logo.png" alt="TouptiGym" className="h-28 w-auto mx-auto mb-2" />
-          <p className="text-sm text-slate-400 mt-2">Sélectionnez votre profil</p>
+          <p className="text-sm text-slate-400 mt-2">Connectez-vous à votre compte</p>
         </div>
 
-        {/* Role buttons — vertical stack, full width */}
-        <div className="space-y-2">
-          {roles.map(r => (
-            <button
-              key={r.id}
-              onClick={() => onSelect(r.id)}
-              className="w-full flex items-center gap-4 px-5 py-4 border border-slate-200 bg-white hover:border-pink-400 hover:bg-pink-50 transition-colors text-left group"
-            >
-              <div className="flex-1">
-                <p className="font-semibold text-slate-900 group-hover:text-pink-700">{r.label}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{r.sub}</p>
-              </div>
-              <ChevronRight size={15} className="text-slate-300 group-hover:text-pink-400 transition-colors" />
-            </button>
-          ))}
-        </div>
+        <form onSubmit={handleSubmit} className="space-y-4 bg-white border border-slate-200 p-6">
+          <Field label="Email" required>
+            <input
+              type="email"
+              className={inputCls}
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="employe@gym.com"
+              autoFocus
+            />
+          </Field>
+          <Field label="Mot de passe" required>
+            <input
+              type="password"
+              className={inputCls}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+            />
+          </Field>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-600">
+              {error}
+            </div>
+          )}
+
+          <Btn disabled={loading} className="w-full justify-center">
+            {loading ? "Connexion..." : "Se connecter"}
+          </Btn>
+        </form>
 
         <p className="text-center text-xs text-slate-300 mt-8">© 2026 TouptiGym</p>
       </div>
@@ -942,7 +991,7 @@ function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [role, setRole] = useState<Role | null>(null);
-  if (!role) return <RoleSelector onSelect={setRole} />;
-  return <Dashboard role={role} onLogout={() => setRole(null)} />;
+  const [user, setUser] = useState<AuthUser | null>(null);
+  if (!user) return <Login onLogin={setUser} />;
+  return <Dashboard user={user} onLogout={() => setUser(null)} />;
 }
