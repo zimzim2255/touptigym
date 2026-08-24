@@ -1,0 +1,290 @@
+# RELAY SETUP - STEP BY STEP (SIMPLE)
+
+**Goal:** Get the relay running on gym PC so device scans work.
+
+---
+
+## STEP 1: Check ZKBio Configuration ✅ DONE
+
+We found that ZKBio uses **PostgreSQL database** on the gym PC:
+
+**Database Details (from attsite.ini):**
+- Engine: PostgreSQL
+- Database: `biosecurity-boot`
+- User: `root`
+- Password: (empty)
+- Port: `5442`
+- Host: `127.0.0.1`
+
+**This means we use Option C: Database Polling**
+
+---
+
+## STEP 2: Install Node.js on Gym PC
+
+1. Go to: https://nodejs.org/
+2. Download **LTS version** (Long Term Support)
+3. Run installer
+4. Click **Next** → **Next** → **Install**
+5. Restart PC
+
+Verify it worked:
+- Open **Command Prompt** (Win + R, type `cmd`)
+- Type: `node --version`
+- Should show version number (e.g., `v20.10.0`)
+
+---
+
+## STEP 3: Create Relay Folder on Gym PC
+
+Open **Command Prompt** and run:
+
+```
+mkdir C:\zkteco-relay
+cd C:\zkteco-relay
+npm init -y
+npm install pg
+```
+
+---
+
+## STEP 4: Create relay.js File
+
+In `C:\zkteco-relay\`, create a file called `relay.js`.
+
+Copy this code (PostgreSQL polling):
+
+```javascript
+const { Client } = require('pg');
+const https = require('https');
+
+const SUPABASE_URL = 'https://pwfkaiwxwxzsbarypysr.supabase.co/functions/v1/make-server-176f60a9/devices/speedface-v5l/events';
+const DEVICE_TOKEN = 'zk_relay_2026_9X4K_secret';
+
+const pgClient = new Client({
+  host: '127.0.0.1',
+  port: 5442,
+  database: 'biosecurity-boot',
+  user: 'root',
+  password: '',
+  allowNoPassword: true
+});
+
+let lastProcessedId = 0;
+
+async function pollDatabase() {
+  try {
+    const result = await pgClient.query(
+      'SELECT * FROM access_transaction WHERE id > $1 ORDER BY id ASC LIMIT 100',
+      [lastProcessedId]
+    );
+
+    if (result.rows.length > 0) {
+      console.log('[' + new Date().toISOString() + '] Got ' + result.rows.length + ' new transactions');
+
+      for (const row of result.rows) {
+        console.log('[' + new Date().toISOString() + '] Processing transaction ID:', row.id);
+
+        const personnelId = row.personnel_id || row.pin || '';
+        
+        const payload = JSON.stringify({
+          personnelId: personnelId,
+          captured_at: (row.access_time || new Date()).toISOString(),
+          event_type: 'access',
+          raw: row
+        });
+
+        await new Promise((resolve) => {
+          const options = {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-device-token': DEVICE_TOKEN,
+              'Content-Length': Buffer.byteLength(payload)
+            }
+          };
+
+          https.request(SUPABASE_URL, options, (resp) => {
+            let respBody = '';
+            resp.on('data', chunk => respBody += chunk);
+            resp.on('end', () => {
+              console.log('[' + new Date().toISOString() + '] Supabase response:', resp.statusCode);
+            });
+            resolve();
+          }).on('error', (err) => {
+            console.error('[' + new Date().toISOString() + '] Error forwarding:', err.message);
+            resolve();
+          }).end(payload);
+        });
+
+        lastProcessedId = row.id;
+      }
+    }
+  } catch (err) {
+    console.error('[' + new Date().toISOString() + '] DB error:', err.message);
+  }
+}
+
+async function start() {
+  try {
+    await pgClient.connect();
+    console.log('[' + new Date().toISOString() + '] ✅ Connected to PostgreSQL (biosecurity-boot)');
+    console.log('[' + new Date().toISOString() + '] Polling for new transactions every 5 seconds...');
+    
+    setInterval(pollDatabase, 5000);
+    pollDatabase();
+  } catch (err) {
+    console.error('[' + new Date().toISOString() + '] ❌ Connection error:', err.message);
+    process.exit(1);
+  }
+}
+
+start();
+```
+
+---
+
+## STEP 5: Run the Relay
+
+Open **Command Prompt** on gym PC:
+
+```
+cd C:\zkteco-relay
+node relay.js
+```
+
+You should see:
+
+```
+[2026-01-24T...] ✅ Connected to PostgreSQL (biosecurity-boot)
+[2026-01-24T...] Polling for new transactions every 5 seconds...
+```
+
+**Leave this running.** Don't close the window.
+
+---
+
+## STEP 6: Test It Works
+
+### Test 1: Scan a Face on Device
+
+1. Go to SpeedFace device
+2. Scan a kid's face (one you created in the app with a PIN)
+3. Wait 5 seconds
+
+### Test 2: Check Relay Logs
+
+In the Command Prompt window where relay is running, you should see:
+
+```
+[2026-01-24T19:55:00Z] Got 1 new transactions
+[2026-01-24T19:55:00Z] Processing transaction ID: 12345
+[2026-01-24T19:55:00Z] Supabase response: 200
+```
+
+### Test 3: Check Admin UI
+
+1. Open your app
+2. Go to **Admin → Pointage**
+3. You should see a new check-in row with:
+   - Time: 19:55
+   - Kid name
+   - Exercise
+   - Result: ✅ Allowed (or ❌ Denied with reason)
+
+---
+
+## STEP 7: Make Relay Run on Startup (Optional but Recommended)
+
+So relay starts automatically when PC restarts:
+
+### Option A: Windows Task Scheduler (Simple)
+
+1. Press **Win + R**, type `taskschd.msc`, press Enter
+2. Click **Create Basic Task**
+3. Name: `ZKTeco Relay`
+4. Trigger: **At startup**
+5. Action: **Start a program**
+   - Program: `C:\Program Files\nodejs\node.exe`
+   - Arguments: `C:\zkteco-relay\relay.js`
+6. Click **Finish**
+
+### Option B: PM2 (Better - Auto-restart if crashes)
+
+```
+npm install -g pm2
+cd C:\zkteco-relay
+pm2 start relay.js --name "zkteco-relay"
+pm2 startup
+pm2 save
+```
+
+---
+
+## TROUBLESHOOTING
+
+### Problem: "Cannot find module 'pg'"
+**Solution:** Run `npm install pg` in `C:\zkteco-relay`
+
+### Problem: "Connection error: connect ECONNREFUSED 127.0.0.1:5442"
+**Solution:** 
+- PostgreSQL service is not running
+- Check if ZKBio services are running
+- Restart ZKBio CVAccess
+
+### Problem: Relay runs but nothing happens
+**Solution:** 
+- Check if transactions are being recorded in ZKBio
+- Scan a face on the device
+- Check relay logs for "Got X new transactions"
+
+### Problem: "Port 5442 already in use"
+**Solution:** Check if another relay is running, or change port in relay.js
+
+### Problem: Relay crashes
+**Solution:** Check error message in Command Prompt, copy it, and ask for help
+
+---
+
+## HOW IT WORKS
+
+1. **Kid scans face** on SpeedFace device
+2. **Device sends to ZKBio** (local ADMS server)
+3. **ZKBio stores in PostgreSQL** database
+4. **Relay polls database** every 5 seconds
+5. **Relay finds new transactions** and forwards to Supabase
+6. **Backend validates** (kid exists, subscription active, time in window)
+7. **Check-in recorded** + attendance marked present
+8. **Admin sees it** in Pointage tab
+
+---
+
+## SUMMARY
+
+1. ✅ Found ZKBio uses PostgreSQL
+2. ✅ Install Node.js
+3. ✅ Create `C:\zkteco-relay\relay.js` (copy code from Step 4)
+4. ✅ Run `node relay.js`
+5. ✅ Scan a face on device
+6. ✅ Check Pointage tab in app
+7. ✅ (Optional) Set up auto-start
+
+**That's it. System will work.**
+
+---
+
+## DATABASE DETAILS (For Reference)
+
+From `C:\Program Files\ZKBio CVAccess\Config\attsite.ini`:
+
+```
+[database_postgresql]
+engine = postgresql
+name = biosecurity-boot
+user = root
+password = (empty)
+port = 5442
+host = 127.0.0.1
+```
+
+The relay queries the `access_transaction` table for new records and forwards them to Supabase.

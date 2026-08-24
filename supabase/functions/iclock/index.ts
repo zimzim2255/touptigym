@@ -22,9 +22,25 @@ import { corsHeaders } from '../_shared/cors.ts'
 serve(async (req) => {
   try {
     const url = new URL(req.url)
-    const path = url.pathname.replace('/functions/v1/iclock', '')
-    const segments = path.split('/').filter(Boolean)
+    // Robust path parsing: find "iclock" anywhere in the path and take
+    // everything after it. This handles /functions/v1/iclock/iclock/...
+    // and any other prefix the gateway may use.
+    const allSegments = url.pathname.split('/').filter(Boolean)
+    // The gateway passes the function name as the first segment
+    // (e.g. /iclock/iclock/registry). Use the LAST "iclock" so we get
+    // /registry, /getrequest, /cdata etc.
+    const iclockIdx = allSegments.lastIndexOf('iclock')
+    const segments = iclockIdx >= 0 ? allSegments.slice(iclockIdx + 1) : allSegments
+    const route = segments.join('/')
     const method = req.method
+
+    // ── Debug helper: call with ?debug=1 to see how the path is parsed ──
+    if (url.searchParams.get('debug')) {
+      return new Response(JSON.stringify({ pathname: url.pathname, allSegments, segments, route }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      })
+    }
 
     // ── POST /iclock/cdata ─────────────────────────
     // The device pushes attendance logs via POST.
@@ -34,7 +50,7 @@ serve(async (req) => {
     //   or tab-separated: PIN \t TTime \t Status \t Verify
     //
     // The device sends plain text or URL-encoded form data.
-    if ((method === 'POST' || method === 'GET') && segments.join('/') === 'iclock/cdata') {
+    if ((method === 'POST' || method === 'GET') && route === 'cdata') {
       const deviceIp = req.headers.get('x-forwarded-for') || url.hostname || 'unknown'
       let rawBody = ''
       let params: Record<string, string> = {}
@@ -67,7 +83,7 @@ serve(async (req) => {
         rawBody = await req.text()
       }
 
-      console.log(`[iclock] Request from ${deviceIp}: ${method} ${path}`)
+      console.log(`[iclock] Request from ${deviceIp}: ${method} ${route}`)
       console.log(`[iclock] Params:`, JSON.stringify(params))
       console.log(`[iclock] Raw body:`, rawBody.substring(0, 500))
 
@@ -137,7 +153,7 @@ serve(async (req) => {
 
     // ── GET /iclock/getrequest ─────────────────────
     // Device polls for pending commands. Returns commands or empty.
-    if (method === 'GET' && segments.join('/') === 'iclock/getrequest') {
+    if (method === 'GET' && route === 'getrequest') {
       const deviceSn = url.searchParams.get('SN') || ''
 
       const { data: device } = await supabase
@@ -187,7 +203,7 @@ serve(async (req) => {
 
     // ── GET /iclock/devicecmd ──────────────────────
     // Queue a command from the ERP to be delivered to the device
-    if (method === 'GET' && segments.join('/') === 'iclock/devicecmd') {
+    if (method === 'GET' && route === 'devicecmd') {
       const deviceSn = url.searchParams.get('SN') || ''
       const cmd = url.searchParams.get('cmd') || ''
 
@@ -222,7 +238,7 @@ serve(async (req) => {
 
     // ── GET /iclock/registry ───────────────────────
     // Device registers itself on first connection
-    if (method === 'GET' && segments.join('/') === 'iclock/registry') {
+    if (method === 'GET' && route === 'registry') {
       const serial = url.searchParams.get('SN') || ''
       const model = url.searchParams.get('model') || ''
       const fwVersion = url.searchParams.get('FWVersion') || ''
@@ -299,7 +315,16 @@ async function processAttendanceRecord(record: AttendanceRecord) {
 
   const eventType = record.statusCode === 0 ? 'entry' : 'exit'
 
-  // Find child by zkteco_id
+  // Resolve device by serial number (SN) so we can target AC_UNLOCK
+  let deviceId: string | null = null
+  const { data: device } = await supabase
+    .from('zkteco_devices')
+    .select('id')
+    .eq('serial_number', record.deviceSn)
+    .maybeSingle()
+  if (device) deviceId = device.id
+
+  // Find child by zkteco_id (device PIN)
   const { data: child } = await supabase
     .from('children')
     .select('id, name')
@@ -315,19 +340,27 @@ async function processAttendanceRecord(record: AttendanceRecord) {
       .eq('status', 'actif')
       .maybeSingle()
 
-    const accessStatus = sub ? 'granted' : 'denied_no_subscription'
+    let accessStatus = sub ? 'granted' : 'denied_no_subscription'
+
+    // If subscribed, also check access schedule (weekday + time window)
+    if (sub) {
+      const scheduleOk = await isWithinSchedule(child.id, record.eventTime)
+      if (!scheduleOk) {
+        accessStatus = 'denied_schedule'
+      }
+    }
 
     // Log to zkteco_logs
     await supabase.from('zkteco_logs').insert([{
       child_id: child.id,
-      device_id: record.deviceSn || record.deviceIp,
+      device_id: deviceId || record.deviceSn || record.deviceIp,
       event_type: eventType,
       event_time: record.eventTime,
       status: accessStatus,
       raw_data: record.rawData
     }]).then(() => {}).catch(err => console.error('[iclock] log error:', err))
 
-    if (sub) {
+    if (accessStatus === 'granted') {
       await supabase.from('access_logs').insert([{
         child_id: child.id,
         timestamp: record.eventTime,
@@ -335,6 +368,17 @@ async function processAttendanceRecord(record: AttendanceRecord) {
         status: 'granted',
         mode: 'online'
       }]).then(() => {}).catch(err => console.error('[iclock] access_log error:', err))
+
+      // 🔓 Queue AC_UNLOCK so the device opens the door on next poll
+      if (deviceId) {
+        await supabase.from('zkteco_commands').insert([{
+          device_id: deviceId,
+          command: 'AC_UNLOCK',
+          params: {},
+          status: 'pending'
+        }]).then(() => {}).catch(err => console.error('[iclock] AC_UNLOCK queue error:', err))
+        console.log(`[iclock] Queued AC_UNLOCK for device ${record.deviceSn} (child ${child.id})`)
+      }
       processed++
     } else {
       denied++
@@ -343,7 +387,7 @@ async function processAttendanceRecord(record: AttendanceRecord) {
     // Unknown PIN — log orphan record
     await supabase.from('zkteco_logs').insert([{
       child_id: null,
-      device_id: record.deviceSn || record.deviceIp,
+      device_id: deviceId || record.deviceSn || record.deviceIp,
       event_type: 'unknown_pin',
       event_time: record.eventTime,
       status: 'denied_unknown_user',
@@ -353,4 +397,32 @@ async function processAttendanceRecord(record: AttendanceRecord) {
   }
 
   return { processed, denied }
+}
+
+// ─── Helper: Check if the event time falls inside an access schedule ──────────
+async function isWithinSchedule(childId: string, eventTime: string): Promise<boolean> {
+  try {
+    const d = new Date(eventTime.replace(' ', 'T'))
+    if (isNaN(d.getTime())) return true // can't parse → don't block
+
+    const weekday = d.getDay()
+    const timeStr = d.toTimeString().slice(0, 5) + ':00' // HH:MM:SS
+
+    const { data } = await supabase
+      .from('access_schedules')
+      .select('start_time, end_time')
+      .eq('child_id', childId)
+      .eq('weekday', weekday)
+
+    // No schedule configured → allow (fallback to subscription-only)
+    if (!data || data.length === 0) return true
+
+    for (const s of data) {
+      if (timeStr >= s.start_time && timeStr <= s.end_time) return true
+    }
+    return false
+  } catch (err) {
+    console.error('[iclock] schedule check error:', err)
+    return true // fail open to avoid blocking access on schedule errors
+  }
 }
