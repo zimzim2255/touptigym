@@ -445,25 +445,45 @@ function PageAcces() {
   }, []);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const [deviceData, statsData] = await Promise.all([
-        api.zkteco.getDevices().catch(() => []),
-        api.zkteco.getStats().catch(() => ({ today_total: 0, total_devices: 0, today_unknown: 0, recent: [] })),
+        api.zkteco.getDevices().catch(() => null),
+        api.zkteco.getStats().catch(() => null),
       ]);
-      setDevices(deviceData);
-      setStats(statsData);
-      setLogs(statsData.recent || []);
+      // Only update the screen when the backend actually has new data.
+      // (compares JSON so the page never flickers just because time passed)
+      if (deviceData && statsData) {
+        const dataChanged =
+          JSON.stringify(deviceData) !== JSON.stringify(devices) ||
+          JSON.stringify(statsData) !== JSON.stringify(stats);
+        if (dataChanged) {
+          setDevices(deviceData);
+          setStats(statsData);
+          setLogs(statsData.recent || []);
+        }
+      }
     } catch (err: any) {
       console.error("Failed to load ZKTeco data:", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [devices, stats]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, 8000); // background check only (no flicker)
+    return () => clearInterval(timer);
+  }, [load]);
 
   const handleRefresh = () => load();
+
+  // A device is considered "En ligne" if its last contact is fresh (< 2 min)
+  const isDeviceOnline = (d: any): boolean => {
+    if (!d || d.status !== "online") return false;
+    if (!d.last_seen) return false;
+    const age = Date.now() - new Date(d.last_seen).getTime();
+    return age < 120_000;
+  };
 
   const formatTime = (isoStr: string) => {
     if (!isoStr) return "—";
@@ -519,9 +539,9 @@ function PageAcces() {
         {devices.length > 0 ? devices.slice(0, 4).map((d: any) => (
           <div key={d.id} className="bg-white p-4">
             <div className="flex items-center gap-2 mb-1">
-              <span className={`w-2 h-2 ${d.status === "online" ? "bg-emerald-500" : "bg-red-500"}`} />
-              <span className={`text-xs font-semibold ${d.status === "online" ? "text-emerald-700" : "text-red-600"}`}>
-                {d.status === "online" ? "En ligne" : "Hors ligne"}
+              <span className={`w-2 h-2 ${isDeviceOnline(d) ? "bg-emerald-500" : "bg-red-500"}`} />
+              <span className={`text-xs font-semibold ${isDeviceOnline(d) ? "text-emerald-700" : "text-red-600"}`}>
+                {isDeviceOnline(d) ? "En ligne" : "Hors ligne"}
               </span>
             </div>
             <p className="text-xs text-slate-500 truncate">{d.name || d.ip_address || "Appareil ZKTeco"}</p>
