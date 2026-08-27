@@ -171,18 +171,39 @@ serve(async (req) => {
         return jsonResponse({ app_result: 'denied', reason: 'unknown_user' })
       }
 
-      // Active subscription check (status 'actif')
-      const { data: sub } = await supabase
+      // Active subscription check (must be 'actif' AND not expired).
+      // A child may hold several actif rows; pick the one with the latest
+      // end_date (limit 1 = deterministic). maybeSingle() would ERROR on >1.
+      const today = localDateStr(capturedAt)
+      const { data: sub, error: subError } = await supabase
         .from('subscriptions')
-        .select('id')
+        .select('id, start_date, end_date, exercises, status')
         .eq('child_id', child.id)
         .eq('status', 'actif')
+        .order('end_date', { ascending: false })
+        .limit(1)
         .maybeSingle()
 
-      let accessStatus = sub ? 'granted' : 'denied_no_subscription'
+      let accessStatus = 'denied_no_sub'
       if (sub) {
-        const scheduleOk = await isWithinSchedule(child.id, capturedAt)
-        if (!scheduleOk) accessStatus = 'denied_schedule'
+        const subEnd = sub.end_date ? String(sub.end_date).slice(0, 10) : ''
+        if (subEnd && today > subEnd) {
+          // Subscription has already expired (end_date passed)
+          accessStatus = 'denied_expired'
+        } else {
+          // Check the child's subscribed exercises for the scan's day + window
+          // (queried through the subscription_courses join inside exerciseGrantFor).
+          const grant = await exerciseGrantFor(sub.id, child.id, capturedAt)
+          if (grant === 'none') {
+            // Child has an active subscription but no exercise scheduled today
+            accessStatus = 'denied_no_exercise'
+          } else if (grant === true) {
+            accessStatus = 'granted'
+          } else {
+            // Has an exercise today but the scan is outside [start-10min, start+15min]
+            accessStatus = 'denied_window'
+          }
+        }
       }
 
       await supabase.from('zkteco_logs').insert([{
@@ -549,27 +570,91 @@ serve(async (req) => {
     return errorResponse(err.message, 500)
   }
 })
-// ─── Helper: Check if the event falls inside a child's access schedule ──
-async function isWithinSchedule(childId: string, eventTime: string): Promise<boolean> {
-  try {
-    const d = new Date(String(eventTime).replace(' ', 'T'))
-    if (isNaN(d.getTime())) return true // can't parse → don't block
-    const weekday = d.getDay()
-    const timeStr = d.toTimeString().slice(0, 5) + ':00' // HH:MM:SS
+// ─── Helpers: access enforcement (subscription end-date + day + time window) ──
 
-    const { data } = await supabase
-      .from('access_schedules')
-      .select('start_time, end_time')
-      .eq('child_id', childId)
-      .eq('weekday', weekday)
+const ACCESS_DAY_NAMES = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+const ALLOWED_BEFORE_MIN = 10 // entry allowed this many minutes before exercise start
+const ALLOWED_AFTER_MIN = 15  // entry allowed this many minutes after exercise start
 
-    if (!data || data.length === 0) return true // no schedule → allow
-    for (const s of data) {
-      if (timeStr >= s.start_time && timeStr <= s.end_time) return true
+// From an ISO timestamp, return the local (UTC+1) calendar date "YYYY-MM-DD".
+function localDateStr(iso: string): string {
+  const d = new Date(String(iso).replace(' ', 'T'))
+  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10)
+  const loc = new Date(d.getTime() + 60 * 60000) // UTC+1
+  const y = loc.getUTCFullYear()
+  const m = String(loc.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(loc.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+// Return the day name (e.g. "Lundi") for an ISO timestamp, in UTC+1.
+function localDayName(iso: string): string {
+  const d = new Date(String(iso).replace(' ', 'T'))
+  if (isNaN(d.getTime())) return ''
+  const loc = new Date(d.getTime() + 60 * 60000)
+  return ACCESS_DAY_NAMES[loc.getUTCDay()] || ''
+}
+
+// Convert "HH:MM[:SS]" into minutes from midnight. Returns -1 if unparsable.
+function toMinutes(timeStr: any): number | null {
+  const s = String(timeStr || '')
+  const m = s.match(/^(\d{1,2}):(\d{2})/)
+  if (!m) return null
+  return Number(m[1]) * 60 + Number(m[2])
+}
+
+// True / false / 'none' whether the child is inside the allowed window for one
+// of their subscribed exercises scheduled on the scan's day.
+// Queries through subscription_courses (join) so we never send thousands of
+// exercise IDs in a single .in() (PostgREST URL limits would fail).
+async function exerciseGrantFor(
+  subId: string,
+  childId: string,
+  capturedAt: string
+): Promise<boolean | 'none'> {
+  const dayName = localDayName(capturedAt)
+  if (!dayName) return 'none'
+
+  const { data: rows, error } = await supabase
+    .from('subscription_courses')
+    .select('exercises!exercise_id(id, day, start_time, end_time, start_date, end_date)')
+    .eq('subscription_id', subId)
+    .eq('exercises.day', dayName)
+
+  if (error || !rows || rows.length === 0) return 'none'
+
+  const exercises = rows.map((r: any) =>
+    Array.isArray(r.exercises) ? r.exercises[0] : r.exercises
+  ).filter(Boolean)
+
+  if (exercises.length === 0) return 'none'
+
+  const today = localDateStr(capturedAt)
+  // keep only exercises that are within their own date range (if set)
+  const activeOnDay = exercises.filter(e => {
+    if (e.start_date && today < String(e.start_date).slice(0, 10)) return false
+    if (e.end_date && today > String(e.end_date).slice(0, 10)) return false
+    return true
+  })
+  if (activeOnDay.length === 0) return 'none'
+
+  const base = new Date(String(capturedAt).replace(' ', 'T'))
+  const scanLocal =
+    (base.getUTCHours() + 1) * 60 + base.getUTCMinutes() // local UTC+1 minutes
+
+  for (const ex of activeOnDay) {
+    const startMin = toMinutes(ex.start_time)
+    if (startMin === null) continue
+    const lo = (startMin - ALLOWED_BEFORE_MIN + 1440) % 1440
+    const hi = (startMin + ALLOWED_AFTER_MIN) % 1440
+    // single window within the day
+    if (lo <= hi) {
+      if (scanLocal >= lo && scanLocal <= hi) return true
+    } else {
+      // window wrapped past midnight (not expected for gym); allow if either side
+      if (scanLocal >= lo || scanLocal <= hi) return true
     }
-    return false
-  } catch (err: any) {
-    console.error('[ZKTeco] schedule check error:', err)
-    return true // fail open
   }
+
+  return false
 }
