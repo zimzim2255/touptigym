@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
-import { Check, Cake } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
+import { Check, Cake, Upload } from "lucide-react";
 import { Modal, Field, Btn, inputCls, selectCls } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
+import { useUpload } from "../../../hooks/useUpload";
 
 function calculateAge(birthDate: string): number | null {
   if (!birthDate) return null;
@@ -17,7 +18,11 @@ function calculateAge(birthDate: string): number | null {
 
 export function ModalAddChild({ onClose, onCreated }: { onClose: () => void; onCreated?: () => void }) {
   const api = useApi();
+  const upload = useUpload();
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     name: "", gender: "Garçon", birth_date: "",
     school: "", school_type: "Bilingue", client_type: "Normal",
@@ -28,6 +33,21 @@ export function ModalAddChild({ onClose, onCreated }: { onClose: () => void; onC
 
   function set(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const result = await upload.uploadFile(file, "children");
+      setPhotoUrl(result.url);
+    } catch (err: any) {
+      alert("Erreur lors du téléchargement: " + err.message);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   async function handleSubmit() {
@@ -44,6 +64,7 @@ export function ModalAddChild({ onClose, onCreated }: { onClose: () => void; onC
         zkteco_id: form.zkteco_id || null,
         address: form.address || null,
         postal_code: form.postal_code || null,
+        photo: photoUrl || null,
       });
       onCreated?.();
       onClose();
@@ -57,6 +78,33 @@ export function ModalAddChild({ onClose, onCreated }: { onClose: () => void; onC
   return (
     <Modal title="Ajouter un Enfant" onClose={onClose} wide>
       <div className="space-y-4">
+        <div className="flex items-start gap-4">
+          <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xl font-bold border border-slate-200 overflow-hidden shrink-0">
+            {photoUrl ? (
+              <img src={photoUrl} alt="Photo" className="w-full h-full object-cover" />
+            ) : (
+              form.name ? form.name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase() : "?"
+            )}
+          </div>
+          <div className="flex-1 pt-1">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Photo de profil</p>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className={`${inputCls} inline-flex items-center gap-2 w-auto`}
+              disabled={uploading}
+            >
+              <Upload size={14} /> {uploading ? "Téléchargement..." : photoUrl ? "✅ Photo ajoutée" : "Choisir une photo"}
+            </button>
+            {photoUrl && (
+              <button type="button" onClick={() => setPhotoUrl("")} className="ml-2 text-xs text-slate-400 hover:text-red-500">
+                Retirer
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <Field label="Nom complet" required>
             <input className={inputCls} placeholder="Prénom Nom" value={form.name} onChange={e => set("name", e.target.value)} />
