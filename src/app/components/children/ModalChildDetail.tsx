@@ -1,16 +1,20 @@
-import { useState, useEffect } from "react";
-import { Trash2, ArrowLeft } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Trash2, ArrowLeft, Upload } from "lucide-react";
 import { Modal, Tag, Btn } from "../shared/Primitives";
 import { useApi } from "../../../hooks/useSupabase";
+import { useUpload } from "../../../hooks/useUpload";
 
 export function ModalChildDetail({ childId, onClose, onDeleted }: { childId: string; onClose: () => void; onDeleted?: () => void }) {
   const api = useApi();
+  const upload = useUpload();
   const [child, setChild] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"info" | "parents" | "acces">("info");
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [parents, setParents] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { loadData(); }, [childId]);
 
@@ -46,6 +50,22 @@ export function ModalChildDetail({ childId, onClose, onDeleted }: { childId: str
     }
   }
 
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const result = await upload.uploadFile(file, "children");
+      await api.children.update(childId, { photo: result.url });
+      setChild((prev: any) => ({ ...prev, photo: result.url }));
+    } catch (err: any) {
+      alert("Erreur lors du téléchargement: " + err.message);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   if (loading) return <Modal title="Chargement..." onClose={onClose} wide><p className="text-sm text-slate-500">Chargement...</p></Modal>;
   if (!child) return <Modal title="Erreur" onClose={onClose} wide><p className="text-sm text-red-500">Enfant introuvable</p></Modal>;
 
@@ -74,7 +94,15 @@ export function ModalChildDetail({ childId, onClose, onDeleted }: { childId: str
               <p className="text-sm text-slate-500">{child.gender} · {child.age} ans</p>
               {child.zkteco_id && <p className="text-xs font-mono text-slate-400 mt-0.5">ZKTeco ID: {child.zkteco_id}</p>}
             </div>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-1 text-xs text-pink-500 hover:text-pink-700 font-medium transition-colors"
+              >
+                <Upload size={13} /> {uploading ? "..." : "Changer la photo"}
+              </button>
               {activeSub ? <Tag color="green">Actif</Tag> : <Tag color="red">Inactif</Tag>}
             </div>
           </div>
