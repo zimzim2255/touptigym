@@ -26,6 +26,54 @@ serve(async (req) => {
 
     // ─── Logs & Access Control API ─────────────────
 
+    // GET /zkteco/latest — enrich the latest scan with child + parents + subscription
+    if (method === 'GET' && route === 'latest') {
+      const { data, error } = await supabase
+        .from('zkteco_logs')
+        .select('*, children:child_id(id, name, gender, birth_date, age, zkteco_id, photo, client_type)')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (error) return errorResponse(error.message, 500)
+      if (!data) return jsonResponse(null)
+
+      // Enrich: parents + active subscription + today's exercises for this child
+      let parents: any[] = []
+      let subscription: any = null
+      let todayExercises: any[] = []
+      const childId = data.child_id
+      if (childId) {
+        const nowDate = new Date()
+        const dayName = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'][nowDate.getDay()]
+        const [pRes, sRes] = await Promise.all([
+          supabase.from('parent_children')
+            .select('parents!parent_id(id, name, phone, email, gender)')
+            .eq('child_id', childId),
+          supabase.from('subscriptions')
+            .select('id, type, sub_type, status, start_date, end_date, amount, discount, insurance, entry_fee')
+            .eq('child_id', childId)
+            .order('end_date', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ])
+        parents = (pRes.data || []).map((r: any) => r.parents).filter(Boolean)
+        subscription = sRes.data || null
+
+        // Today's subscribed exercises (through subscription_courses)
+        if (subscription) {
+          const { data: courseRows } = await supabase
+            .from('subscription_courses')
+            .select('exercises!exercise_id(id, name, day, start_time, end_time, type)')
+            .eq('subscription_id', subscription.id)
+            .eq('exercises.day', dayName)
+          todayExercises = (courseRows || []).map((r: any) => r.exercises).filter(Boolean).slice(0, 6)
+        }
+      }
+
+      return jsonResponse({ log: data, parents, subscription, todayExercises })
+    }
+
     // GET /zkteco/logs — list all access logs (Contrôle d'Accès)
     if (method === 'GET' && route === 'logs') {
       const limit = parseInt(url.searchParams.get('limit') || '50')

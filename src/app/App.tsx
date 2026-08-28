@@ -506,8 +506,13 @@ function PageAcces() {
   const mapStatusLabel = (status: string): string => {
     switch (status) {
       case "granted": return "autorisé";
-      case "denied_no_subscription": return "refusé (abonnement)";
+      case "denied_no_sub": return "refusé (abonnement)";
+      case "denied_expired": return "refusé (abonnement expiré)";
+      case "denied_no_exercise": return "refusé (pas de séance aujourd'hui)";
+      case "denied_window": return "refusé (hors créneau)";
       case "denied_unknown_user": return "refusé (inconnu)";
+      case "denied_no_subscription": return "refusé (abonnement)";
+      case "denied_schedule": return "refusé (hors créneau)";
       default: return status;
     }
   };
@@ -835,6 +840,7 @@ function Sidebar({ role, items, active, onChange, onLogout }: {
 
 // ─── Dashboard shell ──────────────────────────────────────────────────────────
 function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
+  const api = useApi();
   const role = user.role;
   const navMap = { admin: ADMIN_NAV, worker: WORKER_NAV, trainer: TRAINER_NAV };
   const nav = navMap[role];
@@ -923,6 +929,9 @@ function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void })
       {modal === "add-exercice" && <ModalAddExercice onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} role={role} />}
       {modal === "exercice-detail" && selectedExercise && <ModalExerciceDetail exerciseId={selectedExercise.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} role={role} />}
       {selectedPaySub && <ModalPayRest subscription={selectedPaySub} onClose={() => setSelectedPaySub(null)} onPaid={() => setRefreshKey(k => k + 1)} />}
+
+      {/* Realtime door-scan popup */}
+      <RealtimeAccessPopup api={api} />
     </div>
   );
 }
@@ -1007,6 +1016,164 @@ function Login({ onLogin }: { onLogin: (user: AuthUser) => void }) {
   );
 }
 
+// ─── Realtime Access Popup ────────────────────────────────────────────────────
+// Watches for the latest door scan and shows a card when a NEW event appears.
+function RealtimeAccessPopup({ api }: { api: ReturnType<typeof useApi> }) {
+  const [scan, setScan] = useState<any>(null);
+  const [hide, setHide] = useState(false);
+  const lastSeenId = useRef<string>("");
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const poll = useCallback(async () => {
+    try {
+      const data = await api.zkteco.getLatest();
+      if (!data || !data.log) return;
+      const id = data.log.id;
+      if (!lastSeenId.current) {
+        // first load: just remember it, don't popup
+        lastSeenId.current = id;
+        return;
+      }
+      if (id !== lastSeenId.current) {
+        lastSeenId.current = id;
+        setScan(data);
+        setHide(false);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => setHide(true), 15000);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [api]);
+
+  useEffect(() => {
+    poll();
+    const t = setInterval(poll, 4000);
+    return () => {
+      clearInterval(t);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [poll]);
+
+  if (!scan || hide) return null;
+
+  const log = scan.log;
+  const child = log.children;
+  const parents = scan.parents || [];
+  const sub = scan.subscription;
+  const todayExercises = scan.todayExercises || [];
+  const now = new Date();
+  const age = child?.birth_date
+    ? (() => {
+        const b = new Date(child.birth_date);
+        let a = now.getFullYear() - b.getFullYear();
+        const m = now.getMonth() - b.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < b.getDate())) a--;
+        return a;
+      })()
+    : child?.age || null;
+  const expired = sub && sub.end_date ? new Date(sub.end_date) < now : false;
+  const status = log.status;
+  const statusLabel =
+    status === "granted" ? "✅ AUTORISÉ" :
+    status === "denied_unknown_user" ? "❌ PIN INCONNU" :
+    status === "denied_no_sub" ? "❌ PAS D'ABONNEMENT" :
+    status === "denied_expired" ? "❌ ABONNEMENT EXPIRÉ" :
+    status === "denied_no_exercise" ? "❌ AUCUNE SÉANCE AUJOURD'HUI" :
+    status === "denied_window" ? "❌ HORS CRÉNEAU" : "❌ REFUSÉ";
+  const statusColor =
+    status === "granted" ? "bg-emerald-500" :
+    status === "denied_unknown_user" ? "bg-amber-500" : "bg-red-500";
+
+  const todayExercises = scan.todayExercises || [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
+      <div className="w-[560px] max-w-full rounded-2xl overflow-hidden bg-white shadow-2xl border border-slate-200">
+        {/* Header */}
+        <div className={`px-5 py-3 text-white font-bold text-lg uppercase tracking-wide flex items-center justify-between ${statusColor}`}>
+          <span>{statusLabel}</span>
+          <button onClick={() => setHide(true)} className="text-white/90 hover:text-white text-2xl leading-none">×</button>
+        </div>
+
+        <div className="p-6">
+          {/* Top: photo + identity */}
+          <div className="flex items-center gap-5 mb-5">
+            <div className="w-24 h-24 rounded-full bg-pink-100 flex items-center justify-center text-pink-700 font-bold text-3xl border-2 border-pink-200 border-white shadow shrink-0 overflow-hidden">
+              {child?.photo ? (
+                <img src={child.photo} alt={child?.name} className="w-full h-full object-cover" />
+              ) : (
+                (child?.name || "?").split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-2xl font-bold text-slate-900 leading-tight truncate">{child?.name || "Inconnu"}</p>
+              {child?.zkteco_id && (
+                <p className="text-sm text-slate-500">ID ZKTeco: {child.zkteco_id} · {child.gender || ""}</p>
+              )}
+              {age !== null && <p className="text-sm text-slate-500 font-medium">Âge: {age} ans</p>}
+            </div>
+          </div>
+
+          {/* Grid: subscription + client info */}
+          {child && (
+            <div className="grid grid-cols-2 gap-3 text-sm mb-5">
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-slate-400 font-semibold uppercase tracking-wide text-[11px]">Type client</p>
+                <p className="text-slate-800 font-semibold mt-0.5">{child.client_type || "Normal"}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-slate-400 font-semibold uppercase tracking-wide text-[11px]">Abonnement</p>
+                <p className="text-slate-800 font-semibold mt-0.5">{sub?.sub_type || "—"}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-slate-400 font-semibold uppercase tracking-wide text-[11px]">Validité</p>
+                <p className={`text-sm font-bold mt-0.5 ${expired ? "text-red-600" : "text-emerald-700"}`}>
+                  {sub ? `${sub.start_date} → ${sub.end_date}` : "Aucun"} {expired ? "⚠️ EXPIRÉ" : ""}
+                </p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-slate-400 font-semibold uppercase tracking-wide text-[11px]">Montant</p>
+                <p className="text-slate-800 font-semibold mt-0.5">{sub ? `${Number(sub.amount || 0).toLocaleString()} Dhs` : "—"}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Today's exercises */}
+          {todayExercises.length > 0 && (
+            <div className="mb-5">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Séances aujourd'hui</p>
+              <div className="flex flex-wrap gap-2">
+                {todayExercises.map((ex: any, i: number) => (
+                  <span key={ex?.id || i} className="bg-pink-50 border border-pink-200 text-pink-700 text-xs font-semibold px-3 py-1.5 rounded-full">
+                    {ex?.name} · {ex?.start_time}–{ex?.end_time}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Parents */}
+          {parents.length > 0 && (
+            <div className="border-t border-slate-100 pt-3 mb-3">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Parents</p>
+              {parents.map((p: any, i: number) => (
+                <p key={p?.id || i} className="text-sm text-slate-700">
+                  <span className="font-semibold">{p?.gender ? p.gender + " · " : ""}{p?.name}</span>
+                  {p?.phone ? ` — ${p.phone}` : ""}
+                </p>
+              ))}
+            </div>
+          )}
+
+          <p className="text-xs text-slate-400 text-right">
+            {new Date(log.event_time || log.created_at).toLocaleString("fr-FR")}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
