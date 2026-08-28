@@ -219,7 +219,7 @@ export function useApi() {
         return request(`/zkteco/access-logs${q.toString() ? `?${q}` : ''}`)
       },
       getStats: () => request('/zkteco/logs/stats'),
-      getLatest: () => request('/zkteco/latest'),
+      getLatest: (id?: string) => request(`/zkteco/latest${id ? `?id=${id}` : ''}`),
       getDeviceCommands: (deviceId: string) => request(`/zkteco/devices/${deviceId}/commands`),
       queueCommand: (deviceId: string, command: string, params?: Record<string, unknown>) =>
         request(`/zkteco/devices/${deviceId}/commands`, { method: 'POST', body: JSON.stringify({ command, params }) }),

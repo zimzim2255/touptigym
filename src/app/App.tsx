@@ -433,6 +433,7 @@ function PageDemandes({ canValidate, openModal, onRefresh }: {
 // ─── Page: Accès ZKTeco (connected to API) ─────────────────────────────────────
 function PageAcces() {
   const api = useApi();
+  const [viewLogId, setViewLogId] = useState<string | null>(null);
   const [devices, setDevices] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({ today_total: 0, total_devices: 0, today_unknown: 0, recent: [] });
   const [logs, setLogs] = useState<any[]>([]);
@@ -613,7 +614,7 @@ function PageAcces() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
-              {["Date/Heure", "Enfant", "Type", "Statut", "Appareil"].map(h => (
+              {["Date/Heure", "Enfant", "Type", "Statut", "Appareil", "Action"].map(h => (
                 <th key={h} className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">{h}</th>
               ))}
             </tr>
@@ -621,11 +622,11 @@ function PageAcces() {
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-sm text-slate-400 text-center">Chargement des logs...</td>
+                <td colSpan={6} className="px-4 py-6 text-sm text-slate-400 text-center">Chargement des logs...</td>
               </tr>
             ) : logs.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-sm text-slate-400 text-center">
+                <td colSpan={6} className="px-4 py-6 text-sm text-slate-400 text-center">
                   Aucun log d'accès pour le moment. Configurez le PUSH SDK sur l'appareil.
                 </td>
               </tr>
@@ -645,12 +646,24 @@ function PageAcces() {
                   <td className="px-4 py-3 text-xs text-slate-400 truncate max-w-32">
                     {log.device_id || "SpeedFace-V5L"}
                   </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => setViewLogId(log.id)}
+                      className="flex items-center gap-1 text-xs text-pink-500 hover:text-pink-700 font-medium transition-colors"
+                    >
+                      <Eye size={12} /> Voir
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      {viewLogId && (
+        <RealtimeAccessPopup api={api} logId={viewLogId} onClose={() => setViewLogId(null)} />
+      )}
     </PageWrap>
   );
 }
@@ -1017,12 +1030,32 @@ function Login({ onLogin }: { onLogin: (user: AuthUser) => void }) {
 }
 
 // ─── Realtime Access Popup ────────────────────────────────────────────────────
-// Watches for the latest door scan and shows a card when a NEW event appears.
-function RealtimeAccessPopup({ api }: { api: ReturnType<typeof useApi> }) {
+// Shows a card for the latest door scan (or a specific log via logId). Never
+// auto-hides — stays until closed (×).
+function RealtimeAccessPopup({ api, logId, onClose }: {
+  api: ReturnType<typeof useApi>;
+  logId?: string;
+  onClose?: () => void;
+}) {
   const [scan, setScan] = useState<any>(null);
   const [hide, setHide] = useState(false);
   const lastSeenId = useRef<string>("");
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const close = useCallback(() => {
+    setHide(true);
+    setScan(null);
+    if (onClose) onClose();
+  }, [onClose]);
+
+  const fetchOne = useCallback(async (id: string) => {
+    try {
+      const data = await api.zkteco.getLatest(id);
+      if (data && data.log) {
+        setScan(data);
+        setHide(false);
+      }
+    } catch { /* ignore */ }
+  }, [api]);
 
   const poll = useCallback(async () => {
     try {
@@ -1038,8 +1071,6 @@ function RealtimeAccessPopup({ api }: { api: ReturnType<typeof useApi> }) {
         lastSeenId.current = id;
         setScan(data);
         setHide(false);
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => setHide(true), 15000);
       }
     } catch {
       /* ignore */
@@ -1047,13 +1078,14 @@ function RealtimeAccessPopup({ api }: { api: ReturnType<typeof useApi> }) {
   }, [api]);
 
   useEffect(() => {
+    if (logId) {
+      fetchOne(logId);
+      return;
+    }
     poll();
     const t = setInterval(poll, 4000);
-    return () => {
-      clearInterval(t);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [poll]);
+    return () => clearInterval(t);
+  }, [logId, poll, fetchOne]);
 
   if (!scan || hide) return null;
 
@@ -1086,18 +1118,22 @@ function RealtimeAccessPopup({ api }: { api: ReturnType<typeof useApi> }) {
     status === "denied_unknown_user" ? "bg-amber-500" : "bg-red-500";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
-      <div className="w-[560px] max-w-full rounded-2xl overflow-hidden bg-white shadow-2xl border border-slate-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={close}>
+      <div
+        className="w-[600px] max-w-full rounded-2xl overflow-hidden bg-white shadow-2xl"
+        style={{ fontFamily: "'DM Sans', sans-serif" }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className={`px-5 py-3 text-white font-bold text-lg uppercase tracking-wide flex items-center justify-between ${statusColor}`}>
-          <span>{statusLabel}</span>
-          <button onClick={() => setHide(true)} className="text-white/90 hover:text-white text-2xl leading-none">×</button>
+        <div className={`px-6 py-4 text-white flex items-center justify-between ${statusColor}`}>
+          <span className="text-lg font-bold tracking-wide uppercase">{statusLabel}</span>
+          <button onClick={close} className="text-white/90 hover:text-white text-2xl leading-none">×</button>
         </div>
 
         <div className="p-6">
           {/* Top: photo + identity */}
-          <div className="flex items-center gap-5 mb-5">
-            <div className="w-24 h-24 rounded-full bg-pink-100 flex items-center justify-center text-pink-700 font-bold text-3xl border-2 border-pink-200 border-white shadow shrink-0 overflow-hidden">
+          <div className="flex items-center gap-5 mb-6">
+            <div className="w-28 h-28 rounded-full bg-pink-100 flex items-center justify-center text-pink-700 font-bold text-4xl border-2 border-pink-200 shadow shrink-0 overflow-hidden">
               {child?.photo ? (
                 <img src={child.photo} alt={child?.name} className="w-full h-full object-cover" />
               ) : (
@@ -1105,17 +1141,19 @@ function RealtimeAccessPopup({ api }: { api: ReturnType<typeof useApi> }) {
               )}
             </div>
             <div className="min-w-0">
-              <p className="text-2xl font-bold text-slate-900 leading-tight truncate">{child?.name || "Inconnu"}</p>
+              <p className="text-3xl font-bold text-slate-900 leading-tight truncate" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+                {child?.name || "Inconnu"}
+              </p>
               {child?.zkteco_id && (
-                <p className="text-sm text-slate-500">ID ZKTeco: {child.zkteco_id} · {child.gender || ""}</p>
+                <p className="text-sm text-slate-500 mt-1">ID ZKTeco: {child.zkteco_id} · {child.gender || ""}</p>
               )}
-              {age !== null && <p className="text-sm text-slate-500 font-medium">Âge: {age} ans</p>}
+              {age !== null && <p className="text-sm text-slate-500 font-medium mt-0.5">Âge: {age} ans</p>}
             </div>
           </div>
 
           {/* Grid: subscription + client info */}
           {child && (
-            <div className="grid grid-cols-2 gap-3 text-sm mb-5">
+            <div className="grid grid-cols-2 gap-3 text-sm mb-6">
               <div className="bg-slate-50 p-3 rounded-lg">
                 <p className="text-slate-400 font-semibold uppercase tracking-wide text-[11px]">Type client</p>
                 <p className="text-slate-800 font-semibold mt-0.5">{child.client_type || "Normal"}</p>

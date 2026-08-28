@@ -26,14 +26,16 @@ serve(async (req) => {
 
     // ─── Logs & Access Control API ─────────────────
 
-    // GET /zkteco/latest — enrich the latest scan with child + parents + subscription
+    // GET /zkteco/latest — enrich the latest scan (or a specific one via ?id=) with child + parents + subscription
     if (method === 'GET' && route === 'latest') {
-      const { data, error } = await supabase
+      const logId = url.searchParams.get('id') || ''
+      let query = supabase
         .from('zkteco_logs')
         .select('*, children:child_id(id, name, gender, birth_date, age, zkteco_id, photo, client_type)')
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle()
+      if (logId) query = query.eq('id', logId)
+      const { data, error } = await query.maybeSingle()
 
       if (error) return errorResponse(error.message, 500)
       if (!data) return jsonResponse(null)
