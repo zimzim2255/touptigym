@@ -118,6 +118,8 @@ CREATE TABLE subscriptions (
   end_date DATE NOT NULL,
   created_by UUID REFERENCES users(id),
   confirmed_by UUID REFERENCES users(id),
+  confirmation_status VARCHAR(20) DEFAULT 'pending' CHECK (confirmation_status IN ('pending', 'confirmed', 'unconfirmed')),
+  confirmed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

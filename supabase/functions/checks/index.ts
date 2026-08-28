@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { supabase } from '../_shared/supabaseClient.ts'
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts'
+import { fetchAll } from '../_shared/pagination.ts'
 
 serve(async (req) => {
   const cors = handleCors(req)
@@ -15,8 +16,7 @@ serve(async (req) => {
 
     // GET / (list all checks)
     if (method === 'GET' && segments.length === 0) {
-      const { data, error } = await supabase.from('checks').select('*').order('created_at', { ascending: false })
-      if (error) return errorResponse(error.message, 500)
+      const data = await fetchAll(supabase.from('checks').select('*'), 'created_at')
       return jsonResponse(data)
     }
 

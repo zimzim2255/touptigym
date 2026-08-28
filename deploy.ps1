@@ -1,2 +1,18 @@
- npx supabase functions deploy payments --project-ref
- npx supabase functions deploy requests --project-ref
+npx supabase functions deploy attendance --project-ref
+npx supabase functions deploy checks --project-ref
+npx supabase functions deploy children --project-ref
+npx supabase functions deploy exercises --project-ref
+npx supabase functions deploy groups --project-ref
+npx supabase functions deploy iclock --project-ref
+npx supabase functions deploy login --project-ref
+npx supabase functions deploy parents --project-ref
+npx supabase functions deploy payments --project-ref
+npx supabase functions deploy prices --project-ref
+npx supabase functions deploy requests --project-ref
+npx supabase functions deploy send-birthday-emails --project-ref
+npx supabase functions deploy send-welcome-email --project-ref
+npx supabase functions deploy subscriptions --project-ref
+npx supabase functions deploy trainers --project-ref
+npx supabase functions deploy upload --project-ref
+npx supabase functions deploy users --project-ref
+npx supabase functions deploy zkteco --project-ref

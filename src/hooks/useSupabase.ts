@@ -45,6 +45,7 @@ export function useApi() {
     parents: {
       getAll: (childId?: string) => request(`/parents${childId ? `?child_id=${childId}` : ''}`),
       getById: (id: string) => request(`/parents/${id}`),
+      getLinks: () => request('/parents/links'),
       create: (data: any) => request('/parents', { method: 'POST', body: JSON.stringify(data) }),
       update: (id: string, data: any) => request(`/parents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
       remove: (id: string) => request(`/parents/${id}`, { method: 'DELETE' }),
@@ -66,6 +67,7 @@ export function useApi() {
       remove: (id: string) => request(`/subscriptions/${id}`, { method: 'DELETE' }),
       confirm: (id: string, confirmedBy: string) =>
         request(`/subscriptions/${id}/confirm`, { method: 'POST', body: JSON.stringify({ confirmed_by: confirmedBy }) }),
+      unconfirm: (id: string) => request(`/subscriptions/${id}/unconfirm`, { method: 'POST' }),
       reject: (id: string) => request(`/subscriptions/${id}/reject`, { method: 'POST' }),
       pay: (id: string, data: any) => request(`/subscriptions/${id}/pay`, { method: 'POST', body: JSON.stringify(data) }),
       // New: get activities/groups/courses for a subscription
@@ -130,6 +132,21 @@ export function useApi() {
       createCheck: (data: any) => request('/payments/checks', { method: 'POST', body: JSON.stringify(data) }),
       useCheck: (id: string, paymentId: string) =>
         request(`/payments/checks/${id}/use`, { method: 'PUT', body: JSON.stringify({ payment_id: paymentId }) }),
+    },
+
+    // ─── Auth ────────────────────────────────────
+    auth: {
+      login: (email: string, password: string) =>
+        request('/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    },
+
+    // ─── Users (accounts) ────────────────────────
+    users: {
+      getAll: () => request('/users'),
+      getById: (id: string) => request(`/users/${id}`),
+      create: (data: any) => request('/users', { method: 'POST', body: JSON.stringify(data) }),
+      update: (id: string, data: any) => request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+      remove: (id: string) => request(`/users/${id}`, { method: 'DELETE' }),
     },
 
     // ─── Requests ────────────────────────────────
@@ -202,6 +219,7 @@ export function useApi() {
         return request(`/zkteco/access-logs${q.toString() ? `?${q}` : ''}`)
       },
       getStats: () => request('/zkteco/logs/stats'),
+      getLatest: () => request('/zkteco/latest'),
       getDeviceCommands: (deviceId: string) => request(`/zkteco/devices/${deviceId}/commands`),
       queueCommand: (deviceId: string, command: string, params?: Record<string, unknown>) =>
         request(`/zkteco/devices/${deviceId}/commands`, { method: 'POST', body: JSON.stringify({ command, params }) }),

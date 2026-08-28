@@ -28,17 +28,21 @@ export function PageParents({ canEdit, openModal, setSelectedParent, onRefresh }
 
   const loadChildrenForParents = useCallback(async (parentsData: Parent[]) => {
     try {
-      const allChildren: Child[] = await api.children.getAll();
+      // Batch-load ALL parent-child links in ONE call (avoids N+1 requests)
+      const [allChildren, links] = await Promise.all([
+        api.children.getAll(),
+        api.parents.getLinks(),
+      ]);
       const map: Record<string, Child[]> = {};
-      
+      const childById = new Map((allChildren as Child[]).map(c => [c.id, c]));
+
       for (const p of parentsData) {
-        try {
-          const detail = await api.parents.getById(p.id);
-          const linkedIds = (detail.parent_children || []).map((pc: any) => pc.child_id);
-          map[p.id] = allChildren.filter(c => linkedIds.includes(c.id));
-        } catch {
-          map[p.id] = [];
-        }
+        const linkedIds = (links as any[])
+          .filter(l => l.parent_id === p.id)
+          .map(l => l.child_id);
+        map[p.id] = linkedIds
+          .map(id => childById.get(id))
+          .filter(Boolean) as Child[];
       }
       setChildrenMap(map);
     } catch (err) {

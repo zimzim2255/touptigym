@@ -7,6 +7,7 @@ import { ModalAddTrainer, ModalTrainerDetail, PageEntraineurs } from "./componen
 import { ModalAddCheck, ModalCheckDetail, PageChecks } from "./components/checks";
 import { PagePaiements, ModalPayRest } from "./components/payments";
 import { PageAbsences, PageTrainerToday, ModalMarkAttendance } from "./components/attendance";
+import { PageEmployes } from "./components/users";
 import { Tag, Btn, Field, inputCls, selectCls, Modal, PageWrap } from "./components/shared";
 import { useApi } from "../hooks/useSupabase";
 import type { UrgentRequest, Child as ChildType, Exercise as ExerciseType, Check as CheckType } from "./types";
@@ -15,7 +16,7 @@ import {
   Banknote, Settings, LayoutDashboard, LogOut, Search, Plus, Check,
   X, Clock, Users, Fingerprint, Activity, TrendingUp, UserCheck,
   Bell, Filter, Eye, Edit2, Trash2, CheckCircle, XCircle, RefreshCw,
-  ChevronRight, Menu, ArrowLeft, ChevronLeft,
+  ChevronRight, Menu, ArrowLeft, ChevronLeft, UserCog,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -444,25 +445,45 @@ function PageAcces() {
   }, []);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const [deviceData, statsData] = await Promise.all([
-        api.zkteco.getDevices().catch(() => []),
-        api.zkteco.getStats().catch(() => ({ today_total: 0, total_devices: 0, today_unknown: 0, recent: [] })),
+        api.zkteco.getDevices().catch(() => null),
+        api.zkteco.getStats().catch(() => null),
       ]);
-      setDevices(deviceData);
-      setStats(statsData);
-      setLogs(statsData.recent || []);
+      // Only update the screen when the backend actually has new data.
+      // (compares JSON so the page never flickers just because time passed)
+      if (deviceData && statsData) {
+        const dataChanged =
+          JSON.stringify(deviceData) !== JSON.stringify(devices) ||
+          JSON.stringify(statsData) !== JSON.stringify(stats);
+        if (dataChanged) {
+          setDevices(deviceData);
+          setStats(statsData);
+          setLogs(statsData.recent || []);
+        }
+      }
     } catch (err: any) {
       console.error("Failed to load ZKTeco data:", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [devices, stats]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, 8000); // background check only (no flicker)
+    return () => clearInterval(timer);
+  }, [load]);
 
   const handleRefresh = () => load();
+
+  // A device is considered "En ligne" if its last contact is fresh (< 2 min)
+  const isDeviceOnline = (d: any): boolean => {
+    if (!d || d.status !== "online") return false;
+    if (!d.last_seen) return false;
+    const age = Date.now() - new Date(d.last_seen).getTime();
+    return age < 120_000;
+  };
 
   const formatTime = (isoStr: string) => {
     if (!isoStr) return "—";
@@ -485,8 +506,13 @@ function PageAcces() {
   const mapStatusLabel = (status: string): string => {
     switch (status) {
       case "granted": return "autorisé";
-      case "denied_no_subscription": return "refusé (abonnement)";
+      case "denied_no_sub": return "refusé (abonnement)";
+      case "denied_expired": return "refusé (abonnement expiré)";
+      case "denied_no_exercise": return "refusé (pas de séance aujourd'hui)";
+      case "denied_window": return "refusé (hors créneau)";
       case "denied_unknown_user": return "refusé (inconnu)";
+      case "denied_no_subscription": return "refusé (abonnement)";
+      case "denied_schedule": return "refusé (hors créneau)";
       default: return status;
     }
   };
@@ -518,9 +544,9 @@ function PageAcces() {
         {devices.length > 0 ? devices.slice(0, 4).map((d: any) => (
           <div key={d.id} className="bg-white p-4">
             <div className="flex items-center gap-2 mb-1">
-              <span className={`w-2 h-2 ${d.status === "online" ? "bg-emerald-500" : "bg-red-500"}`} />
-              <span className={`text-xs font-semibold ${d.status === "online" ? "text-emerald-700" : "text-red-600"}`}>
-                {d.status === "online" ? "En ligne" : "Hors ligne"}
+              <span className={`w-2 h-2 ${isDeviceOnline(d) ? "bg-emerald-500" : "bg-red-500"}`} />
+              <span className={`text-xs font-semibold ${isDeviceOnline(d) ? "text-emerald-700" : "text-red-600"}`}>
+                {isDeviceOnline(d) ? "En ligne" : "Hors ligne"}
               </span>
             </div>
             <p className="text-xs text-slate-500 truncate">{d.name || d.ip_address || "Appareil ZKTeco"}</p>
@@ -741,6 +767,7 @@ const ADMIN_NAV: NavItem[] = [
   { id: "checks", label: "Chèques", icon: Banknote },
   { id: "acces", label: "Accès ZKTeco", icon: Fingerprint },
   { id: "demandes", label: "Demandes urgentes", icon: AlertCircle },
+  { id: "employes", label: "Comptes Employés", icon: UserCog },
   { id: "tarifs", label: "Tarifs & Paramètres", icon: Settings },
 ];
 
@@ -776,8 +803,8 @@ function Sidebar({ role, items, active, onChange, onLogout }: {
           borderBottom: "1px solid var(--sidebar-border)",
         }}
       >
-        <img
-          src="https://atvdorphwnpzhobvfmtz.supabase.co/storage/v1/object/public/logo/logo.png"
+        <img // the  key here for the db not matching the key we have in .env its a nother db dont chagne it dont take it as refrence leave it dont tutch it 
+          src="https://lpjdpcguplkpdfgxomps.supabase.co/storage/v1/object/public/logo/logo.png"
           alt="TouptiGym"
           className="h-60 w-auto object-contain"
         />
@@ -804,7 +831,7 @@ function Sidebar({ role, items, active, onChange, onLogout }: {
           onClick={onLogout}
           className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-400 hover:text-white hover:bg-white/8 transition-colors mt-3"
         >
-          <LogOut size={14} /> Changer de rôle
+          <LogOut size={14} /> Se déconnecter
         </button>
       </div>
     </aside>
@@ -812,7 +839,9 @@ function Sidebar({ role, items, active, onChange, onLogout }: {
 }
 
 // ─── Dashboard shell ──────────────────────────────────────────────────────────
-function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
+function Dashboard({ user, onLogout }: { user: AuthUser; onLogout: () => void }) {
+  const api = useApi();
+  const role = user.role;
   const navMap = { admin: ADMIN_NAV, worker: WORKER_NAV, trainer: TRAINER_NAV };
   const nav = navMap[role];
   const [active, setActive] = useState(nav[0].id);
@@ -848,9 +877,10 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       case "checks": return <PageChecks canEdit={role !== "trainer"} openModal={setModal} setSelectedCheck={setSelectedCheck} onRefresh={refreshKey} />;
       case "acces": return <PageAcces />;
       case "paiements": return <PagePaiements openPayModal={setSelectedPaySub} onRefresh={refreshKey} />;
+      case "employes": return <PageEmployes onRefresh={refreshKey} />;
       case "demandes": return <PageDemandes canValidate={role === "admin"} openModal={setModal} onRefresh={refreshKey} />;
       case "tarifs": return <PageTarifs />;
-      case "today": return <PageTrainerToday openModal={setModal} setSelectedEx={setSelectedEx} />;
+      case "today": return <PageTrainerToday trainerId={user.trainer_id} openModal={setModal} setSelectedEx={setSelectedEx} />;
       default: return null;
     }
   }
@@ -867,8 +897,11 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
           <button className="lg:hidden p-1.5 text-slate-500" onClick={() => setSidebarOpen(true)}><Menu size={16} /></button>
           <div className="flex items-center gap-3 ml-auto">
             <button className="text-slate-400 hover:text-slate-700 transition-colors"><Bell size={15} /></button>
-            <div className="w-7 h-7 bg-pink-100 flex items-center justify-center text-pink-700 text-xs font-bold border border-pink-200">
-              {role === "admin" ? "AD" : role === "worker" ? "EM" : "EN"}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 font-medium hidden sm:block">{user.name}</span>
+              <div className="w-7 h-7 bg-pink-100 flex items-center justify-center text-pink-700 text-xs font-bold border border-pink-200">
+                {user.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()}
+              </div>
             </div>
           </div>
         </header>
@@ -896,43 +929,86 @@ function Dashboard({ role, onLogout }: { role: Role; onLogout: () => void }) {
       {modal === "add-exercice" && <ModalAddExercice onClose={() => setModal(null)} onCreated={() => setRefreshKey(k => k + 1)} role={role} />}
       {modal === "exercice-detail" && selectedExercise && <ModalExerciceDetail exerciseId={selectedExercise.id} onClose={() => setModal(null)} onUpdated={() => setRefreshKey(k => k + 1)} role={role} />}
       {selectedPaySub && <ModalPayRest subscription={selectedPaySub} onClose={() => setSelectedPaySub(null)} onPaid={() => setRefreshKey(k => k + 1)} />}
+
+      {/* Realtime door-scan popup */}
+      <RealtimeAccessPopup api={api} />
     </div>
   );
 }
 
-// ─── Role Selector ────────────────────────────────────────────────────────────
-function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
-  const roles: { id: Role; label: string; sub: string }[] = [
-    { id: "admin", label: "Administrateur", sub: "Gestion complète de l'établissement" },
-    { id: "worker", label: "Employé", sub: "Gestion opérationnelle quotidienne" },
-    { id: "trainer", label: "Entraîneur", sub: "Suivi des activités et des présences" },
-  ];
+// ─── Login ────────────────────────────────────────────────────────────────────
+type AuthUser = { id: string; email: string; name: string; role: Role; active: boolean; trainer_id?: string | null };
+
+function Login({ onLogin }: { onLogin: (user: AuthUser) => void }) {
+  const api = useApi();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || !password) {
+      setError("Veuillez saisir votre email et votre mot de passe.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const user = await api.auth.login(email.trim(), password);
+      if (user.role !== "admin" && user.role !== "worker" && user.role !== "trainer") {
+        setError("Ce compte n'a pas un rôle valide pour cette application.");
+        setLoading(false);
+        return;
+      }
+      onLogin(user as AuthUser);
+    } catch (err: any) {
+      setError(err.message || "Connexion impossible. Vérifiez vos identifiants.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4" style={{ fontFamily: "'DM Sans', sans-serif" }}>
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-10">
-          <img src="https://atvdorphwnpzhobvfmtz.supabase.co/storage/v1/object/public/logo/logo.png" alt="TouptiGym" className="h-28 w-auto mx-auto mb-2" />
-          <p className="text-sm text-slate-400 mt-2">Sélectionnez votre profil</p>
+          <img src="https://lpjdpcguplkpdfgxomps.supabase.co/storage/v1/object/public/logo/logo.png" alt="TouptiGym" className="h-28 w-auto mx-auto mb-2" />
+          <p className="text-sm text-slate-400 mt-2">Connectez-vous à votre compte</p>
         </div>
 
-        {/* Role buttons — vertical stack, full width */}
-        <div className="space-y-2">
-          {roles.map(r => (
-            <button
-              key={r.id}
-              onClick={() => onSelect(r.id)}
-              className="w-full flex items-center gap-4 px-5 py-4 border border-slate-200 bg-white hover:border-pink-400 hover:bg-pink-50 transition-colors text-left group"
-            >
-              <div className="flex-1">
-                <p className="font-semibold text-slate-900 group-hover:text-pink-700">{r.label}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{r.sub}</p>
-              </div>
-              <ChevronRight size={15} className="text-slate-300 group-hover:text-pink-400 transition-colors" />
-            </button>
-          ))}
-        </div>
+        <form onSubmit={handleSubmit} className="space-y-4 bg-white border border-slate-200 p-6">
+          <Field label="Email" required>
+            <input
+              type="email"
+              className={inputCls}
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="employe@gym.com"
+              autoFocus
+            />
+          </Field>
+          <Field label="Mot de passe" required>
+            <input
+              type="password"
+              className={inputCls}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••"
+            />
+          </Field>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-600">
+              {error}
+            </div>
+          )}
+
+          <Btn disabled={loading} className="w-full justify-center">
+            {loading ? "Connexion..." : "Se connecter"}
+          </Btn>
+        </form>
 
         <p className="text-center text-xs text-slate-300 mt-8">© 2026 TouptiGym</p>
       </div>
@@ -940,9 +1016,165 @@ function RoleSelector({ onSelect }: { onSelect: (r: Role) => void }) {
   );
 }
 
+// ─── Realtime Access Popup ────────────────────────────────────────────────────
+// Watches for the latest door scan and shows a card when a NEW event appears.
+function RealtimeAccessPopup({ api }: { api: ReturnType<typeof useApi> }) {
+  const [scan, setScan] = useState<any>(null);
+  const [hide, setHide] = useState(false);
+  const lastSeenId = useRef<string>("");
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const poll = useCallback(async () => {
+    try {
+      const data = await api.zkteco.getLatest();
+      if (!data || !data.log) return;
+      const id = data.log.id;
+      if (!lastSeenId.current) {
+        // first load: just remember it, don't popup
+        lastSeenId.current = id;
+        return;
+      }
+      if (id !== lastSeenId.current) {
+        lastSeenId.current = id;
+        setScan(data);
+        setHide(false);
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(() => setHide(true), 15000);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [api]);
+
+  useEffect(() => {
+    poll();
+    const t = setInterval(poll, 4000);
+    return () => {
+      clearInterval(t);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [poll]);
+
+  if (!scan || hide) return null;
+
+  const log = scan.log;
+  const child = log.children;
+  const parents = scan.parents || [];
+  const sub = scan.subscription;
+  const todayExercises = scan.todayExercises || [];
+  const now = new Date();
+  const age = child?.birth_date
+    ? (() => {
+        const b = new Date(child.birth_date);
+        let a = now.getFullYear() - b.getFullYear();
+        const m = now.getMonth() - b.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < b.getDate())) a--;
+        return a;
+      })()
+    : child?.age || null;
+  const expired = sub && sub.end_date ? new Date(sub.end_date) < now : false;
+  const status = log.status;
+  const statusLabel =
+    status === "granted" ? "✅ AUTORISÉ" :
+    status === "denied_unknown_user" ? "❌ PIN INCONNU" :
+    status === "denied_no_sub" ? "❌ PAS D'ABONNEMENT" :
+    status === "denied_expired" ? "❌ ABONNEMENT EXPIRÉ" :
+    status === "denied_no_exercise" ? "❌ AUCUNE SÉANCE AUJOURD'HUI" :
+    status === "denied_window" ? "❌ HORS CRÉNEAU" : "❌ REFUSÉ";
+  const statusColor =
+    status === "granted" ? "bg-emerald-500" :
+    status === "denied_unknown_user" ? "bg-amber-500" : "bg-red-500";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
+      <div className="w-[560px] max-w-full rounded-2xl overflow-hidden bg-white shadow-2xl border border-slate-200">
+        {/* Header */}
+        <div className={`px-5 py-3 text-white font-bold text-lg uppercase tracking-wide flex items-center justify-between ${statusColor}`}>
+          <span>{statusLabel}</span>
+          <button onClick={() => setHide(true)} className="text-white/90 hover:text-white text-2xl leading-none">×</button>
+        </div>
+
+        <div className="p-6">
+          {/* Top: photo + identity */}
+          <div className="flex items-center gap-5 mb-5">
+            <div className="w-24 h-24 rounded-full bg-pink-100 flex items-center justify-center text-pink-700 font-bold text-3xl border-2 border-pink-200 border-white shadow shrink-0 overflow-hidden">
+              {child?.photo ? (
+                <img src={child.photo} alt={child?.name} className="w-full h-full object-cover" />
+              ) : (
+                (child?.name || "?").split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-2xl font-bold text-slate-900 leading-tight truncate">{child?.name || "Inconnu"}</p>
+              {child?.zkteco_id && (
+                <p className="text-sm text-slate-500">ID ZKTeco: {child.zkteco_id} · {child.gender || ""}</p>
+              )}
+              {age !== null && <p className="text-sm text-slate-500 font-medium">Âge: {age} ans</p>}
+            </div>
+          </div>
+
+          {/* Grid: subscription + client info */}
+          {child && (
+            <div className="grid grid-cols-2 gap-3 text-sm mb-5">
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-slate-400 font-semibold uppercase tracking-wide text-[11px]">Type client</p>
+                <p className="text-slate-800 font-semibold mt-0.5">{child.client_type || "Normal"}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-slate-400 font-semibold uppercase tracking-wide text-[11px]">Abonnement</p>
+                <p className="text-slate-800 font-semibold mt-0.5">{sub?.sub_type || "—"}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-slate-400 font-semibold uppercase tracking-wide text-[11px]">Validité</p>
+                <p className={`text-sm font-bold mt-0.5 ${expired ? "text-red-600" : "text-emerald-700"}`}>
+                  {sub ? `${sub.start_date} → ${sub.end_date}` : "Aucun"} {expired ? "⚠️ EXPIRÉ" : ""}
+                </p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-slate-400 font-semibold uppercase tracking-wide text-[11px]">Montant</p>
+                <p className="text-slate-800 font-semibold mt-0.5">{sub ? `${Number(sub.amount || 0).toLocaleString()} Dhs` : "—"}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Today's exercises */}
+          {todayExercises.length > 0 && (
+            <div className="mb-5">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Séances aujourd'hui</p>
+              <div className="flex flex-wrap gap-2">
+                {todayExercises.map((ex: any, i: number) => (
+                  <span key={ex?.id || i} className="bg-pink-50 border border-pink-200 text-pink-700 text-xs font-semibold px-3 py-1.5 rounded-full">
+                    {ex?.name} · {ex?.start_time}–{ex?.end_time}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Parents */}
+          {parents.length > 0 && (
+            <div className="border-t border-slate-100 pt-3 mb-3">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Parents</p>
+              {parents.map((p: any, i: number) => (
+                <p key={p?.id || i} className="text-sm text-slate-700">
+                  <span className="font-semibold">{p?.gender ? p.gender + " · " : ""}{p?.name}</span>
+                  {p?.phone ? ` — ${p.phone}` : ""}
+                </p>
+              ))}
+            </div>
+          )}
+
+          <p className="text-xs text-slate-400 text-right">
+            {new Date(log.event_time || log.created_at).toLocaleString("fr-FR")}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [role, setRole] = useState<Role | null>(null);
-  if (!role) return <RoleSelector onSelect={setRole} />;
-  return <Dashboard role={role} onLogout={() => setRole(null)} />;
+  const [user, setUser] = useState<AuthUser | null>(null);
+  if (!user) return <Login onLogin={setUser} />;
+  return <Dashboard user={user} onLogout={() => setUser(null)} />;
 }

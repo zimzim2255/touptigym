@@ -111,15 +111,14 @@ def write_file(fname, fcontent):
     print(f'  {fname}: {size_kb:.1f} KB, {lines} lines')
 
 # ============================================================
-# Extract all sections
+# Extract all sections (new structure)
 # ============================================================
 print("Extracting sections from full SQL...")
 
 markers = [
-    ('INSERT INTO exercises (name, day, type, start_time, end_time) VALUES', 'activities'),
-    ('INSERT INTO groups (name) VALUES', 'groups'),
+    ('INSERT INTO groups (name) VALUES', 'activites'),          # Activités → groups table
     ('INSERT INTO trainers (name) VALUES', 'trainers'),
-    ('INSERT INTO exercises (name, day, type, start_time, end_time, coach_id, group_id) VALUES', 'schedules'),
+    ('INSERT INTO exercises (name, day, type, start_time, end_time, coach_id, group_id) VALUES', 'horaires'),
     ('INSERT INTO children', 'children'),
     ('INSERT INTO parents', 'parents'),
     ('INSERT INTO parent_children', 'parent_children'),
@@ -133,15 +132,24 @@ for marker, name in markers:
         sections[name] = sec
         print(f'  {name}: {len(sec)} bytes')
 
+BATCH_SIZE = 2900  # ~2900 rows ≈ ~3000 lines per file
+
 # ============================================================
 # Create files
 # ============================================================
-
-# --- File 1: Setup & Reference Data (small tables together) ---
 file_num = 1
-setup_sql = f"""-- ============================================================
+
+# --- File 1: Activités (groups) + Trainers (small tables together) ---
+setup_parts = []
+if 'activites' in sections:
+    setup_parts.append(sections['activites'])
+if 'trainers' in sections:
+    setup_parts.append(sections['trainers'])
+
+if setup_parts:
+    setup_sql = f"""-- ============================================================
 -- TOUPTI GYM CASA - DATA IMPORT - FILE {file_num} OF 8
--- SETUP + REFERENCE DATA (Activities, Groups, Trainers, Schedules)
+-- ACTIVITÉS (groups table) + TRAINERS
 -- ============================================================
 
 -- Run this FIRST in the Supabase SQL Editor
@@ -149,23 +157,39 @@ setup_sql = f"""-- ============================================================
 -- ============================================================
 
 """
-for name in ['activities', 'groups', 'trainers', 'schedules']:
-    if name in sections:
-        setup_sql += sections[name] + "\n\n"
+    for part in setup_parts:
+        setup_sql += part + "\n\n"
 
-setup_sql += """-- ============================================================
+    setup_sql += """-- ============================================================
 -- FILE 1 DONE! ✅ Run FILE 2 next.
 -- ============================================================
 """
-write_file('import_casa_01_reference_data.sql', setup_sql)
+    write_file('import_casa_01_activites_trainers.sql', setup_sql)
+    file_num += 1
 
-BATCH_SIZE = 2900  # ~2900 rows ≈ ~3000 lines per file
+# --- Horaires (exercises) - small, keep as one file ---
+if 'horaires' in sections:
+    horaires_sql = f"""-- ============================================================
+-- TOUPTI GYM CASA - DATA IMPORT - FILE {file_num} OF 8
+-- HORAIRES (exercises table - name = groupe, group_id = activité)
+-- ============================================================
+
+-- Run this AFTER FILE 1
+-- ============================================================
+
+{sections['horaires']}
+
+-- ============================================================
+-- FILE {file_num} DONE! ✅
+-- ============================================================
+"""
+    write_file(f'import_casa_{file_num:02d}_horaires.sql', horaires_sql)
+    file_num += 1
 
 # --- Children (batches of ~2900 rows each) ---
 if 'children' in sections:
     batches = split_values(sections['children'], BATCH_SIZE)
     for i, stmt in enumerate(batches):
-        file_num += 1
         rows_start = i * BATCH_SIZE + 1
         rows_end = min((i + 1) * BATCH_SIZE, 5998)
         sql = f"""-- ============================================================
@@ -183,12 +207,12 @@ if 'children' in sections:
 -- ============================================================
 """
         write_file(f'import_casa_{file_num:02d}_children.sql', sql)
+        file_num += 1
 
 # --- Parents (batches of ~2900 rows each) ---
 if 'parents' in sections:
     batches = split_values(sections['parents'], BATCH_SIZE)
     for i, stmt in enumerate(batches):
-        file_num += 1
         sql = f"""-- ============================================================
 -- TOUPTI GYM CASA - DATA IMPORT - FILE {file_num} OF 8
 -- PARENTS - batch {i+1}/{len(batches)}
@@ -204,12 +228,12 @@ if 'parents' in sections:
 -- ============================================================
 """
         write_file(f'import_casa_{file_num:02d}_parents.sql', sql)
+        file_num += 1
 
 # --- Parent-Child relationships (batches of ~2900 rows each) ---
 if 'parent_children' in sections:
     batches = split_values(sections['parent_children'], BATCH_SIZE)
     for i, stmt in enumerate(batches):
-        file_num += 1
         sql = f"""-- ============================================================
 -- TOUPTI GYM CASA - DATA IMPORT - FILE {file_num} OF 8
 -- PARENT-CHILD RELATIONSHIPS - batch {i+1}/{len(batches)}
@@ -225,12 +249,12 @@ if 'parent_children' in sections:
 -- ============================================================
 """
         write_file(f'import_casa_{file_num:02d}_parent_children.sql', sql)
+        file_num += 1
 
 # --- Subscriptions (batches of ~2900 rows each) ---
 if 'subscriptions' in sections:
     batches = split_values(sections['subscriptions'], BATCH_SIZE)
     for i, stmt in enumerate(batches):
-        file_num += 1
         sql = f"""-- ============================================================
 -- TOUPTI GYM CASA - DATA IMPORT - FILE {file_num} OF 8
 -- SUBSCRIPTIONS - batch {i+1}/{len(batches)}
@@ -246,6 +270,7 @@ if 'subscriptions' in sections:
 -- ============================================================
 """
         write_file(f'import_casa_{file_num:02d}_subscriptions.sql', sql)
+        file_num += 1
 
-print(f"\nDone! Created {file_num} files total.")
+print(f"\nDone! Created {file_num - 1} files total.")
 print("Run them in numerical order: 01, 02, 03, ...")

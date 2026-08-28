@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders, errorResponse, jsonResponse } from "../_shared/cors.ts";
 import { supabase } from "../_shared/supabaseClient.ts";
+import { fetchAll } from "../_shared/pagination.ts";
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -16,11 +17,7 @@ serve(async (req: Request) => {
 
     // GET /groups — list all groups with exercises
     if (method === "GET" && segments.length === 0) {
-      const { data, error } = await supabase
-        .from("groups")
-        .select("*, exercises(*)")
-        .order("name");
-      if (error) return errorResponse(error.message, 500);
+      const data = await fetchAll(supabase.from("groups").select("*, exercises(*)"), "name");
       return jsonResponse(data);
     }
 
