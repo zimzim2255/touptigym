@@ -1085,8 +1085,6 @@ function RealtimeAccessPopup({ api }: { api: ReturnType<typeof useApi> }) {
     status === "granted" ? "bg-emerald-500" :
     status === "denied_unknown_user" ? "bg-amber-500" : "bg-red-500";
 
-  const todayExercises = scan.todayExercises || [];
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
       <div className="w-[560px] max-w-full rounded-2xl overflow-hidden bg-white shadow-2xl border border-slate-200">
