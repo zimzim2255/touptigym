@@ -14,17 +14,27 @@ serve(async (req) => {
       return errorResponse('No file provided')
     }
 
-    // Upload to Cloudinary
-    const cloudName = Deno.env.get('CLOUDINARY_CLOUD_NAME')!
-    const apiKey = Deno.env.get('CLOUDINARY_API_KEY')!
-    const apiSecret = Deno.env.get('CLOUDINARY_API_SECRET')!
+    // Cloudinary credentials (set via: supabase secrets set CLOUDINARY_* )
+    const cloudName = Deno.env.get('CLOUDINARY_CLOUD_NAME')
+    const apiKey = Deno.env.get('CLOUDINARY_API_KEY')
+    const apiSecret = Deno.env.get('CLOUDINARY_API_SECRET')
+
+    if (!cloudName || !apiKey || !apiSecret) {
+      return errorResponse('Cloudinary credentials are not configured (CLOUDINARY_CLOUD_NAME / CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET)', 500)
+    }
+
+    // ---- Signed upload to Cloudinary ----
+    // Signature = SHA1("folder=...&timestamp=..." + apiSecret)
+    const timestamp = String(Math.floor(Date.now() / 1000))
+    const toSign = `folder=${folder}&timestamp=${timestamp}${apiSecret}`
+    const signature = await sha1Hex(toSign)
 
     const cloudFormData = new FormData()
     cloudFormData.append('file', file)
     cloudFormData.append('folder', folder)
-    cloudFormData.append('upload_preset', 'ml_default')
+    cloudFormData.append('timestamp', timestamp)
     cloudFormData.append('api_key', apiKey)
-    cloudFormData.append('timestamp', String(Math.floor(Date.now() / 1000)))
+    cloudFormData.append('signature', signature)
 
     const response = await fetch(
       `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
@@ -49,3 +59,9 @@ serve(async (req) => {
     return errorResponse(err.message, 500)
   }
 })
+
+// Cloudinary signed-upload signature: SHA1 hex of "param=value&..." + apiSecret
+async function sha1Hex(data: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(data))
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('')
+}

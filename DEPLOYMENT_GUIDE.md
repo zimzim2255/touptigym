@@ -68,6 +68,7 @@ The `.env` files are **NOT tracked by git** (gitignored). Each environment must 
 # .env
 VITE_SUPABASE_URL=https://atvdorphwnpzhobvfmtz.supabase.co
 VITE_SUPABASE_ANON_KEY=sb_publishable_A6MqQPu7dnrtr04JFtHGBg_rRw8e_Nb
+VITE_CLOUDINARY_CLOUD_NAME=td3fzirz
 ```
 
 **For Non-Casa work:**
@@ -75,7 +76,32 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_A6MqQPu7dnrtr04JFtHGBg_rRw8e_Nb
 # .env
 VITE_SUPABASE_URL=https://lpjdpcguplkpdfgxomps.supabase.co
 VITE_SUPABASE_ANON_KEY=sb_publishable_51kPQ-pyABP2B8gK4aAkrQ_p3BPRnxJ
+VITE_CLOUDINARY_CLOUD_NAME=td3fzirz
 ```
+
+---
+
+## ☁️ Cloudinary (photo uploads)
+
+The app uploads child/trainer photos through the **`upload` edge function**, which performs a **signed** upload to the real Cloudinary account (`td3fzirz`).
+
+> ⚠️ The cloud name `toutigym` in the old `.env` files was **not a real Cloudinary account** — that is what caused `Unknown API key` when adding a child photo. The `toutigym_preset` needed for unsigned uploads does **not** exist on `td3fzirz`, so uploads must be **signed** server-side (never with the secret in the browser).
+
+**Frontend `.env` / Vercel build env (both branches):**
+```env
+VITE_CLOUDINARY_CLOUD_NAME=td3fzirz
+```
+
+**Edge function secrets (set once per Supabase project, after deploying `upload`):**
+```bash
+npx supabase functions deploy upload --project-ref atvdorphwnpzhobvfmtz
+npx supabase secrets set --project-ref atvdorphwnpzhobvfmtz \
+  CLOUDINARY_CLOUD_NAME=td3fzirz \
+  CLOUDINARY_API_KEY=486274344365529 \
+  CLOUDINARY_API_SECRET=3LaqXDn-69bmwidN0OJFPan0_tM
+```
+
+> ⚠️ Never expose `CLOUDINARY_API_SECRET` in the frontend `.env` — it must stay server-side only.
 
 ---
 
@@ -144,6 +170,7 @@ Create **2 separate Vercel projects** pointing to the same GitHub repo:
    ```
    VITE_SUPABASE_URL=https://atvdorphwnpzhobvfmtz.supabase.co
    VITE_SUPABASE_ANON_KEY=sb_publishable_A6MqQPu7dnrtr04JFtHGBg_rRw8e_Nb
+   VITE_CLOUDINARY_CLOUD_NAME=td3fzirz
    ```
 4. Deploy
 
