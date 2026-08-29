@@ -53,7 +53,7 @@ serve(async (req) => {
             .select('parents!parent_id(id, name, phone, email, gender)')
             .eq('child_id', childId),
           supabase.from('subscriptions')
-            .select('id, type, sub_type, status, start_date, end_date, amount, discount, insurance, entry_fee')
+            .select('id, type, sub_type, status, start_date, end_date, amount, discount, insurance, entry_fee, paid_amount')
             .eq('child_id', childId)
             .order('end_date', { ascending: false })
             .limit(1)
@@ -61,6 +61,17 @@ serve(async (req) => {
         ])
         parents = (pRes.data || []).map((r: any) => r.parents).filter(Boolean)
         subscription = sRes.data || null
+
+        // Compute the remaining balance ("rest à payer")
+        if (subscription) {
+          const totalDue =
+            (Number(subscription.amount) || 0) -
+            (Number(subscription.discount) || 0) +
+            (Number(subscription.insurance) || 0) +
+            (Number(subscription.entry_fee) || 0)
+          const paid = Number(subscription.paid_amount) || 0
+          subscription.rest = Math.max(0, Math.round((totalDue - paid) * 100) / 100)
+        }
 
         // Today's subscribed exercises (through subscription_courses)
         if (subscription) {

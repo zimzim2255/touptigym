@@ -1175,6 +1175,27 @@ function RealtimeAccessPopup({ api, logId, onClose }: {
             </div>
           )}
 
+          {/* Rest à payer (unpaid balance) */}
+          {sub && Number(sub.rest) > 0 && (
+            <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-red-700 font-bold text-base uppercase tracking-wide">⚠️ Rest à payer</p>
+                <p className="text-red-500 text-xs mt-0.5">Paiement en attente</p>
+              </div>
+              <p className="text-red-600 font-bold text-2xl" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+                {Number(sub.rest).toLocaleString()} Dhs
+              </p>
+            </div>
+          )}
+          {sub && Number(sub.rest) <= 0 && (
+            <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center justify-between">
+              <p className="text-emerald-700 font-bold text-sm uppercase tracking-wide">✅ Solde payé</p>
+              <p className="text-emerald-600 font-bold text-lg" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+                0 Dhs
+              </p>
+            </div>
+          )}
+
           {/* Today's exercises */}
           {todayExercises.length > 0 && (
             <div className="mb-5">

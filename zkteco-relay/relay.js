@@ -18,7 +18,7 @@ const CLOUDINARY_API_SECRET = '3LaqXDn-69bmwidN0OJFPan0_tM';
 const CLOUDINARY_UPLOAD_PRESET = 'ml_default';
 
 // ZKBio local web
-const ZKBIO_HOST = '192.168.1.202'; // LAN IP (working browser used this, not localhost)
+const ZKBIO_HOST = 'localhost'; // matches fresh capture (localhost:8098)
 const ZKBIO_PORT = 8098;
 const ZKBIO_USER = 'admin';
 const ZKBIO_PASS_PLAIN = 'Admin123'; // used for userLoginPwd
@@ -27,9 +27,9 @@ const ZKBIO_PASS_MD5 = crypto.createHash('md5').update(ZKBIO_PASS_PLAIN, 'utf8')
 // Door open payload (captured from DevTools — working request for this gym/ZKB)
 const DOOR_OPEN = {
   openInterval: '5',
-  ids: '4028814aa024f57a01a02541b66e0a33',
-  names: 'entrée-1', // the actual door name (from capture)
-  browserToken: '93a3b148fdf0c1d1b42ab430dcdd9c1d', // hardcoded temp — paired with SESSION capture; automate later
+  ids: '4028814aa04db40301a04db94cd30a30',
+  names: '192.168.1.201-1', // the actual door name (from capture)
+  browserToken: '0b45e7fee18e61df2237db91b10fd447', // hardcoded temp — paired with SESSION capture; automate later
   extra: {
     type: 'openDoor',
     disabledDoorsName: '',
@@ -54,7 +54,7 @@ let isPolling = false;
 // ZKBio session cookie (SESSION=...)
 // NOTE: hardcoded temporarily so the door can open NOW.
 // TODO later: extract browserToken + SESSION automatically at login.
-let zkCookie = 'ZjIzZTJmZTgtZjhkYi00NTFlLWI1MGItMDNjMzEyOGY5YmVi';
+let zkCookie = 'MWQyYjE0MjItZmIwNi00Yzk1LTk3YTAtZDJmMDg0MjdjYzUy';
 
 function log(msg) {
   console.log(`[${new Date().toISOString()}] ${msg}`);
