@@ -2,6 +2,7 @@ const { Client } = require('pg');
 const https = require('https');
 const crypto = require('crypto');
 const querystring = require('querystring');
+const path = require('path');
 
 const SUPABASE_URL =
   'https://atvdorphwnpzhobvfmtz.supabase.co/functions/v1/zkteco/events';
@@ -17,8 +18,8 @@ const CLOUDINARY_API_KEY = '486274344365529';
 const CLOUDINARY_API_SECRET = '3LaqXDn-69bmwidN0OJFPan0_tM';
 const CLOUDINARY_UPLOAD_PRESET = 'ml_default';
 
-// ZKBio local web
-const ZKBIO_HOST = 'localhost'; // matches fresh capture (localhost:8098)
+// ZKBio local web — HTTPS (browser proof: https://192.168.1.202:8098)
+const ZKBIO_HOST = '192.168.1.202';
 const ZKBIO_PORT = 8098;
 const ZKBIO_USER = 'admin';
 const ZKBIO_PASS_PLAIN = 'Admin123'; // used for userLoginPwd
@@ -52,9 +53,9 @@ let lastLogId = 0;
 let isPolling = false;
 
 // ZKBio session cookie (SESSION=...)
-// NOTE: hardcoded temporarily so the door can open NOW.
-// TODO later: extract browserToken + SESSION automatically at login.
-let zkCookie = 'MWQyYjE0MjItZmIwNi00Yzk1LTk3YTAtZDJmMDg0MjdjYzUy';
+// Starts EMPTY — the relay captures it automatically from the browser
+// (Firefox cookies.sqlite) once someone logs into ZKBio. No hardcoding needed.
+let zkCookie = '';
 
 function log(msg) {
   console.log(`[${new Date().toISOString()}] ${msg}`);
@@ -68,7 +69,7 @@ function httpsReq({ hostname, port, path, method, headers, body }) {
         port,
         path,
         method,
-        rejectUnauthorized: false,
+        rejectUnauthorized: false, // ZKBio uses a custom/self-signed cert
         headers: headers || {},
       },
       (resp) => {
@@ -623,12 +624,15 @@ async function start() {
   await pgClient.connect();
   log('✅ Connected to PostgreSQL');
 
-  // Establish a FRESH ZKBio session before doing anything (door + photos).
+  log(`Connecting to ZKBio at https://${ZKBIO_HOST}:${ZKBIO_PORT}`);
+
+  // Direct login — no browser dependency.
   try {
     await zkLogin();
-    await refreshBrowserToken();
+    log('✅ ZKBio authentication completed (SESSION + browserToken acquired)');
   } catch (e) {
-    log(`⚠ ZKBio login at startup failed: ${e.message}`);
+    log(`⚠ Initial ZKBio login failed: ${e.message}`);
+    log('   Relay will continue and retry authentication when a door-open is required.');
   }
 
   // DEBUG: dump how ZKBio stores person photos so we can see the mapping
