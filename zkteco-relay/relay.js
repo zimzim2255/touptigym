@@ -79,6 +79,11 @@ function httpsReq({ hostname, port, path, method, headers, body }) {
   });
 }
 
+// zkCookieHeader() — returns the Cookie header value for ZKBio requests.
+function zkCookieHeader() {
+  return `org.springframework.web.servlet.i18n.CookieLocaleResolver.LOCALE=en-US; ${zkCookie}`;
+}
+
 // Pull a fresh browser-token from the ZKBio session by GETting the main page.
 // Called at startup and after a fresh login if the token is empty.
 async function refreshBrowserToken() {
@@ -154,54 +159,27 @@ async function zkLogin() {
 }
 
 async function zkOpenDoor() {
-  // The browser first "arms" the door-open by POSTing the form (getDoorIds),
-  // THEN submits to ?openDoor. Without the arm step ZKBio returns 201 but never
-  // actually releases the lock.
-  async function armOpen() {
-    const body = querystring.stringify({
-      getDoorIds: '',
-      type: DOOR_OPEN.extra.type,
-      ids: DOOR_OPEN.ids,
-    });
-    const res = await httpsReq({
-      hostname: ZKBIO_HOST,
-      port: ZKBIO_PORT,
-      path: '/accDoor.do',
-      method: 'POST',
-      headers: {
-        'Host': `${ZKBIO_HOST}:${ZKBIO_PORT}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:154.0) Gecko/20100101 Firefox/154.0',
-        'Accept': 'text/html, */*; q=0.01',
-        'Accept-Language': 'fr,fr-FR;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'Content-Length': Buffer.byteLength(body),
-        'pragma': 'no-cache',
-        'cache-control': 'no-cache',
-        'browser-token': DOOR_OPEN.browserToken || '',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Origin': `https://${ZKBIO_HOST}:${ZKBIO_PORT}`,
-        'Connection': 'keep-alive',
-        'Referer': `https://${ZKBIO_HOST}:${ZKBIO_PORT}/main.do?home&selectSysCode=Acc`,
-        Cookie: `org.springframework.web.servlet.i18n.CookieLocaleResolver.LOCALE=en-US; ${zkCookie}`,
-      },
-      body,
-    });
-    return res;
-  }
-
+  // ── PROVEN single-POST door-open (test_open_door.js) ────────────────
+  // Reproduces the exact working request: POST /accDoor.do?openDoor with the
+  // full payload. No separate "arm" step (that caused 201). Success ONLY when
+  // HTTP 200 AND body contains "success":true.
   async function doOpen() {
     const body = querystring.stringify({
-      type: DOOR_OPEN.extra.type,
+      type: 'openDoor',
       ids: DOOR_OPEN.ids,
       name: DOOR_OPEN.names,
-      disabledDoorsName: DOOR_OPEN.extra.disabledDoorsName,
-      offlineDoorsName: DOOR_OPEN.extra.offlineDoorsName,
-      notSupportDoorsName: DOOR_OPEN.extra.notSupportDoorsName,
+      disabledDoorsName: '',
+      offlineDoorsName: '',
+      notSupportDoorsName: '',
       userLoginPwd: ZKBIO_PASS_PLAIN,
       openInterval: DOOR_OPEN.openInterval,
       loginPwd: ZKBIO_PASS_MD5,
       browserToken: DOOR_OPEN.browserToken,
     });
+
+    log('[ZKBIO] Sending OPEN DOOR command...');
+    log(`        Door ID: ${DOOR_OPEN.ids}`);
+    log(`        Door: ${DOOR_OPEN.names}`);
 
     const res = await httpsReq({
       hostname: ZKBIO_HOST,
@@ -220,38 +198,56 @@ async function zkOpenDoor() {
         'browser-token': DOOR_OPEN.browserToken || '',
         'X-Requested-With': 'XMLHttpRequest',
         'Origin': `https://${ZKBIO_HOST}:${ZKBIO_PORT}`,
-        'Connection': 'keep-alive',
         'Referer': `https://${ZKBIO_HOST}:${ZKBIO_PORT}/main.do?home&selectSysCode=Acc`,
-        Cookie: `org.springframework.web.servlet.i18n.CookieLocaleResolver.LOCALE=en-US; ${zkCookie}`,
+        Cookie: zkCookieHeader(),
       },
       body,
     });
-
-    const loc = res.headers?.location ? String(res.headers.location) : '';
-    log(`ZKBio openDoor response: ${res.statusCode} location=${loc} body=${res.body}`);
 
     return res;
   }
 
   if (!zkCookie) {
+    log('[ZKBIO] No session — logging in first...');
     await zkLogin();
   }
+  if (!DOOR_OPEN.browserToken) {
+    await refreshBrowserToken();
+  }
 
-  // Step 1: arm the door-open (getDoorIds) — returns HTML form
-  await armOpen();
   let res = await doOpen();
 
-  // If session expired/redirected, re-login and retry once immediately
+  // Session expired → re-login and retry once.
   if (res.statusCode === 302) {
     zkCookie = '';
-    log('ZKBio openDoor: got 302, re-login and retry once...');
+    DOOR_OPEN.browserToken = '';
+    log('[ZKBIO] Got 302 — session expired, re-login and retry once...');
     await zkLogin();
-    await armOpen();
     res = await doOpen();
   }
 
-  // 200 = "ret:ok" (browser) → door actually released. Treat 200 as success.
-  return res.statusCode === 200;
+  const bodyText = String(res.body || '');
+  log(`[ZKBIO] HTTP: ${res.statusCode}`);
+  const is200 = res.statusCode === 200;
+  const successTrue = is200 && bodyText.includes('"success":true');
+
+  if (is200) {
+    try {
+      const j = JSON.parse(bodyText);
+      log(`        ret: ${j.ret}, msg: ${j.msg}, success: ${j.success}`);
+    } catch (_) {
+      log(`        body: ${bodyText.slice(0, 200)}`);
+    }
+  } else {
+    log(`        response: ${bodyText.slice(0, 200)}`);
+  }
+
+  if (successTrue) {
+    log('[DOOR] OPEN COMMAND ACCEPTED');
+    return true;
+  }
+  log('[DOOR] OPEN COMMAND FAILED');
+  return false;
 }
 
 function forwardToSupabase(payload) {
