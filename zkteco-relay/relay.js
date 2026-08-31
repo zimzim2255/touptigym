@@ -41,8 +41,8 @@ const ZKBIO_PASS_MD5 = crypto.createHash('md5').update(ZKBIO_PASS_PLAIN, 'utf8')
 // Door open payload (captured from DevTools — working request for this gym/ZKB)
 const DOOR_OPEN = {
   openInterval: '5',
-  ids: '4028814aa04db40301a04db94cd30a30',
-  names: '192.168.1.201-1', // the actual door name (from capture)
+  ids: '4028814aa04db40301a04db507870486',
+  names: 'maitre',
   browserToken: '', // acquired by refreshBrowserToken() after login
   extra: {
     type: 'openDoor',
@@ -298,43 +298,35 @@ async function zkLogin() {
 }
 
 async function zkOpenDoor() {
-  // ── PROVEN single-POST door-open (test_open_door.js) ────────────────
-  // Reproduces the exact working request: POST /accDoor.do?openDoor with the
-  // full payload. No separate "arm" step (that caused 201). Success ONLY when
-  // HTTP 200 AND body contains "success":true.
+  // ── PROVEN single-POST door-open (captured HAR) ─────────────────────
+  // POST /accLevel.do?openDoor&name=All%20Doors  with levelLoginPwd etc.
+  // Success ONLY when HTTP 200 AND body contains "success":true.
   async function doOpen() {
     const body = querystring.stringify({
-      type: 'openDoor',
-      ids: DOOR_OPEN.ids,
-      name: DOOR_OPEN.names,
-      disabledDoorsName: '',
-      offlineDoorsName: '',
-      notSupportDoorsName: '',
-      userLoginPwd: ZKBIO_PASS_PLAIN,
-      openInterval: DOOR_OPEN.openInterval,
+      levelLoginPwd: ZKBIO_PASS_PLAIN,
       loginPwd: ZKBIO_PASS_MD5,
+      openInterval: DOOR_OPEN.openInterval,
+      ids: DOOR_OPEN.ids,
+      names: DOOR_OPEN.names,
       browserToken: DOOR_OPEN.browserToken,
     });
 
-    log('[ZKBIO] Sending OPEN DOOR command...');
+    log('[ZKBIO] Sending REAL OPEN DOOR command via accLevel.do...');
     log(`        Door ID: ${DOOR_OPEN.ids}`);
-    log(`        Door: ${DOOR_OPEN.names}`);
+    log(`        Door/Level: ${DOOR_OPEN.names}`);
 
     const res = await httpsReq({
       hostname: ZKBIO_HOST,
       port: ZKBIO_PORT,
-      path: '/accDoor.do?openDoor',
+      path: '/accLevel.do?openDoor&name=All%20Doors',
       method: 'POST',
       headers: {
         'Host': `${ZKBIO_HOST}:${ZKBIO_PORT}`,
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:154.0) Gecko/20100101 Firefox/154.0',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'fr,fr-FR;q=0.9,en-US;q=0.8,en;q=0.7',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'Content-Length': Buffer.byteLength(body),
-        'pragma': 'no-cache',
-        'cache-control': 'no-cache',
-        'browser-token': DOOR_OPEN.browserToken || '',
+        'browser-token': DOOR_OPEN.browserToken,
         'X-Requested-With': 'XMLHttpRequest',
         'Origin': `https://${ZKBIO_HOST}:${ZKBIO_PORT}`,
         'Referer': `https://${ZKBIO_HOST}:${ZKBIO_PORT}/main.do?home&selectSysCode=Acc`,
