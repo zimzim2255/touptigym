@@ -186,8 +186,10 @@ function ModalAddRequest({ onClose, onCreated }: { onClose: () => void; onCreate
   );
 }
 
-// ─── Page: Overview (with real data) ──────────────────────────────────────────
-const ATTENDANCE_DATA = [
+// ─── Page: Overview ────────────────────────────────────────────────────────────
+// Real data is fetched from the API and used to compute the key stats & charts.
+// The mock constants below are only fallbacks used when the API returns nothing.
+const FALLBACK_ATTENDANCE_DATA = [
   { jour: "Lun", presents: 18, absents: 3 },
   { jour: "Mar", presents: 21, absents: 2 },
   { jour: "Mer", presents: 15, absents: 4 },
@@ -195,7 +197,7 @@ const ATTENDANCE_DATA = [
   { jour: "Ven", presents: 24, absents: 2 },
   { jour: "Sam", presents: 19, absents: 5 },
 ];
-const REVENUE_DATA = [
+const FALLBACK_REVENUE_DATA = [
   { mois: "Jan", montant: 42000 },
   { mois: "Fév", montant: 38000 },
   { mois: "Mar", montant: 55000 },
@@ -204,33 +206,191 @@ const REVENUE_DATA = [
   { mois: "Jun", montant: 70000 },
   { mois: "Jul", montant: 65000 },
 ];
-const SPORT_PIE = [
+const FALLBACK_SPORT_PIE = [
   { name: "Football", value: 38 },
   { name: "Gym", value: 22 },
   { name: "Basketball", value: 25 },
   { name: "Natation", value: 15 },
 ];
+const FALLBACK_CARDS = [
+  { label: "Enfants actifs", value: "47", sub: "+3 ce mois", icon: Baby },
+  { label: "Abonnements", value: "43", sub: "4 en attente", icon: CreditCard },
+  { label: "Présents aujourd'hui", value: "31", sub: "sur 36 prévus", icon: UserCheck },
+  { label: "Recettes", value: "65 000 Dhs", sub: "↑12% vs juin", icon: Banknote },
+];
 const PIE_COLORS = ["#D75077", "#92CC8D", "#3b82f6", "#8b5cf6"];
+const FR_MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+const SPORT_LABELS: Record<string, string> = {
+  Football: "Football",
+  Gymnastics: "Gym",
+  Swimming: "Natation",
+  Basketball: "Basketball",
+  Other: "Autre",
+};
 
 function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
   const api = useApi();
   const [requests, setRequests] = useState<UrgentRequest[]>([]);
+  const [cards, setCards] = useState<any[]>(FALLBACK_CARDS);
+  const [attendance, setAttendance] = useState<any[]>(FALLBACK_ATTENDANCE_DATA);
+  const [revenue, setRevenue] = useState<any[]>(FALLBACK_REVENUE_DATA);
+  const [sportPie, setSportPie] = useState<any[]>(FALLBACK_SPORT_PIE);
 
   useEffect(() => {
-    api.requests.getAll()
-      .then((data: UrgentRequest[]) => setRequests(data.slice(0, 5)))
-      .catch(() => {});
+    let cancelled = false;
+    const today = new Date();
+    const todayKey = today.toDateString();
+    const monthKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}`;
+    const safe = (p: Promise<any>) => p.catch(() => null);
+
+    (async () => {
+      const [reqRes, childRes, subRes, payRes, absRes, logRes, exRes] = await Promise.all([
+        safe(api.requests.getAll()),
+        safe(api.children.getAll()),
+        safe(api.subscriptions.getAll()),
+        safe(api.payments.getAll()),
+        safe(api.attendance.getAbsences()),
+        safe(api.attendance.getLogs(400)),
+        safe(api.exercises.getAll()),
+      ]);
+      if (cancelled) return;
+
+      const children = Array.isArray(childRes) ? (childRes as any[]) : [];
+      const subscriptions = Array.isArray(subRes) ? (subRes as any[]) : [];
+      const payments = Array.isArray(payRes) ? (payRes as any[]) : [];
+      const absences = Array.isArray(absRes) ? (absRes as any[]) : [];
+      const logs = Array.isArray(logRes) ? (logRes as any[]) : [];
+      const exercises = Array.isArray(exRes) ? (exRes as any[]) : [];
+
+      if (Array.isArray(reqRes)) setRequests((reqRes as UrgentRequest[]).slice(0, 5));
+
+      const noRealData =
+        children.length === 0 && subscriptions.length === 0 && payments.length === 0 &&
+        logs.length === 0 && absences.length === 0 && exercises.length === 0;
+      if (noRealData) return;
+
+      // ── KPI cards ──
+      const activeChildIds = new Set(
+        subscriptions.filter((s: any) => s.status === "actif").map((s: any) => s.child_id)
+      );
+      const activeChildren = subscriptions.length > 0 ? activeChildIds.size : children.length;
+      const newChildrenThisMonth = children.filter((c: any) => {
+        const d = new Date(c.created_at || 0);
+        return !isNaN(d.getTime()) && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+      }).length;
+      const pendingSubscriptions = subscriptions.filter((s: any) => s.status === "en_attente").length;
+
+      const presentIds = new Set(
+        logs
+          .filter((l: any) => l.timestamp && new Date(l.timestamp).toDateString() === todayKey)
+          .map((l: any) => l.child_id)
+          .filter(Boolean)
+      );
+      const presentToday = presentIds.size;
+      const expectedToday = Math.max(activeChildren, presentToday);
+
+      const thisMonthKey = monthKey(today);
+      const lastMonthKey = monthKey(new Date(today.getFullYear(), today.getMonth() - 1, 1));
+      let revenueThisMonth = 0;
+      let revenueLastMonth = 0;
+      payments.forEach((p: any) => {
+        const d = new Date(p.created_at);
+        if (isNaN(d.getTime())) return;
+        const k = monthKey(d);
+        const amt = Number(p.amount) || 0;
+        if (k === thisMonthKey) revenueThisMonth += amt;
+        else if (k === lastMonthKey) revenueLastMonth += amt;
+      });
+      const delta =
+        revenueLastMonth > 0
+          ? Math.round(((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100)
+          : null;
+
+      setCards([
+        { label: "Enfants actifs", value: String(activeChildren), sub: `+${newChildrenThisMonth} ce mois`, icon: Baby },
+        { label: "Abonnements", value: String(subscriptions.length), sub: `${pendingSubscriptions} en attente`, icon: CreditCard },
+        { label: "Présents aujourd'hui", value: String(presentToday), sub: `sur ${expectedToday} prévus`, icon: UserCheck },
+        { label: `Recettes (${FR_MONTHS[today.getMonth()]})`, value: `${revenueThisMonth.toLocaleString("fr-FR")} Dhs`, sub: delta !== null ? `${delta >= 0 ? "↑" : "↓"}${Math.abs(delta)}% vs mois dernier` : "versements enregistrés", icon: Banknote },
+      ]);
+      // ── Attendance bar chart: last 6 days ──
+      if (logs.length > 0 || absences.length > 0) {
+        const presMap: Record<string, Set<string>> = {};
+        const absMap: Record<string, Set<string>> = {};
+        logs.forEach((l: any) => {
+          if (!l.timestamp) return;
+          const k = new Date(l.timestamp).toDateString();
+          if (!presMap[k]) presMap[k] = new Set();
+          if (l.child_id) presMap[k].add(l.child_id);
+        });
+        absences.forEach((a: any) => {
+          if (!a.date) return;
+          const k = new Date(`${a.date}T00:00:00`).toDateString();
+          if (!absMap[k]) absMap[k] = new Set();
+          if (a.child_id) absMap[k].add(a.child_id);
+        });
+        const WEEK_SHORT = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+        const days: any[] = [];
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+          const k = d.toDateString();
+          days.push({
+            jour: WEEK_SHORT[d.getDay()],
+            presents: presMap[k]?.size || 0,
+            absents: absMap[k]?.size || 0,
+          });
+        }
+        if (days.some(d => d.presents > 0 || d.absents > 0)) setAttendance(days);
+      }
+
+      // ── Revenue line chart: last 7 months ──
+      if (payments.length > 0) {
+        const months: { key: string; label: string }[] = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+          months.push({ key: monthKey(d), label: FR_MONTHS[d.getMonth()] });
+        }
+        const totals: Record<string, number> = {};
+        payments.forEach((p: any) => {
+          const d = new Date(p.created_at);
+          if (isNaN(d.getTime())) return;
+          const k = monthKey(d);
+          totals[k] = (totals[k] || 0) + (Number(p.amount) || 0);
+        });
+        const series = months.map(m => ({ mois: m.label, montant: totals[m.key] || 0 }));
+        if (series.some(m => m.montant > 0)) setRevenue(series);
+      }
+
+      // ── Sport distribution (from exercises) ──
+      if (exercises.length > 0) {
+        const byType: Record<string, number> = {};
+        exercises.forEach((e: any) => {
+          const t = e.type || "Other";
+          byType[t] = (byType[t] || 0) + 1;
+        });
+        const total = Object.values(byType).reduce((a, b) => a + b, 0);
+        const list = Object.entries(byType)
+          .map(([type, cnt]) => ({ name: SPORT_LABELS[type] || type, value: Math.round((cnt / total) * 100) }))
+          .sort((a, b) => b.value - a.value);
+        if (list.length > 0) setSportPie(list.slice(0, 4));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  const todayLabel = new Date().toLocaleDateString("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
   return (
-    <PageWrap title="Tableau de Bord" sub="Mardi 22 Juillet 2026">
+    <PageWrap title="Tableau de Bord" sub={todayLabel.charAt(0).toUpperCase() + todayLabel.slice(1)}>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-slate-200">
-        {[
-          { label: "Enfants actifs", value: "47", sub: "+3 ce mois", icon: Baby },
-          { label: "Abonnements", value: "43", sub: "4 en attente", icon: CreditCard },
-          { label: "Présents aujourd'hui", value: "31", sub: "sur 36 prévus", icon: UserCheck },
-          { label: "Recettes (Jul)", value: "65 000 Dhs", sub: "↑12% vs juin", icon: Banknote },
-        ].map((s, i) => (
+        {cards.map((s, i) => (
           <div key={i} className="bg-white p-5 flex items-start gap-3">
             <s.icon size={18} className="text-pink-500 mt-0.5 shrink-0" />
             <div>
@@ -246,7 +406,7 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
         <div className="lg:col-span-2 bg-white border border-slate-200 p-5">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">Présences cette semaine</p>
           <ResponsiveContainer width="100%" height={190}>
-            <BarChart data={ATTENDANCE_DATA} barSize={14} barGap={3}>
+            <BarChart data={attendance} barSize={14} barGap={3}>
               <XAxis dataKey="jour" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", fontSize: 12 }} cursor={{ fill: "rgba(215,80,119,0.04)" }} />
@@ -260,14 +420,14 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">Répartition par sport</p>
           <ResponsiveContainer width="100%" height={140}>
             <PieChart>
-              <Pie data={SPORT_PIE} cx="50%" cy="50%" innerRadius={40} outerRadius={60} dataKey="value" paddingAngle={2}>
-                {SPORT_PIE.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+              <Pie data={sportPie} cx="50%" cy="50%" innerRadius={40} outerRadius={60} dataKey="value" paddingAngle={2}>
+                {sportPie.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
               </Pie>
               <Tooltip contentStyle={{ fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
           <div className="space-y-1 mt-2">
-            {SPORT_PIE.map((d, i) => (
+            {sportPie.map((d, i) => (
               <div key={d.name} className="flex justify-between text-xs">
                 <div className="flex items-center gap-1.5"><span className="w-2 h-2 inline-block" style={{ background: PIE_COLORS[i] }} /><span className="text-slate-500">{d.name}</span></div>
                 <span className="font-medium text-slate-800">{d.value}%</span>
@@ -281,7 +441,7 @@ function PageOverview({ openModal }: { openModal: (m: ModalType) => void }) {
         <div className="lg:col-span-2 bg-white border border-slate-200 p-5">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">Recettes mensuelles (Dhs)</p>
           <ResponsiveContainer width="100%" height={170}>
-            <LineChart data={REVENUE_DATA}>
+            <LineChart data={revenue}>
               <XAxis dataKey="mois" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
               <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", fontSize: 12 }} />

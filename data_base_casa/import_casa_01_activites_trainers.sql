@@ -7,24 +7,24 @@
 -- https://supabase.com/dashboard/project/atvdorphwnpzhobvfmtz/sql/new
 -- ============================================================
 
-INSERT INTO groups (name) VALUES
-  ('NATATION'),
-  ('GYMNASTIQUE 1'),
-  ('FOOTBALL'),
-  ('BASKETBALL'),
-  ('ARTS MARTIAUX'),
-  ('GYMNASTIQUE 2'),
-  ('KICK-BOXING'),
-  ('NATATION 2'),
-  ('DANSE CLASSIQUE'),
-  ('KUNG FU'),
-  ('SPORTS BALLONS'),
-  ('STAFF'),
-  ('BABY SPA'),
-  ('ABSENCES'),
-  ('SELF-DEFENSE'),
-  ('STAGE DE NATATION P1'),
-  ('STAGE NATATION P2');
+INSERT INTO groups (name, description) VALUES
+  ('NATATION', '["CANARDS", "CYCLE DE NATATION", "GRENOUILLES", "SUPER TÊTARDS", "TÊTARDS"]'),
+  ('GYMNASTIQUE 1', '["P''TITES CANAILLES", "P''TITES FRIPOUILLES", "P''TITS FILOUS", "TOUP''TI POUSS/MOUSS"]'),
+  ('FOOTBALL', '["GUÊPARDS", "LIONS"]'),
+  ('BASKETBALL', '["KANGOUROUS"]'),
+  ('ARTS MARTIAUX', '["DRAGONS", "KOALAS", "TIGRES"]'),
+  ('GYMNASTIQUE 2', '["GRANDS MALINS", "MALINS", "VOLTIGEURS DÉBUTANT"]'),
+  ('KICK-BOXING', '["OURS", "TAUREAUX"]'),
+  ('NATATION 2', '["BALEINES", "CORADIONS JUNIOR", "CORADIONS SENIOR", "CYCLE DE NATATION", "DAUPHINS", "REQUINS"]'),
+  ('DANSE CLASSIQUE', '["COCCINELLES", "PAPILLONS"]'),
+  ('KUNG FU', '[]'),
+  ('SPORTS BALLONS', '[]'),
+  ('STAFF', '["STAFF"]'),
+  ('BABY SPA', '["RDV EN BINÔME", "RDV INDIVIDUEL"]'),
+  ('ABSENCES', '["PISCINE 1", "PISCINE 2"]'),
+  ('SELF-DEFENSE', '["7 - 14 ANS"]'),
+  ('STAGE DE NATATION P1', '["3-6 ANS"]'),
+  ('STAGE NATATION P2', '["7-14 ANS"]');
 
 INSERT INTO trainers (name) VALUES
   ('ABDELMALEK CHAKIR'),

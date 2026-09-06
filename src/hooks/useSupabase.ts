@@ -223,6 +223,32 @@ export function useApi() {
       getDeviceCommands: (deviceId: string) => request(`/zkteco/devices/${deviceId}/commands`),
       queueCommand: (deviceId: string, command: string, params?: Record<string, unknown>) =>
         request(`/zkteco/devices/${deviceId}/commands`, { method: 'POST', body: JSON.stringify({ command, params }) }),
+
+      // ── Held original photos (zkteco_photos holding table, RLS off) ──
+      // register_person.js stores the original photo here, linked by zkteco_id.
+      // The app picks it up automatically when the admin types that ID.
+      getHeldPhoto: async (zktecoId?: string | null): Promise<any | null> => {
+        if (!zktecoId) return null
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/zkteco_photos?select=id,zkteco_id,photo_url,status&zkteco_id=eq.${encodeURIComponent(zktecoId)}&status=eq.pending&limit=1`,
+          { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+        )
+        if (!res.ok) return null
+        const rows = await res.json().catch(() => null)
+        return Array.isArray(rows) && rows.length ? rows[0] : null
+      },
+      claimHeldPhoto: async (zktecoId: string) => {
+        await fetch(`${SUPABASE_URL}/rest/v1/zkteco_photos?zkteco_id=eq.${encodeURIComponent(zktecoId)}`, {
+          method: 'PATCH',
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify({ status: 'claimed', claimed_at: new Date().toISOString() }),
+        }).catch(() => null)
+      },
     },
   }
 }

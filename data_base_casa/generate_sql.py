@@ -1,6 +1,7 @@
 import zipfile
 import xml.etree.ElementTree as ET
 import os
+import json
 from datetime import datetime, timedelta
 
 folder = r'data_base_casa/BDD casa'
@@ -81,6 +82,19 @@ activities = read_xlsx(os.path.join(folder, 'BDD activités casa.xlsx'))
 clients = read_xlsx(os.path.join(folder, 'BDD clients casa.xlsx'))
 groups_data = read_xlsx(os.path.join(folder, 'BDD groupes casa.xlsx'))
 
+# Build ACTIVITY → GROUP NAMES map (populates groups.description later)
+#   key = cleaned activité designation (groups.name)
+#   value = sorted distinct group names (raw, apostrophes preserved)
+activity_groups = {}
+for row in groups_data[1:]:
+    if len(row) >= 3:
+        a = clean_str(row[1]) if len(row) > 1 else ''
+        g = str(row[2]).strip() if len(row) > 2 else ''
+        if a and g:
+            activity_groups.setdefault(a, []).append(g)
+for a in activity_groups:
+    activity_groups[a] = sorted(dict.fromkeys(activity_groups[a]))
+
 # ============================================================
 # 1. Build ACTIVITIES data → goes into `groups` table (Activités)
 # ============================================================
@@ -93,7 +107,10 @@ for row in activities[1:]:
         designation = clean_str(row[1])
         if designation:
             activity_map[designation] = num
-            activity_sql.append(f"  ('{designation}')")
+            # Group items for this activité → groups.description (JSON array)
+            desc = json.dumps(activity_groups.get(designation, []), ensure_ascii=False)
+            desc_sql = desc.replace("'", "''")
+            activity_sql.append(f"  ('{designation}', '{desc_sql}')")
 
 # ============================================================
 # 2. Build GROUP NAMES from BDD groupes (→ exercises.name)
@@ -376,9 +393,9 @@ sql = """-- ============================================================
 -- https://supabase.com/dashboard/project/atvdorphwnpzhobvfmtz/sql/new
 
 -- ============================================================
--- 1. INSERT ACTIVITÉS (→ groups table)
+-- 1. INSERT ACTIVITÉS (→ groups table, description = JSON group names)
 -- ============================================================
-INSERT INTO groups (name) VALUES
+INSERT INTO groups (name, description) VALUES
 """
 
 sql += ",\n".join(activity_sql) + ";\n\n"
@@ -442,6 +459,38 @@ with open(output_path, 'w', encoding='utf-8') as f:
     f.write(sql)
 
 print(f"SQL file generated: {output_path}")
+
+# ============================================================
+# Generate FIX file for already-imported databases:
+# populates groups.description so "Créer un Abonnement" → section 3
+# shows Groupes + Cours. Idempotent (safe to re-run).
+# ============================================================
+fix_lines = []
+for designation in sorted(activity_map):
+    desc = json.dumps(activity_groups.get(designation, []), ensure_ascii=False).replace("'", "''")
+    name_sql = designation.replace("'", "''")
+    fix_lines.append(f"UPDATE groups SET description = '{desc}' WHERE name = '{name_sql}';")
+
+fix_sql = """-- ============================================================
+-- TOUPTI GYM CASA - FIX: groups.description (Groupes in "Créer un Abonnement")
+-- ============================================================
+-- PROBLEM
+--   In "Créer un Abonnement" → "3. Activités, Groupes & Cours",
+--   activités show but Groupes/Cours do NOT, because groups.description
+--   (a JSON array of the group names for each activité) was never filled
+--   by the original import.
+-- SOLUTION
+--   This script sets groups.description for every imported activité.
+--   It matches by name and is safe to re-run.
+-- ============================================================
+
+"""
+fix_sql += "\n".join(fix_lines) + "\n\n-- DONE! Refresh the Créer un Abonnement page.\n"
+fix_path = os.path.join('data_base_casa', 'fix_groups_description.sql')
+with open(fix_path, 'w', encoding='utf-8') as f:
+    f.write(fix_sql)
+print(f"Fix SQL file generated: {fix_path}")
+print(f"  Group descriptions patched: {len(fix_lines)}")
 print(f"  Activités (groups): {len(activity_sql)}")
 print(f"  Trainers: {len(trainer_sql)}")
 print(f"  Exercises (horaires): {len(exercise_sql)}")
