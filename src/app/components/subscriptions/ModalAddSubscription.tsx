@@ -380,26 +380,33 @@ export function ModalAddSubscription({ onClose, onCreated, openModal }: Props) {
 
       if (selectedParentId) {
         const parent = childParents.find(p => p.id === selectedParentId);
-        if (parent?.email) {
+        const parentEmail = (parent?.email || '').trim();
+        if (parentEmail) {
           try {
-            await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-welcome-email`, {
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/send-welcome-email`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
               },
               body: JSON.stringify({
-                to: parent.email,
-                parentName: parent.name,
+                to: parentEmail,
+                parentName: parent?.name || '',
                 childName: selectedChild.name,
                 subscriptionType: `${subscriptionType} - ${subType || `${activities} activités/semaine`}`,
                 startDate: validityStart,
                 endDate: validityEnd,
               }),
             });
-          } catch (emailErr) {
+            if (!res.ok) {
+              const body = await res.json().catch(() => ({}));
+              console.error('Welcome email failed:', res.status, body);
+              alert(`Abonnement créé, mais l'EMAIL d'abonnement n'a PAS été envoyé (HTTP ${res.status}).\n${body?.error || ''}\n\nVérifiez les secrets SMTP de la fonction send-welcome-email puis redéployez-la.`);
+            }
+          } catch (emailErr: any) {
             console.error('Failed to send welcome email:', emailErr);
+            alert(`Abonnement créé, mais l'EMAIL d'abonnement n'a PAS été envoyé.\n${emailErr.message || emailErr}`);
           }
         }
       }

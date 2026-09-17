@@ -14,7 +14,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { to, childName, subscriptionType, startDate, endDate, parentName } = await req.json()
+    const { to, parentName } = await req.json()
 
     if (!to) {
       return new Response(JSON.stringify({ error: 'Email recipient is required' }), { status: 400, headers })
@@ -48,10 +48,6 @@ const handler = async (req: Request): Promise<Response> => {
     .body { padding: 30px; }
     .body h2 { color: #333; margin-top: 0; }
     .body p { color: #555; line-height: 1.6; }
-    .details { background: #f8f4f4; border-radius: 6px; padding: 20px; margin: 20px 0; }
-    .details td { padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px; }
-    .details td:first-child { color: #888; font-weight: 600; width: 40%; }
-    .details td:last-child { color: #333; }
     .footer { text-align: center; padding: 20px; color: #999; font-size: 12px; }
   </style>
 </head>
@@ -61,16 +57,9 @@ const handler = async (req: Request): Promise<Response> => {
       <img src="https://lpjdpcguplkpdfgxomps.supabase.co/storage/v1/object/public/logo/logo.png" alt="Toupti Gym" />
     </div>
     <div class="body">
-      <h2>Bienvenue ${parentName || 'chez Toupti Gym'} !</h2>
-      <p>Nous sommes ravis de vous compter parmi nos membres. L'abonnement de votre enfant a été créé avec succès.</p>
-      <div class="details">
-        <table>
-          <tr><td>Enfant</td><td><strong>${childName || '—'}</strong></td></tr>
-          <tr><td>Type d'abonnement</td><td><strong>${subscriptionType || '—'}</strong></td></tr>
-          <tr><td>Date de début</td><td>${startDate || '—'}</td></tr>
-          <tr><td>Date de fin</td><td>${endDate || '—'}</td></tr>
-        </table>
-      </div>
+      <h2>Bienvenue à Toupti Gym${parentName ? `, ${parentName}` : ''} !</h2>
+      <p>Votre compte parent a été créé avec succès dans notre système.</p>
+      <p>Vous recevrez prochainement une confirmation par email lorsque l'abonnement de votre enfant sera enregistré.</p>
       <p>Pour toute question ou information complémentaire, n'hésitez pas à nous contacter.</p>
       <p>Sportivement,<br><strong>L'équipe Toupti Gym</strong></p>
     </div>
@@ -84,11 +73,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     const text = `Bienvenue à Toupti Gym${parentName ? `, ${parentName}` : ''} !
 
-L'abonnement de votre enfant ${childName || ''} a été créé avec succès.
+Votre compte parent a été créé avec succès dans notre système.
 
-Type d'abonnement : ${subscriptionType || '—'}
-Date de début : ${startDate || '—'}
-Date de fin : ${endDate || '—'}
+Vous recevrez une confirmation par email lorsque l'abonnement de votre enfant sera enregistré.
 
 Pour toute question, n'hésitez pas à nous contacter.
 
@@ -97,7 +84,7 @@ Sportivement, L'équipe Toupti Gym`
     const info = await transporter.sendMail({
       from: `"Toupti Gym" <${fromEmail}>`,
       to,
-      subject: 'Bienvenue à Toupti Gym - Abonnement confirmé !',
+      subject: 'Bienvenue à Toupti Gym - Compte parent créé !',
       html,
       text,
     })

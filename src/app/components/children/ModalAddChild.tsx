@@ -42,12 +42,34 @@ export function ModalAddChild({ onClose, onCreated }: { onClose: () => void; onC
     try {
       const result = await upload.uploadFile(file, "children");
       setPhotoUrl(result.url);
+      setPhotoFromHeld(false);
     } catch (err: any) {
       alert("Erreur lors du téléchargement: " + err.message);
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  }
+
+  // When the ZKTeco ID is entered, auto-fetch the original photo that was
+  // registered with that ID (stored by register_person.js in zkteco_photos).
+  const [photoFromHeld, setPhotoFromHeld] = useState(false);
+
+  async function handleZktecoIdChange(value: string) {
+    set("zkteco_id", value);
+    const trimmed = value.trim();
+    if (!trimmed || photoUrl) {
+      // don't overwrite a manually-chosen photo
+      if (!photoUrl) setPhotoUrl("");
+      return;
+    }
+    try {
+      const held = await api.zkteco.getHeldPhoto(trimmed);
+      if (held?.photo_url) {
+        setPhotoUrl(held.photo_url);
+        setPhotoFromHeld(true);
+      }
+    } catch (_) {}
   }
 
   async function handleSubmit() {
@@ -66,6 +88,9 @@ export function ModalAddChild({ onClose, onCreated }: { onClose: () => void; onC
         postal_code: form.postal_code || null,
         photo: photoUrl || null,
       });
+      if (form.zkteco_id) {
+        api.zkteco.claimHeldPhoto(form.zkteco_id);
+      }
       onCreated?.();
       onClose();
     } catch (err: any) {
@@ -98,9 +123,15 @@ export function ModalAddChild({ onClose, onCreated }: { onClose: () => void; onC
               <Upload size={14} /> {uploading ? "Téléchargement..." : photoUrl ? "✅ Photo ajoutée" : "Choisir une photo"}
             </button>
             {photoUrl && (
-              <button type="button" onClick={() => setPhotoUrl("")} className="ml-2 text-xs text-slate-400 hover:text-red-500">
-                Retirer
-              </button>
+              <div className="mt-1 flex items-center gap-2">
+                {photoFromHeld ? (
+                  <span className="text-[11px] text-emerald-600 font-medium">📸 Photo retrouvée automatiquement pour cet ID</span>
+                ) : (
+                  <button type="button" onClick={() => setPhotoUrl("")} className="ml-2 text-xs text-slate-400 hover:text-red-500">
+                    Retirer
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -138,7 +169,7 @@ export function ModalAddChild({ onClose, onCreated }: { onClose: () => void; onC
             </select>
           </Field>
           <Field label="ZKTeco ID">
-            <input className={inputCls} placeholder="ZK-XXXX" value={form.zkteco_id} onChange={e => set("zkteco_id", e.target.value)} />
+            <input className={inputCls} placeholder="ZK-XXXX" value={form.zkteco_id} onChange={e => handleZktecoIdChange(e.target.value)} />
           </Field>
           <Field label="Code postal">
             <input className={inputCls} placeholder="20000" value={form.postal_code} onChange={e => set("postal_code", e.target.value)} />

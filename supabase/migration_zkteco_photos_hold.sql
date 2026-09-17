@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS zkteco_photos (
   source VARCHAR(20) DEFAULT 'device',
   status VARCHAR(20) DEFAULT 'pending',   -- pending | claimed
   created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
   claimed_at TIMESTAMPTZ,
   UNIQUE (zkteco_id)
 );

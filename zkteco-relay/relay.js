@@ -2,34 +2,48 @@ const { Client } = require('pg');
 const https = require('https');
 const crypto = require('crypto');
 const querystring = require('querystring');
+const path = require('path');
+const fs = require('fs');
+
+// ── Minimal .env loader (no dotenv dependency) ─────────────────────────────
+// Reads KEY=VALUE lines from a local .env file (if present) into process.env
+// WITHOUT overwriting real environment variables. Used to hold secrets
+// (ZKBIO_PASSWORD, ZKBIO_BROWSER_TOKEN, etc.) so they are not hard-coded.
+function loadEnvFile(file) {
+  try {
+    if (!fs.existsSync(file)) return;
+    const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const m = trimmed.match(/^([\w.-]+)\s*=\s*(.*)$/);
+      if (m && !(m[1] in process.env)) {
+        process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+      }
+    }
+  } catch (_) {}
+}
+loadEnvFile(path.join(__dirname, '.env'));
 
 const SUPABASE_URL =
   'https://atvdorphwnpzhobvfmtz.supabase.co/functions/v1/zkteco/events';
 const DEVICE_TOKEN = 'zk_relay_2026_9X4K_secret';
 
-// --- Photo-import config (device face photo → child profile photo) ---
-const SUPABASE_REST_HOST = 'atvdorphwnpzhobvfmtz.supabase.co';
-const SUPABASE_REST_BASE = '/rest/v1';
-const SUPABASE_ANON_KEY = 'sb_publishable_A6MqQPu7dnrtr04JFtHGBg_rRw8e_Nb';
-// Cloudinary direct signed upload (from your Cloudinary dashboard)
-const CLOUDINARY_CLOUD = 'td3fzirz'; // NOT toutigym
-const CLOUDINARY_API_KEY = '486274344365529';
-const CLOUDINARY_API_SECRET = '3LaqXDn-69bmwidN0OJFPan0_tM';
-const CLOUDINARY_UPLOAD_PRESET = 'ml_default';
 
-// ZKBio local web
-const ZKBIO_HOST = 'localhost'; // matches fresh capture (localhost:8098)
-const ZKBIO_PORT = 8098;
-const ZKBIO_USER = 'admin';
-const ZKBIO_PASS_PLAIN = 'Admin123'; // used for userLoginPwd
+// ZKBio local web — HTTPS (browser proof: https://192.168.1.202:8098)
+// Values can be overridden via .env: ZKBIO_HOST, ZKBIO_PORT, ZKBIO_USER, ZKBIO_PASSWORD
+const ZKBIO_HOST = process.env.ZKBIO_HOST || '192.168.1.202';
+const ZKBIO_PORT = Number(process.env.ZKBIO_PORT || 8098);
+const ZKBIO_USER = process.env.ZKBIO_USER || 'admin';
+const ZKBIO_PASS_PLAIN = process.env.ZKBIO_PASSWORD || 'Admin123'; // used for userLoginPwd
 const ZKBIO_PASS_MD5 = crypto.createHash('md5').update(ZKBIO_PASS_PLAIN, 'utf8').digest('hex'); // loginPwd
 
 // Door open payload (captured from DevTools — working request for this gym/ZKB)
 const DOOR_OPEN = {
   openInterval: '5',
-  ids: '4028814aa04db40301a04db94cd30a30',
-  names: '192.168.1.201-1', // the actual door name (from capture)
-  browserToken: '0b45e7fee18e61df2237db91b10fd447', // hardcoded temp — paired with SESSION capture; automate later
+  ids: '4028814aa04db40301a04db507870486',
+  names: 'maitre',
+  browserToken: '', // acquired by refreshBrowserToken() after login
   extra: {
     type: 'openDoor',
     disabledDoorsName: '',
@@ -48,16 +62,41 @@ const pgClient = new Client({
 
 const POLL_INTERVAL_MS = 3000;
 
+// Startup behaviour:
+//   START_FROM_LATEST=true  (default)  → skip old history (start at MAX(log_id))
+//   START_FROM_LATEST=false            → process from lastLogId=0 (all history)
+// On restart, a persistent state file (last_log_id.json) is preferred so the
+// relay never re-processes events it already forwarded.
+const START_FROM_LATEST = String(process.env.START_FROM_LATEST ?? 'true').toLowerCase() === 'true';
+const STATE_FILE = path.join(__dirname, 'last_log_id.json');
+
 let lastLogId = 0;
 let isPolling = false;
 
-// ZKBio session cookie (SESSION=...)
-// NOTE: hardcoded temporarily so the door can open NOW.
-// TODO later: extract browserToken + SESSION automatically at login.
-let zkCookie = 'MWQyYjE0MjItZmIwNi00Yzk1LTk3YTAtZDJmMDg0MjdjYzUy';
+// ZKBio session cookie (SESSION=...) — acquired via direct zkLogin().
+let zkCookie = '';
 
 function log(msg) {
   console.log(`[${new Date().toISOString()}] ${msg}`);
+}
+
+// ── Persistent lastLogId state ─────────────────────────────────────────────
+function loadState() {
+  try {
+    if (fs.existsSync(STATE_FILE)) {
+      const s = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+      if (s && Number.isFinite(s.lastLogId) && s.lastLogId > 0) {
+        lastLogId = Number(s.lastLogId);
+        log(`Loaded saved state: lastLogId=${lastLogId}`);
+      }
+    }
+  } catch (_) {}
+}
+
+function saveState() {
+  try {
+    fs.writeFileSync(STATE_FILE, JSON.stringify({ lastLogId, savedAt: new Date().toISOString() }), 'utf8');
+  } catch (_) {}
 }
 
 function httpsReq({ hostname, port, path, method, headers, body }) {
@@ -68,7 +107,7 @@ function httpsReq({ hostname, port, path, method, headers, body }) {
         port,
         path,
         method,
-        rejectUnauthorized: false,
+        rejectUnauthorized: false, // ZKBio uses a custom/self-signed cert
         headers: headers || {},
       },
       (resp) => {
@@ -89,22 +128,116 @@ function httpsReq({ hostname, port, path, method, headers, body }) {
   });
 }
 
-// Pull a fresh browser-token from the ZKBio session by GETting the main page.
-// Called at startup and after a fresh login if the token is empty.
-async function refreshBrowserToken() {
-  try {
-    const init = await httpsReq({ hostname: ZKBIO_HOST, port: ZKBIO_PORT, path: '/main.do?home&selectSysCode=Pers', method: 'GET', headers: { Cookie: `org.springframework.web.servlet.i18n.CookieLocaleResolver.LOCALE=en-US; ${zkCookie}` } });
-    const html = init.body || '';
-    // look for browser-token in script/var/header
-    let m = html.match(/browser[\s_:-]*token['"]?\s*[:=]\s*['"]?([a-f0-9]{32})/i);
-    if (!m) m = html.match(/['"]browserToken['"]\s*:\s*['"]([a-f0-9]{32})['"]/i);
-    if (m) { DOOR_OPEN.browserToken = m[1]; return true; }
-    // try response header
-    const h = init.headers['browser-token'] || init.headers['Browser-Token'];
-    if (h && /^[a-f0-9]{32}$/i.test(String(h))) { DOOR_OPEN.browserToken = String(h); return true; }
-    return false;
-  } catch (_) { return false; }
+// zkCookieHeader() — returns the Cookie header value for ZKBio requests.
+function zkCookieHeader() {
+  return `org.springframework.web.servlet.i18n.CookieLocaleResolver.LOCALE=en-US; ${zkCookie}`;
 }
+
+// Pull a fresh browser-token from the ZKBio session.
+// Order of discovery:
+//   1) POST /login.do response headers/body
+//   2) GET /main.do?home&selectSysCode=Acc response HEADERS (any browser-token header)
+//   3) The same page's HTML/JS (flexible patterns)
+//   4) Fallback: access-level page / dashboard HTML
+//   5) Optional .env override: ZKBIO_BROWSER_TOKEN (runtime credential only)
+async function refreshBrowserToken() {
+  // (a) login response headers/body may carry the token
+  try {
+    const h = zkLoginRespHeaders['browser-token'] || zkLoginRespHeaders['Browser-Token'];
+    if (h && /^[a-f0-9]{32}$/i.test(String(h).trim())) {
+      DOOR_OPEN.browserToken = String(h).trim();
+      log(`[ZKBIO] browserToken found in login headers: ${DOOR_OPEN.browserToken}`);
+      return true;
+    }
+    if (zkLoginRespBody) {
+      const m = zkLoginRespBody.match(/["']?browser[\s_:-]*token["']?\s*[:=]\s*["']?([a-f0-9]{32})/i);
+      if (m) {
+        DOOR_OPEN.browserToken = m[1];
+        log(`[ZKBIO] browserToken found in login JSON: ${DOOR_OPEN.browserToken}`);
+        return true;
+      }
+    }
+  } catch (_) {}
+
+  // (b) page-based discovery — check headers AND HTML of each candidate page
+  const candidatePaths = [
+    '/main.do?home&selectSysCode=Acc',
+    '/main.do?home&selectSysCode=Pers',
+    '/dashboard.do?dashboard',
+    '/main.do',
+    '/main.do?home',
+  ];
+
+  const patterns = [
+    /browserToken\s*[:=]\s*["']([a-f0-9]{32})["']/i,
+    /browser-token\s*[:=]\s*["']([a-f0-9]{32})["']/i,
+    /browser_token\s*[:=]\s*["']([a-f0-9]{32})["']/i,
+    /["']browserToken["']\s*[:=]\s*["']([a-f0-9]{32})["']/i,
+    /browser[\s_:-]*token['"]?\s*[:=]\s*['"]?\s*([a-f0-9]{32})/i,
+  ];
+
+  for (const pagePath of candidatePaths) {
+    try {
+      log(`[ZKBIO] Searching ${pagePath} for browser token...`);
+      const res = await httpsReq({
+        hostname: ZKBIO_HOST,
+        port: ZKBIO_PORT,
+        path: pagePath,
+        method: 'GET',
+        headers: {
+          Cookie: zkCookieHeader(),
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:154.0) Gecko/20100101 Firefox/154.0',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      });
+
+      if (res.statusCode === 200) log(`[ZKBIO] Access Control page loaded: YES (${pagePath})`);
+      const html = res.body || '';
+      log(`[ZKBIO] HTML length=${html.length}`);
+
+      // 1) response headers
+      const hdrs = res.headers || {};
+      for (const hk of Object.keys(hdrs)) {
+        if (/browser[\s_:-]*token/i.test(hk)) {
+          const hv = String(hdrs[hk] || '');
+          const hm = hv.match(/[a-f0-9]{32}/i);
+          if (hm && /^[a-f0-9]{32}$/i.test(hm[0])) {
+            DOOR_OPEN.browserToken = hm[0];
+            log(`[ZKBIO] browserToken found in header (${hk}): ${DOOR_OPEN.browserToken}`);
+            return true;
+          }
+        }
+      }
+
+      // 2) HTML / inline JS / meta tags — flexible match
+      for (const p of patterns) {
+        const m = html.match(p);
+        if (m && /^[a-f0-9]{32}$/i.test(m[1])) {
+          DOOR_OPEN.browserToken = m[1];
+          log(`[ZKBIO] browserToken found in HTML (${pagePath}): ${DOOR_OPEN.browserToken}`);
+          return true;
+        }
+      }
+    } catch (e) {
+      log(`[ZKBIO] token attempt failed: ${pagePath} - ${e.message}`);
+    }
+  }
+
+  // (c) optional .env runtime credential — NOT assumed permanent
+  const envToken = process.env.ZKBIO_BROWSER_TOKEN;
+  if (envToken && /^[a-f0-9]{32}$/i.test(String(envToken).trim())) {
+    DOOR_OPEN.browserToken = String(envToken).trim();
+    log(`[ZKBIO] browserToken loaded from env (ZKBIO_BROWSER_TOKEN)`);
+    return true;
+  }
+
+  return false;
+}
+
+// Remembers the raw login response (headers/body) so refreshBrowserToken can
+// inspect them without a second request.
+let zkLoginRespHeaders = {};
+let zkLoginRespBody = '';
 
 async function zkLogin() {
   const form = querystring.stringify({
@@ -125,6 +258,10 @@ async function zkLogin() {
     body: form,
   });
 
+  // remember raw login response so refreshBrowserToken can inspect it
+  zkLoginRespHeaders = res.headers || {};
+  zkLoginRespBody = res.body || '';
+
   const setCookie = res.headers['set-cookie'] || [];
   const sessionLine = setCookie.find((c) => String(c).toUpperCase().startsWith('SESSION='));
   if (!sessionLine) {
@@ -132,6 +269,7 @@ async function zkLogin() {
   }
 
   zkCookie = sessionLine.split(';')[0];
+  log('[ZKBIO] SESSION acquired: YES');
 
   // login.do returns JSON with a "data" field like "dashboard.do?dashboard".
   // Visiting it once often finalizes the session.
@@ -149,119 +287,110 @@ async function zkLogin() {
       },
     });
 
-    // browserToken lives in the logged-in HTML (e.g. window.browserToken="...").
-    const html = landing.body || '';
-    const btMatch = html.match(/browser[\s_:-]*token['"]?\s*[:=]\s*['"]?([a-f0-9]{32})/i);
-    const btHeader = (typeof res.headers['browser-token'] === 'string' ? res.headers['browser-token'] : '')
-                  || (typeof landing.headers['browser-token'] === 'string' ? landing.headers['browser-token'] : '');
-    const bt = (btMatch && btMatch[1]) || btHeader;
-    if (/^[a-f0-9]{32}$/i.test(String(bt).trim())) DOOR_OPEN.browserToken = String(bt).trim();
-
-    log(`✅ ZKBio login OK, cookie=${zkCookie}, landed=${nextPath}, browserToken=${DOOR_OPEN.browserToken}`);
+    log(`[ZKBIO] Access Control page loaded: YES (${nextPath})`);
   } catch (e) {
-    log(`✅ ZKBio login OK, cookie=${zkCookie} (no landing: ${e.message})`);
+    log(`[ZKBIO] landing skipped: ${e.message}`);
   }
+
+  await refreshBrowserToken();
+
+  log(`✅ ZKBio login OK, session+token status: browserToken acquired: ${/^[a-f0-9]{32}$/i.test(DOOR_OPEN.browserToken) ? 'YES' : 'NO'}`);
 }
 
 async function zkOpenDoor() {
-  // The browser first "arms" the door-open by POSTing the form (getDoorIds),
-  // THEN submits to ?openDoor. Without the arm step ZKBio returns 201 but never
-  // actually releases the lock.
-  async function armOpen() {
-    const body = querystring.stringify({
-      getDoorIds: '',
-      type: DOOR_OPEN.extra.type,
-      ids: DOOR_OPEN.ids,
-    });
-    const res = await httpsReq({
-      hostname: ZKBIO_HOST,
-      port: ZKBIO_PORT,
-      path: '/accDoor.do',
-      method: 'POST',
-      headers: {
-        'Host': `${ZKBIO_HOST}:${ZKBIO_PORT}`,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:154.0) Gecko/20100101 Firefox/154.0',
-        'Accept': 'text/html, */*; q=0.01',
-        'Accept-Language': 'fr,fr-FR;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'Content-Length': Buffer.byteLength(body),
-        'pragma': 'no-cache',
-        'cache-control': 'no-cache',
-        'browser-token': DOOR_OPEN.browserToken || '',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Origin': `https://${ZKBIO_HOST}:${ZKBIO_PORT}`,
-        'Connection': 'keep-alive',
-        'Referer': `https://${ZKBIO_HOST}:${ZKBIO_PORT}/main.do?home&selectSysCode=Acc`,
-        Cookie: `org.springframework.web.servlet.i18n.CookieLocaleResolver.LOCALE=en-US; ${zkCookie}`,
-      },
-      body,
-    });
-    return res;
-  }
-
+  // ── PROVEN single-POST door-open (captured HAR) ─────────────────────
+  // POST /accLevel.do?openDoor&name=All%20Doors  with levelLoginPwd etc.
+  // Success ONLY when HTTP 200 AND body contains "success":true.
   async function doOpen() {
     const body = querystring.stringify({
-      type: DOOR_OPEN.extra.type,
-      ids: DOOR_OPEN.ids,
-      name: DOOR_OPEN.names,
-      disabledDoorsName: DOOR_OPEN.extra.disabledDoorsName,
-      offlineDoorsName: DOOR_OPEN.extra.offlineDoorsName,
-      notSupportDoorsName: DOOR_OPEN.extra.notSupportDoorsName,
-      userLoginPwd: ZKBIO_PASS_PLAIN,
-      openInterval: DOOR_OPEN.openInterval,
+      levelLoginPwd: ZKBIO_PASS_PLAIN,
       loginPwd: ZKBIO_PASS_MD5,
+      openInterval: DOOR_OPEN.openInterval,
+      ids: DOOR_OPEN.ids,
+      names: DOOR_OPEN.names,
       browserToken: DOOR_OPEN.browserToken,
     });
 
+    log('[ZKBIO] Sending REAL OPEN DOOR command via accLevel.do...');
+    log(`        Door ID: ${DOOR_OPEN.ids}`);
+    log(`        Door/Level: ${DOOR_OPEN.names}`);
+
     const res = await httpsReq({
       hostname: ZKBIO_HOST,
       port: ZKBIO_PORT,
-      path: '/accDoor.do?openDoor',
+      path: '/accLevel.do?openDoor&name=All%20Doors',
       method: 'POST',
       headers: {
         'Host': `${ZKBIO_HOST}:${ZKBIO_PORT}`,
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:154.0) Gecko/20100101 Firefox/154.0',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'fr,fr-FR;q=0.9,en-US;q=0.8,en;q=0.7',
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'Content-Length': Buffer.byteLength(body),
-        'pragma': 'no-cache',
-        'cache-control': 'no-cache',
-        'browser-token': DOOR_OPEN.browserToken || '',
+        'browser-token': DOOR_OPEN.browserToken,
         'X-Requested-With': 'XMLHttpRequest',
         'Origin': `https://${ZKBIO_HOST}:${ZKBIO_PORT}`,
-        'Connection': 'keep-alive',
         'Referer': `https://${ZKBIO_HOST}:${ZKBIO_PORT}/main.do?home&selectSysCode=Acc`,
-        Cookie: `org.springframework.web.servlet.i18n.CookieLocaleResolver.LOCALE=en-US; ${zkCookie}`,
+        Cookie: zkCookieHeader(),
       },
       body,
     });
-
-    const loc = res.headers?.location ? String(res.headers.location) : '';
-    log(`ZKBio openDoor response: ${res.statusCode} location=${loc} body=${res.body}`);
 
     return res;
   }
 
   if (!zkCookie) {
+    log('[ZKBIO] No session — logging in first...');
     await zkLogin();
   }
+  if (!DOOR_OPEN.browserToken) {
+    log('[ZKBIO] browserToken missing — refreshing...');
+    await refreshBrowserToken();
+  }
+  if (!DOOR_OPEN.browserToken) {
+    throw new Error('ZKBio browserToken is missing — refusing to send door-open command');
+  }
 
-  // Step 1: arm the door-open (getDoorIds) — returns HTML form
-  await armOpen();
   let res = await doOpen();
 
-  // If session expired/redirected, re-login and retry once immediately
+  // Session expired → re-login, refresh token, and retry once.
   if (res.statusCode === 302) {
     zkCookie = '';
-    log('ZKBio openDoor: got 302, re-login and retry once...');
+    DOOR_OPEN.browserToken = '';
+    log('[ZKBIO] Got 302 — session expired, re-login and retry once...');
     await zkLogin();
-    await armOpen();
+    await refreshBrowserToken();
+    if (!DOOR_OPEN.browserToken) {
+      throw new Error('ZKBio browserToken is missing after re-login — refusing to send door-open command');
+    }
     res = await doOpen();
   }
 
-  // 200 = "ret:ok" (browser) → door actually released. Treat 200 as success.
-  return res.statusCode === 200;
+  const bodyText = String(res.body || '');
+  log(`[ZKBIO] HTTP: ${res.statusCode}`);
+  const is200 = res.statusCode === 200;
+  let retOk = false;
+  let successTrue = false;
+  if (is200) {
+    try {
+      const j = JSON.parse(bodyText);
+      retOk = j.ret === 'ok';
+      successTrue = j.success === true;
+      log(`        ret: ${j.ret}, msg: ${j.msg}, success: ${j.success}`);
+    } catch (_) {
+      retOk = bodyText.includes('"ret":"ok"');
+      successTrue = bodyText.includes('"success":true');
+      log(`        body: ${bodyText.slice(0, 200)}`);
+    }
+  } else {
+    log(`        response: ${bodyText.slice(0, 200)}`);
+  }
+
+  if (is200 && retOk && successTrue) {
+    log('[DOOR] OPEN COMMAND ACCEPTED');
+    return true;
+  }
+  log('[DOOR] OPEN COMMAND FAILED');
+  return false;
 }
 
 function forwardToSupabase(payload) {
@@ -293,195 +422,19 @@ function forwardToSupabase(payload) {
     req.end(data);
   });
 }
-
-// ── Photo import from device face capture ────────────────────────────
-
-// Get an existing held photo row for a ZKTeco id (null if none).
-
-// Fetch the photo for relPath. ZKBio stores files under:
-// C:\Program Files\ZKBio CVAccess\service\zkbiosecurity\BioSecurityFile\upload\...
-// relPath like /upload/pers/user/avatar/2026-08-28/7.jpg
-const ZKBIO_FILE_ROOT = 'C:\\Program Files\\ZKBio CVAccess\\service\\zkbiosecurity\\BioSecurityFile';
-// Prefer the device-camera face crop (real per-person photo), fall back to avatar.
-function fetchZkPhoto(relPath, pin) {
-  return new Promise((resolve) => {
-    const fs = require('fs');
-    const path = require('path');
-    const pinStr = String(pin || '');
-    const rootsToTry = [];
-
-    if (pinStr) {
-      rootsToTry.push(
-        path.join(ZKBIO_FILE_ROOT, 'upload', 'pers', 'user', 'cropface', pinStr, `${pinStr}.jpg`),
-        path.join(ZKBIO_FILE_ROOT, 'upload', 'pers', 'user', 'cropface', `${pinStr}.jpg`),
-      );
-    }
-    // avatar from DB relPath
-    const rel = String(relPath).replace(/^[/\\]+/, '');
-    rootsToTry.push(
-      path.join(ZKBIO_FILE_ROOT, rel),
-      path.join(ZKBIO_FILE_ROOT, rel.replace(/^upload[/\\]?/, '')),
-    );
-
-    for (const p of rootsToTry) {
-      try {
-        const buf = fs.readFileSync(p);
-        if (buf && buf.length > 100) {
-          log(`  read local ${p} bytes=${buf.length}`);
-          return resolve(buf);
-        }
-      } catch (_) {}
-    }
-    log(`  ⚠ local file not found for pin=${pinStr} rel=${relPath}`);
-    resolve(null);
-  });
-}
-
-// Upload to Cloudinary and return the parsed result ({secure_url, public_id}).
-// Uses SIGNED authentication (API key + secret + SHA-1 signature) so it works
-// without an unsigned preset.
-function uploadToCloudinaryReturn(buf) {
-  return new Promise((resolve) => {
-    const timestamp = Math.floor(Date.now() / 1000).toString();
-    const folder = 'children';
-    const crypto = require('crypto');
-
-    // Signature = SHA1(sorted "param=value&..." + secret)  (timestamp & folder)
-    const toSign = `folder=${folder}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`;
-    const signature = crypto.createHash('sha1').update(toSign, 'utf8').digest('hex');
-
-    const boundary = '----RelayBoundary' + Date.now().toString(16);
-    const CRLF = '\r\n';
-    let bodyBuf = Buffer.from('');
-    const appendStr = (s) => { bodyBuf = Buffer.concat([bodyBuf, Buffer.from(s)]); };
-    const appendBuf = (b) => { bodyBuf = Buffer.concat([bodyBuf, b]); };
-
-    function addField(name, value) {
-      appendStr(`--${boundary}${CRLF}Content-Disposition: form-data; name="${name}"${CRLF}${CRLF}${value}${CRLF}`);
-    }
-    addField('folder', folder);
-    addField('timestamp', timestamp);
-    addField('api_key', CLOUDINARY_API_KEY);
-    addField('signature', signature);
-    appendStr(`--${boundary}${CRLF}Content-Disposition: form-data; name="file"; filename="photo.jpg"${CRLF}Content-Type: image/jpeg${CRLF}${CRLF}`);
-    appendBuf(buf);
-    appendStr(`${CRLF}--${boundary}--${CRLF}`);
-
-    const req = https.request(
-      { hostname: 'api.cloudinary.com', port: 443, path: `/v1_1/${CLOUDINARY_CLOUD}/auto/upload`, method: 'POST', headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': bodyBuf.length } },
-      (resp) => {
-        let out = '';
-        resp.on('data', (c) => (out += c));
-        resp.on('end', () => {
-          try {
-            const j = JSON.parse(out);
-            if (j.secure_url) return resolve({ secure_url: j.secure_url, public_id: j.public_id || '' });
-            log(`  ⚠ cloudinary said: ${JSON.stringify(j).slice(0, 300)}`);
-            resolve(null);
-          } catch { resolve(null); }
-        });
-      }
-    );
-    req.on('error', (e) => { log(`  ⚠ cloudinary req error: ${e.message}`); resolve(null); });
-    req.end(bodyBuf);
-  });
-}
-
-// Get an existing held photo row for a ZKTeco id (null if none).
-function getHeldPhoto(zktecoId) {
-  return new Promise((resolve) => {
-    const path = `${SUPABASE_REST_BASE}/zkteco_photos?select=id,zkteco_id,photo_url&zkteco_id=eq.${encodeURIComponent(zktecoId)}&limit=1`;
-    const req = https.request(
-      { hostname: SUPABASE_REST_HOST, port: 443, path, method: 'GET', headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } },
-      (resp) => {
-        let out = '';
-        resp.on('data', (c) => (out += c));
-        resp.on('end', () => {
-          try { const rows = JSON.parse(out); resolve(rows && rows[0] ? rows[0] : null); }
-          catch { resolve(null); }
-        });
-      }
-    );
-    req.on('error', () => resolve(null));
-    req.end();
-  });
-}
-
-// Insert a held-photo row (upsert on zkteco_id).
-function upsertHeldPhoto(zktecoId, cloudResult) {
-  return new Promise((resolve) => {
-    const body = JSON.stringify({
-      zkteco_id: zktecoId,
-      photo_url: cloudResult.secure_url,
-      cloudinary_public_id: cloudResult.public_id || '',
-      source: 'device',
-      status: 'pending',
-    });
-    const path = `${SUPABASE_REST_BASE}/zkteco_photos?on_conflict=zkteco_id`;
-    const req = https.request(
-      { hostname: SUPABASE_REST_HOST, port: 443, path, method: 'POST', headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), Prefer: 'resolution=merge-duplicates' } },
-      (resp) => { resp.resume(); resp.on('end', () => resolve(resp.statusCode < 300)); }
-    );
-    req.on('error', () => resolve(false));
-    req.end(body);
-  });
-}
-
-// Look up the person's stored profile photo path in ZKBio's PostgreSQL.
-// pers_person.pin / number_pin = the ZKTeco PIN the device uses.
-// pers_person.photo_path = browser-uploaded avatar
-async function getZkPersonPhotoPath(pin) {
-  // 1) Match by pin (exact)
-  try {
-    const q = await pgClient.query(
-      `SELECT photo_path FROM public.pers_person WHERE pin = $1 OR number_pin = $1 OR CAST(number_pin AS text) = $1 LIMIT 1`,
-      [pin]
-    );
-    if (q.rows.length && q.rows[0].photo_path) return q.rows[0].photo_path;
-  } catch (_) {}
-
-  // 2) Match by filename containing /<pin>. (e.g. .../7.jpg)
-  try {
-    const q2 = await pgClient.query(
-      `SELECT photo_path FROM public.pers_person WHERE photo_path ILIKE '%/${pin}.%' LIMIT 1`
-    );
-    if (q2.rows.length) return q2.rows[0].photo_path;
-  } catch (_) {}
-
-  return null;
-}
-
-// Called from poll() when a transaction carries a capture_photo_path (device-camera
-// face snap). Also covers browser-uploaded avatars via pers_person.photo_path.
-// All photos are written to the zkteco_photos HOLDING table; the app claims them
-// when a child is created/edited with that ZKTeco ID.
-async function tryImportPhoto(pin, capturePhotoPath) {
-  try {
-    const existing = await getHeldPhoto(pin);
-    if (existing) return; // already held
-
-    let relPath = capturePhotoPath;
-    if (!relPath) {
-      relPath = await getZkPersonPhotoPath(pin); // browser-uploaded avatar
-    }
-    if (!relPath) {
-      log(`  ⚠ no photo path for pin=${pin} (device or DB)`);
-      return;
-    }
-
-    log(`📸 Holding photo for pin=${pin} from ${relPath}...`);
-    const buf = await fetchZkPhoto(relPath, pin);
-    if (!buf || buf.length < 500) { log('  ⚠ no photo content from ZKBio'); return; }
-    const up = await uploadToCloudinaryReturn(buf);
-    if (!up) { log('  ⚠ cloudinary upload failed'); return; }
-    const ok = await upsertHeldPhoto(pin, up);
-    log(ok ? `  ✅ Photo held for pin=${pin}: ${up.secure_url}` : '  ⚠ supabase upsert failed');
-  } catch (e) {
-    log(`  ⚠ photo import error: ${e.message}`);
-  }
-}
-
 async function initLastLogId() {
+  // 1) persistent state from a previous run wins — never re-process old events
+  if (lastLogId > 0) {
+    log(`Resuming from saved lastLogId=${lastLogId} (no history re-processing)`);
+    return;
+  }
+  // 2) no saved state → honour START_FROM_LATEST
+  if (!START_FROM_LATEST) {
+    lastLogId = 0;
+    log('START_FROM_LATEST=false — processing from lastLogId=0');
+    return;
+  }
+  // 3) default: skip all history
   const q = await pgClient.query(
     'SELECT COALESCE(MAX(log_id), 0) AS max_id FROM public.acc_transaction;'
   );
@@ -496,8 +449,9 @@ async function poll() {
   try {
     const q = await pgClient.query(
       `
-      SELECT log_id, pin, event_time, dev_alias, dev_sn, event_no, event_name,
-             verify_mode_no, verify_mode_name, capture_photo_path, unique_key
+      SELECT log_id, pin, event_time, event_no, event_name,
+             verify_mode_no, verify_mode_name, event_point_name,
+             dev_alias, dev_sn, capture_photo_path, unique_key
       FROM public.acc_transaction
       WHERE log_id > $1
       ORDER BY log_id ASC
@@ -507,14 +461,12 @@ async function poll() {
     );
 
     if (q.rows.length === 0) {
-      log('No new transactions');
-      return;
+      return; // silence "No new transactions" spam
     }
-
-    log(`Got ${q.rows.length} new transactions`);
 
     for (const row of q.rows) {
       lastLogId = row.log_id;
+      saveState(); // mark processed exactly once (persistent across restarts)
 
       const personnelId = row.pin ? String(row.pin).trim() : '';
       if (!personnelId) continue;
@@ -522,6 +474,18 @@ async function poll() {
       const capturedAt = row.event_time
         ? new Date(row.event_time).toISOString()
         : new Date().toISOString();
+
+      // ── [EVENT] complete transaction fields ──────────────────────────
+      log('');
+      log('━━━ [EVENT] ━━━');
+      log(`log_id=${row.log_id}`);
+      log(`pin=${personnelId}`);
+      log(`event_time=${row.event_time}`);
+      log(`event_no=${row.event_no}  event_name=${row.event_name}`);
+      log(`verify_mode_no=${row.verify_mode_no}  verify_mode_name=${row.verify_mode_name}`);
+      log(`door=${row.event_point_name || ''}`);
+      log(`device=${row.dev_alias || ''}  sn=${row.dev_sn || ''}`);
+      log(`capture_photo_path=${row.capture_photo_path || ''}`);
 
       const payload = {
         personnelId,
@@ -531,25 +495,40 @@ async function poll() {
         device: row.dev_alias || 'unknown',
       };
 
-      log(`Forwarding log_id=${row.log_id} pin=${personnelId}`);
       const supa = await forwardToSupabase(payload);
 
-      log(`Supabase -> ${supa.statusCode} ${supa.body}`);
-
-      // Auto-import device face photo as the child's profile picture
-      await tryImportPhoto(personnelId, row.capture_photo_path);
-
-      // If allowed => open door via ZKBio remote opening
+      // ── [SUPABASE] decision ──────────────────────────────────────────
+      let parsed = {};
       try {
-        const parsed = JSON.parse(supa.body || '{}');
-        if (parsed.app_result === 'allowed') {
-          log('✅ Allowed -> opening door...');
-          await zkOpenDoor();
-        } else {
-          log('Denied -> door stays closed');
+        parsed = JSON.parse(supa.body || '{}') || {};
+      } catch (_) {}
+      log('');
+      log('━━━ [SUPABASE] ━━━');
+      log(`http=${supa.statusCode}`);
+      log(`decision=${parsed.app_result || parsed.decision || parsed.app_result || 'unknown'}`);
+      log(`reason=${parsed.reason || ''}`);
+
+      // ── [DOOR] act on decision ───────────────────────────────────────
+      const isAllowed =
+        parsed.app_result === 'allowed' ||
+        parsed.allowed === true ||
+        parsed.decision === 'allowed' ||
+        parsed.decision === 'ALLOW';
+
+      if (isAllowed) {
+        log('');
+        log('━━━ [DOOR] OPENING ━━━');
+        log('✅ ACCESS APPROVED -> sending door-open command...');
+        try {
+          const opened = await zkOpenDoor();
+          log(opened ? '✅ DOOR OPEN COMMAND SUCCEEDED' : '❌ DOOR OPEN COMMAND FAILED');
+        } catch (e) {
+          log(`❌ [DOOR] ERROR: ${e.message}`);
         }
-      } catch (e) {
-        log(`Supabase parse error: ${e.message}`);
+      } else {
+        log('');
+        log('━━━ [DOOR] DENIED ━━━');
+        log('Door remains closed.');
       }
     }
   } catch (e) {
@@ -559,102 +538,27 @@ async function poll() {
   }
 }
 
-// ── Periodic photo sync (browser-uploaded avatars) ─────────────────
-// When you upload a photo in the ZKBio browser for a child, that never
-// creates a door transaction, so the poll() alone never imports it.
-// This loop periodically checks your app's children that still lack a
-// photo and pulls their stored ZKBio avatar (pers_person.photo_path).
-async function getChildrenWithoutPhoto() {
-  return new Promise((resolve) => {
-    const qs = 'select=id,name,zkteco_id,photo&not.zkteco_id.is.null&or=(photo.is.null,photo.eq.)';
-    const req = https.request(
-      { hostname: SUPABASE_REST_HOST, port: 443, path: `${SUPABASE_REST_BASE}/children?${qs}`, method: 'GET', headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } },
-      (resp) => {
-        let out = '';
-        resp.on('data', (c) => (out += c));
-        resp.on('end', () => {
-          try { resolve(JSON.parse(out) || []); } catch { resolve([]); }
-        });
-      }
-    );
-    req.on('error', () => resolve([]));
-    req.end();
-  });
-}
-
-let syncRunning = false;
-async function syncPhotosToHold() {
-  if (syncRunning) return;
-  syncRunning = true;
-  try {
-    // Every ZKBio person that has a stored profile/avatar photo
-    const q = await pgClient.query(
-      `SELECT pin, photo_path FROM public.pers_person WHERE photo_path IS NOT NULL AND pin IS NOT NULL ORDER BY pin`
-    );
-    if (!q.rows.length) return;
-    log(`🖼️ photo-to-hold sync: ${q.rows.length} persons with a photo in ZKBio`);
-    let done = 0, held = 0;
-    for (const r of q.rows) {
-      const pin = String(r.pin).trim();
-      if (!pin) continue;
-
-      // skip if already in the holding table (pending or claimed)
-      const existing = await getHeldPhoto(pin);
-      if (existing) { held++; continue; }
-
-      const buf = await fetchZkPhoto(r.photo_path, r.pin);
-      if (!buf || buf.length < 500) { log(`  ⚠ pin=${pin} no photo content from ${r.photo_path}`); continue; }
-      const up = await uploadToCloudinaryReturn(buf);
-      if (!up) { log(`  ⚠ pin=${pin} cloudinary upload failed`); continue; }
-
-      await upsertHeldPhoto(pin, up);
-      done++;
-      log(`  ✅ held photo for pin=${pin} -> ${up.secure_url}`);
-    }
-    log(`photo-to-hold done: new=${done} already_held=${held}`);
-  } catch (e) {
-    log(`Photo-to-hold error: ${e.message}`);
-  } finally {
-    syncRunning = false;
-  }
-}
-
 async function start() {
   await pgClient.connect();
   log('✅ Connected to PostgreSQL');
 
-  // Establish a FRESH ZKBio session before doing anything (door + photos).
+  log(`Connecting to ZKBio at https://${ZKBIO_HOST}:${ZKBIO_PORT}`);
+
+  // Direct login — no browser dependency.
   try {
     await zkLogin();
-    await refreshBrowserToken();
+    log('✅ ZKBio authentication completed (SESSION + browserToken acquired)');
   } catch (e) {
-    log(`⚠ ZKBio login at startup failed: ${e.message}`);
+    log(`⚠ Initial ZKBio login failed: ${e.message}`);
+    log('   Relay will continue and retry authentication when a door-open is required.');
   }
 
-  // DEBUG: dump how ZKBio stores person photos so we can see the mapping
-  try {
-    const dbg = await pgClient.query(
-      `SELECT id, pin, number_pin, pin_letter, photo_path FROM public.pers_person WHERE photo_path IS NOT NULL LIMIT 20`
-    );
-    log(`DEBUG pers_person with photo: ${dbg.rows.length}`);
-    for (const r of dbg.rows) {
-      log(`  pin=${r.pin} number_pin=${r.number_pin} id=${r.id} photo=${r.photo_path}`);
-    }
-  } catch (e) {
-    log(`DEBUG pers_person read failed: ${e.message}`);
-  }
-
+  await loadState();
   await initLastLogId();
 
   log(`Polling acc_transaction every ${POLL_INTERVAL_MS}ms...`);
   setInterval(poll, POLL_INTERVAL_MS);
   poll();
-
-  // Periodic photo import from ZKBio persons into the holding table (every 60s)
-  const PHOTO_SYNC_MS = 60 * 1000;
-  log('Photo-to-hold sync every 60s...');
-  setInterval(syncPhotosToHold, PHOTO_SYNC_MS);
-  syncPhotosToHold();
 }
 
 start().catch((e) => {

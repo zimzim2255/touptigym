@@ -116,7 +116,7 @@ def write_file(fname, fcontent):
 print("Extracting sections from full SQL...")
 
 markers = [
-    ('INSERT INTO groups (name) VALUES', 'activites'),          # Activités → groups table
+    ('INSERT INTO groups (name, description) VALUES', 'activites'),          # Activités → groups table
     ('INSERT INTO trainers (name) VALUES', 'trainers'),
     ('INSERT INTO exercises (name, day, type, start_time, end_time, coach_id, group_id) VALUES', 'horaires'),
     ('INSERT INTO children', 'children'),

@@ -18,6 +18,24 @@ export function ModalChildDetail({ childId, onClose, onDeleted }: { childId: str
 
   useEffect(() => { loadData(); }, [childId]);
 
+  // If the child has a ZKTeco ID but no photo, auto-adopt the original photo
+  // that was stored for that ID (register_person.js → zkteco_photos).
+  useEffect(() => {
+    if (!child) return;
+    if (child.photo) return;
+    if (!child.zkteco_id) return;
+    (async () => {
+      try {
+        const held = await api.zkteco.getHeldPhoto(child.zkteco_id);
+        if (held?.photo_url) {
+          await api.children.update(child.id, { photo: held.photo_url });
+          await api.zkteco.claimHeldPhoto(child.zkteco_id);
+          setChild((prev: any) => ({ ...prev, photo: held.photo_url }));
+        }
+      } catch (_) {}
+    })();
+  }, [child, childId]);
+
   async function loadData() {
     setLoading(true);
     try {

@@ -11,6 +11,7 @@ npx supabase functions deploy prices --project-ref
 npx supabase functions deploy requests --project-ref
 npx supabase functions deploy send-birthday-emails --project-ref
 npx supabase functions deploy send-welcome-email --project-ref
+npx supabase functions deploy send-parent-email --project-ref
 npx supabase functions deploy subscriptions --project-ref
 npx supabase functions deploy trainers --project-ref
 npx supabase functions deploy upload --project-ref
