@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Check, Plus, Search, X } from "lucide-react";
 import { Modal, Field, Btn, inputCls, selectCls } from "../shared/Primitives";
-import { useApi } from "../../../hooks/useSupabase";
+import { useApi, SUPABASE_URL, SUPABASE_ANON_KEY } from "../../../hooks/useSupabase";
 import { Child } from "../../types";
 
 interface ParentData {
@@ -70,6 +70,7 @@ export function ModalAddParent({ onClose, onCreated }: { onClose: () => void; on
 
     setLoading(true);
     try {
+      const emailFailures: string[] = [];
       for (const p of parents) {
         const parent = await api.parents.create({
           name: p.name,
@@ -82,6 +83,37 @@ export function ModalAddParent({ onClose, onCreated }: { onClose: () => void; on
         for (const childId of selectedChildren) {
           await api.parents.linkChild(parent.id, childId);
         }
+
+        // Send welcome email to this parent if they provided one.
+        if (parent?.email && p.email) {
+          const to = (p.email || '').trim();
+          if (to) {
+            try {
+              const res = await fetch(`${SUPABASE_URL}/functions/v1/send-parent-email`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': SUPABASE_ANON_KEY,
+                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                },
+                body: JSON.stringify({
+                  to,
+                  parentName: p.name,
+                }),
+              });
+              if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                emailFailures.push(`${p.name || to}: HTTP ${res.status} ${body?.error || ''}`.trim());
+              }
+            } catch (emailErr: any) {
+              emailFailures.push(`${p.name || to}: ${emailErr.message || emailErr}`);
+            }
+          }
+        }
+      }
+
+      if (emailFailures.length > 0) {
+        alert(`Parent(s) créé(s) mais EMAIL NON ENVOYÉ pour:\n- ${emailFailures.join('\n- ')}\n\nVérifiez que les secrets SMTP de la fonction send-parent-email sont configurés, puis Redéployer la fonction.`);
       }
 
       onCreated?.();
