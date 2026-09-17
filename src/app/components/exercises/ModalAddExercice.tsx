@@ -31,6 +31,7 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupId, setGroupId] = useState("");
   const [name, setName] = useState("");
+  const [type, setType] = useState("");
   const [slots, setSlots] = useState<Slot[]>([{ day: "Lundi", start: "09:00", end: "10:00", coach_id: "" }]);
 
   useEffect(() => {
@@ -58,6 +59,7 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
 
   async function handleSubmit() {
     if (!name) return alert("Veuillez remplir tous les champs obligatoires");
+    if (!type.trim()) return alert("Veuillez indiquer le type d'activité");
     const hasCoach = slots.some(s => s.coach_id);
     if (!hasCoach) return alert("Au moins un créneau doit avoir un coach");
     setLoading(true);
@@ -67,7 +69,7 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
         const payload: any = {
           name,
           day: slot.day,
-          type: "",
+          type,
           start_time: slot.start,
           end_time: slot.end,
           coach_id: slot.coach_id,
@@ -88,6 +90,9 @@ export function ModalAddExercice({ onClose, onCreated, role }: Props) {
     <Modal title="Créer une Activité" onClose={onClose} wide>
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
+          <Field label="Type d'activité" required>
+            <input className={inputCls} placeholder="Ex: Football, Danse, Judo..." value={type} onChange={e => setType(e.target.value)} />
+          </Field>
           <Field label="Activité" required>
             <select className={selectCls} value={groupId} onChange={e => { setGroupId(e.target.value); setName(""); }}>
               <option value="">Sélectionner un groupe...</option>
