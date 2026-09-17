@@ -44,6 +44,7 @@ export function ModalExerciceDetail({ exerciseId, onClose, onUpdated, role }: { 
   const [editing, setEditing] = useState(false);
   const [groupId, setGroupId] = useState("");
   const [name, setName] = useState("");
+  const [type, setType] = useState("");
   const [slots, setSlots] = useState<Slot[]>([{ day: "Lundi", start: "09:00", end: "10:00", coach_id: "" }]);
 
   useEffect(() => {
@@ -63,6 +64,7 @@ export function ModalExerciceDetail({ exerciseId, onClose, onUpdated, role }: { 
       setGroups(groupsData);
       setGroupId(data.group_id || "");
       setName(data.name);
+      setType(data.type || "");
       setSlots([{
         day: data.day,
         start: data.start_time,
@@ -96,6 +98,7 @@ export function ModalExerciceDetail({ exerciseId, onClose, onUpdated, role }: { 
 
   async function handleSave() {
     if (!name) return alert("Veuillez remplir tous les champs obligatoires");
+    if (!type.trim()) return alert("Veuillez indiquer le type d'activité");
     const hasCoach = slots.some(s => s.coach_id);
     if (!hasCoach) return alert("Au moins un créneau doit avoir un coach");
     setLoading(true);
@@ -107,7 +110,7 @@ export function ModalExerciceDetail({ exerciseId, onClose, onUpdated, role }: { 
         await api.exercises.create({
           name,
           day: slot.day,
-          type: ex?.type || "",
+          type,
           start_time: slot.start,
           end_time: slot.end,
           coach_id: slot.coach_id,
@@ -156,6 +159,9 @@ export function ModalExerciceDetail({ exerciseId, onClose, onUpdated, role }: { 
       {editing ? (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
+            <Field label="Type d'activité" required>
+              <input className={inputCls} placeholder="Ex: Football, Danse, Judo..." value={type} onChange={e => setType(e.target.value)} />
+            </Field>
             <Field label="Groupe" required>
               <select className={selectCls} value={groupId} onChange={e => { setGroupId(e.target.value); setName(""); }}>
                 <option value="">Sélectionner un groupe...</option>
@@ -215,6 +221,10 @@ export function ModalExerciceDetail({ exerciseId, onClose, onUpdated, role }: { 
             <div className="flex items-center justify-between px-4 py-2.5">
               <span className="text-slate-500">Groupe</span>
               <span className="font-medium text-slate-900">{ex.name}</span>
+            </div>
+            <div className="flex items-center justify-between px-4 py-2.5">
+              <span className="text-slate-500">Type</span>
+              <span className="text-slate-900">{ex.type || "—"}</span>
             </div>
             <div className="flex items-center justify-between px-4 py-2.5">
               <span className="text-slate-500">Jour</span>
