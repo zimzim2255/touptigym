@@ -293,6 +293,70 @@ serve(async (req) => {
       return jsonResponse({ app_result: 'denied', reason: accessStatus })
     }
 
+// GET /zkteco/access-state — for the LOCAL access-sync writer (relay).
+    // Returns every child that has a zkteco_id with:
+    //   { pin, allowed_now, window:{startMin,endMin} }
+    // computed with the SAME subscription + day + time-window rules as /events,
+    // so the relay can write acc_person.disabled locally and the terminal
+    // enforces it (block before/after the window).
+    if (method === 'GET' && route === 'access-state') {
+      const capturedAt = new Date().toISOString()
+      const today = localDateStr(capturedAt)
+      const dayName = localDayName(capturedAt)
+      const base = new Date(capturedAt)
+      const nowMin = (base.getUTCHours() + 1) * 60 + base.getUTCMinutes()
+
+      const { data: children, error: cErr } = await supabase
+        .from('children')
+        .select('id, zkteco_id')
+      if (cErr) return errorResponse(cErr.message, 500)
+
+      const out: any[] = []
+      for (const ch of children || []) {
+        if (!ch.zkteco_id) continue
+        let allowedNow = false
+        let window: { startMin: number; endMin: number } | null = null
+
+        const { data: sub } = await supabase
+          .from('subscriptions')
+          .select('id, start_date, end_date')
+          .eq('child_id', ch.id)
+          .eq('status', 'actif')
+          .order('end_date', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (sub) {
+          const subEnd = sub.end_date ? String(sub.end_date).slice(0, 10) : ''
+          if (!subEnd || today <= subEnd) {
+            const { data: rows } = await supabase
+              .from('subscription_courses')
+              .select('exercises!exercise_id(id, day, start_time, end_time, start_date, end_date)')
+              .eq('subscription_id', sub.id)
+              .eq('exercises.day', dayName)
+            const exs = (rows || [])
+              .map((r: any) => Array.isArray(r.exercises) ? r.exercises[0] : r.exercises)
+              .filter(Boolean)
+            const activeOnDay = exs.filter((e: any) => {
+              if (e.start_date && today < String(e.start_date).slice(0, 10)) return false
+              if (e.end_date && today > String(e.end_date).slice(0, 10)) return false
+              return true
+            })
+            for (const ex of activeOnDay) {
+              const sm = toMinutes(ex.start_time)
+              if (sm === null) continue
+              const lo = (sm - ALLOWED_BEFORE_MIN + 1440) % 1440
+              const hi = (sm + ALLOWED_AFTER_MIN) % 1440
+              const inWin = lo <= hi ? (nowMin >= lo && nowMin <= hi) : (nowMin >= lo || nowMin <= hi)
+              if (inWin) allowedNow = true
+              window = window || { startMin: lo, endMin: hi }
+            }
+          }
+        }
+        out.push({ pin: ch.zkteco_id, allowed_now: allowedNow, window })
+      }
+      return jsonResponse({ generated_at: capturedAt, day: today, day_name: dayName, children: out })
+    }
     // ─── Device Management API ─────────────────────
 
     // GET /zkteco/devices — list all devices
