@@ -1,25 +1,33 @@
 # TouptiGym v2
 
-  Fitness application built with React, Vite, and Tailwind CSS.
+Fitness application built with React, Vite, and Tailwind CSS.
 
-  ## Ownership & Responsibility
+## License & Responsibility
 
-  This repository is provided as-is. Once access has been granted and the code has been handed over, the original author bears **no responsibility** for:
-  - Any modifications made by third parties
-  - The deployment, hosting, or maintenance of this application
-  - Any issues, bugs, or damages arising from the use or misuse of this code
-  - Any compliance or legal requirements related to the operation of this application
+This project is distributed under the terms of the **LICENSE &
+Responsibility Disclaimer** (see the `LICENSE` file).
 
-  The recipient assumes full ownership and responsibility for the code upon receipt.
+Please read it carefully. In summary:
 
-  ## Running the code
+- Anyone given access to this project, permitted to download its source
+  code, or who otherwise obtains access to this repository
+  (the "Recipient" / "second hand") accepts full ownership and
+  responsibility for the code upon receipt.
+- The main developer takes **no responsibility** for anything that has
+  happened or will happen to this project, its code, or its operation.
+- The source code is provided strictly "AS IS", with no warranties.
+- After the Recipient takes possession of the code, the main developer
+  will remove the source code from their own systems.
 
-  ```bash
-  pnpm install
-  pnpm run dev
-  ```
+## Running the code
 
-  ## Build
+```bash
+pnpm install
+pnpm run dev
+```
 
-  ```bash
-  pnpm run build
+## Build
+
+```bash
+pnpm run build
+```
