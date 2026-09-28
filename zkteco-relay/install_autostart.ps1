@@ -5,9 +5,9 @@
 # Creates a scheduled task that starts the relay at LOGON.
 # ============================================================
 
-$path = Join-Path $PSScriptRoot "run_relay.bat"
+$path = Join-Path $PSScriptRoot "run_all.bat"
 if (-not (Test-Path $path)) {
-  Write-Host "run_relay.bat not found: $path" -ForegroundColor Red
+  Write-Host "run_all.bat not found: $path" -ForegroundColor Red
   exit 1
 }
 
@@ -22,11 +22,13 @@ schtasks /Create /TN $taskName /TR "`"$path`"" /SC ONLOGON /RL LIMITED /F
 Write-Host ""
 Write-Host "✅ Auto-start installed:" -ForegroundColor Green
 Write-Host "   Task:  $taskName"
-Write-Host "   Runs:  at logon -> $path"
+Write-Host "   Runs:  at logon -> $path   (ZKTeco relay + access-sync)"
 Write-Host "   Logs:  $PSScriptRoot\relay_log.txt"
+Write-Host "          $PSScriptRoot\access_sync_log.txt"
 Write-Host ""
 Write-Host "To test now, start it manually:" -ForegroundColor Cyan
 Write-Host "   node `"$PSScriptRoot\relay.js`""
+Write-Host "   node `"$PSScriptRoot\access_sync.js --interval 120000`""
 Write-Host ""
 
 # Optional: also register a startup shortcut (simpler alternative)
